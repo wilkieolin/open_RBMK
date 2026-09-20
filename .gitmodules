@@ -1,0 +1,9 @@
+[submodule "5.1"]
+	path = 5.1
+	url = https://git.oecd-nea.org/dragon/5.1.git
+[submodule "armi"]
+	path = armi
+	url = https://github.com/terrapower/dragon-armi-plugin
+[submodule "libraries"]
+	path = libraries
+	url = https://git.oecd-nea.org/dragon/libraries.git

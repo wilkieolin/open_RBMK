@@ -1,0 +1,255 @@
+* DRAGON5 RBMK-1000 Lattice Cell Model
+* 25 cm square pitch, 18-rod cluster, Zr-Nb pressure tube
+* Graphite moderator, light water coolant
+* ~2% enriched UO2 fuel, fresh (0 burnup)
+
+MODULE LIB: GEO: ASM: FLU: EDI: SPH: EVO: END: ;
+PROCEDURE assertS ;
+
+*==============================================================
+* PARAMETERS
+*==============================================================
+REAL  pitch    := 25.0 ;       * Lattice pitch (cm)
+REAL  r_fuel   := 0.612 ;      * Fuel pellet radius (cm)
+REAL  r_gap    := 0.622 ;      * Gap outer radius (cm)
+REAL  r_clad   := 0.654 ;      * Cladding outer radius (cm)
+REAL  r_pt_in  := 5.50 ;       * Pressure tube inner radius (cm)
+REAL  r_pt_out := 5.85 ;       * Pressure tube outer radius (cm)
+REAL  r_ct_in  := 6.45 ;       * Calandria tube inner radius (cm)
+REAL  r_ct_out := 6.5875 ;     * Calandria tube outer radius (cm)
+REAL  r_mod    := 10.437 ;     * Moderator cell radius (cm) ~ pitch*sqrt(2)/2
+
+REAL  TFuel  := 900.0 ;        * Fuel temperature (K)
+REAL  TCool  := 550.0 ;        * Coolant temperature (K)
+REAL  TMode  := 700.0 ;        * Moderator temperature (K)
+REAL  TSh    := 560.0 ;        * Sheath/clad temperature (K)
+REAL  TPT    := 548.0 ;        * Pressure tube temperature (K)
+REAL  TCT    := 702.0 ;        * Calandria tube temperature (K)
+
+REAL  DCool  := 0.72 ;         * Coolant density (g/cm3) - 7MPa, ~280C
+REAL  DMode  := 1.70 ;         * Graphite density (g/cm3)
+REAL  PTdens := 6.57 ;         * Zr-Nb pressure tube density
+REAL  CTdens := 6.44 ;         * Zr calandria tube density
+REAL  Fdens  := 10.39 ;        * UO2 density (95% TD)
+REAL  Shdens := 6.57 ;         * Zr sheath density
+REAL  Gapdens:= 0.0012 ;       * Gap gas density (He)
+
+REAL  enr    := 2.0 ;          * U235 enrichment (wt%)
+REAL  enr_frac := enr 100.0 / ;
+
+*==============================================================
+* GEOMETRY: CARCEL (Cartesian cell) with CLUSTER
+*==============================================================
+GEOMS := GEO: :: CARCEL 6 1 1
+  EDIT 1
+  X- REFL MESHX -12.5 12.5 X+ REFL
+  Y- REFL MESHY -12.5 12.5 Y+ REFL
+  RADIUS  0.0000  0.724  2.162  3.603  5.077
+          <<r_pt_in>> <<r_pt_out>> <<r_ct_in>> <<r_ct_out>> <<r_mod>>
+  MIX     1 1 1 1 1 2 3 4 5 5
+  CLUSTER ROD1 ROD2 ROD3 ROD4
+  ::: ROD1 := GEO: TUBE 2
+    MIX  6 10
+    NPIN 1
+    RPIN 0.0
+    APIN 0.0
+    RADIUS 0.0000 <<r_fuel>> <<r_clad>> ;
+  ::: ROD2 := GEO: TUBE 2
+    MIX  7 10
+    NPIN 6
+    RPIN  1.4885 1.4885 1.4885 1.4885 1.4885 1.4885
+    APIN  0.0    1.047  2.094  3.142  4.189  5.236
+    RADIUS 0.0000 <<r_fuel>> <<r_clad>> ;
+  ::: ROD3 := GEO: TUBE 2
+    MIX  8 10
+    NPIN 12
+    RPIN  2.8755 2.8755 2.8755 2.8755 2.8755 2.8755
+          2.8755 2.8755 2.8755 2.8755 2.8755 2.8755
+    APIN  0.0    0.524  1.047  1.571  2.094  2.618
+          3.142  3.665  4.189  4.712  5.236  5.760
+    RADIUS 0.0000 <<r_fuel>> <<r_clad>> ;
+  ::: ROD4 := GEO: TUBE 2
+    MIX  9 10
+    NPIN 18
+    RPIN  4.3305 4.3305 4.3305 4.3305 4.3305 4.3305
+          4.3305 4.3305 4.3305 4.3305 4.3305 4.3305
+          4.3305 4.3305 4.3305 4.3305 4.3305 4.3305
+    APIN  0.0    0.349  0.698  1.047  1.396  1.745
+          2.094  2.443  2.793  3.142  3.491  3.840
+          4.189  4.538  4.887  5.236  5.585  5.934
+    RADIUS 0.0000 <<r_fuel>> <<r_clad>> ;
+;
+
+*==============================================================
+* LIBRARY: Create materials from ENDF/B-VIII.0
+*==============================================================
+LIBR := LIB: ::
+  EDIT 0
+  NMIX 10
+  CTRA WIMS
+  DEPL LIB: ENDF/B-VIII.0
+  MIXS LIB: ENDF/B-VIII.0
+
+* MIX 1: Light water coolant
+  MIX 1 <<TCool>> <<DCool>>
+        H1H2O  66.67
+        O16    33.33
+
+* MIX 2: Zr-Nb pressure tube
+  MIX 2 <<TPT>> <<PTdens>>
+        ZR90   49.34
+        ZR91   10.88
+        ZR92   16.81
+        ZR94   17.41
+        ZR96   2.86
+        NB93   2.58
+        FE56   0.043
+        CR52   0.0068
+        NI58   0.0025
+
+* MIX 3: Gap gas (He)
+  MIX 3 <<TSh>> <<Gapdens>>
+        HE4    100.0
+
+* MIX 4: Zr calandria tube
+  MIX 4 <<TCT>> <<CTdens>>
+        ZR90   49.80
+        ZR91   10.98
+        ZR92   16.97
+        ZR94   17.57
+        ZR96   2.89
+        FE56   0.124
+        NI58   0.039
+        CR52   0.0837
+
+* MIX 5: Graphite moderator
+  MIX 5 <<TMode>> <<DMode>>
+        C      99.9
+        B10    0.0001
+        B11    0.0004
+
+* MIX 6: Central fuel pin (enriched UO2)
+  MIX 6 <<TFuel>> <<Fdens>>
+        U234   0.02
+        U235   <<enr_frac>>
+        U238   1.0 <<enr_frac>> - 0.02 -
+        O16    66.67
+
+* MIX 7: Inner ring fuel (same composition)
+  MIX 7 COMB 6 1.0
+
+* MIX 8: Middle ring fuel (same composition)
+  MIX 8 COMB 6 1.0
+
+* MIX 9: Outer ring fuel (same composition)
+  MIX 9 COMB 6 1.0
+
+* MIX 10: Zr sheath/cladding
+  MIX 10 <<TSh>> <<Shdens>>
+        ZR90   49.78
+        ZR91   10.98
+        ZR92   16.96
+        ZR94   17.57
+        ZR96   2.89
+        FE56   0.193
+        NI58   0.005
+        CR52   0.0837
+        B10    0.00006
+;
+
+*==============================================================
+* ASSEMBLY: Self-shielding calculation
+*==============================================================
+TRK := NXT: GEOMS ::
+  EDIT 1
+  TITLE 'RBMK-CELL-SS'
+  TISO 11 15.0
+  ;
+
+ASSM := ASM: LIBR TRK ::
+  EDIT 1
+  ;
+
+*==============================================================
+* FLUX: Transport calculation
+*==============================================================
+GEOMF := GEO: :: CARCEL 9 1 1
+  EDIT 0
+  X- REFL MESHX -12.5 12.5 X+ REFL
+  Y- REFL MESHY -12.5 12.5 Y+ REFL
+  RADIUS  0.0000  0.724  2.162  3.603  5.077
+          <<r_pt_in>> <<r_pt_out>> <<r_ct_in>> <<r_ct_out>> <<r_mod>>
+  MIX     1 1 1 1 1 2 3 4 5 5
+  CLUSTER ROD1 ROD2 ROD3 ROD4
+  ::: ROD1 := GEO: TUBE 2
+    MIX  6 10
+    NPIN 1
+    RPIN 0.0
+    APIN 0.0
+    RADIUS 0.0000 <<r_fuel>> <<r_clad>> ;
+  ::: ROD2 := GEO: TUBE 2
+    MIX  7 10
+    NPIN 6
+    RPIN  1.4885 1.4885 1.4885 1.4885 1.4885 1.4885
+    APIN  0.0    1.047  2.094  3.142  4.189  5.236
+    RADIUS 0.0000 <<r_fuel>> <<r_clad>> ;
+  ::: ROD3 := GEO: TUBE 2
+    MIX  8 10
+    NPIN 12
+    RPIN  2.8755 2.8755 2.8755 2.8755 2.8755 2.8755
+          2.8755 2.8755 2.8755 2.8755 2.8755 2.8755
+    APIN  0.0    0.524  1.047  1.571  2.094  2.618
+          3.142  3.665  4.189  4.712  5.236  5.760
+    RADIUS 0.0000 <<r_fuel>> <<r_clad>> ;
+  ::: ROD4 := GEO: TUBE 2
+    MIX  9 10
+    NPIN 18
+    RPIN  4.3305 4.3305 4.3305 4.3305 4.3305 4.3305
+          4.3305 4.3305 4.3305 4.3305 4.3305 4.3305
+          4.3305 4.3305 4.3305 4.3305 4.3305 4.3305
+    APIN  0.0    0.349  0.698  1.047  1.396  1.745
+          2.094  2.443  2.793  3.142  3.491  3.840
+          4.189  4.538  4.887  5.236  5.585  5.934
+    RADIUS 0.0000 <<r_fuel>> <<r_clad>> ;
+;
+
+TRKF := NXT: GEOMF ::
+  EDIT 1
+  TITLE 'RBMK-CELL-FLUX'
+  TISO 15 30.0
+  ;
+
+FLUX := FLU: ASSM TRKF ::
+  EDIT 2
+  EXTE 1.0E-6
+  ;
+
+*==============================================================
+* EDIT: Extract k-infinity and cross sections
+*==============================================================
+EDI := EDI: FLUX TRKF ASSM ::
+  EDIT 2
+  INTG IN
+  ;
+
+* Check k-infinity
+assertS EDI :: 'K-INFINITY' 1 1.03 ;
+
+*==============================================================
+* SPH: Homogenize and SPH factors
+*==============================================================
+SPHED := SPH: EDI TRKF ::
+  EDIT 2
+  ;
+
+*==============================================================
+* EVO: Depletion (optional - just one step for fresh fuel)
+*==============================================================
+EVOL := EVO: SPHED ::
+  EDIT 1
+  BURN 0.0
+  ;
+
+END: ;
+
+QUIT .
