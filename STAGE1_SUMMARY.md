@@ -39,3 +39,9 @@ cd /home/wilkie/code/RBMK/5.1/Trivac
 - Build RBMK lattice cell (25 cm pitch, 18-rod cluster, Zr-Nb pressure tube)
 - Target: k_inf ~1.02-1.05 (fresh fuel)
 - Use ENDF/B-VIII.0 99-group library from `/home/wilkie/code/RBMK/libraries/hdf5/`
+
+---
+
+> **RETRACTED 2026-09-22.** The "Stage 2: LMW 2-D Kinetics Benchmark" result above is not
+> supported by anything on disk. The kinetics engine was never exercised by this project;
+> `KINSOL:` has never executed. The IAEA-3D result is genuine. See `EVALUATION.md`.
