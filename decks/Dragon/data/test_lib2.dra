@@ -1,0 +1,59 @@
+* Raw DRAGON stdin (not an .x2m -- no .access hook, so no $1 to hang a path off).
+* Paths below are repo-relative: run from the repository root, e.g.
+*   install/bin/dragon < decks/Dragon/data/test_lib2.dra
+* Test LIB: module to read HDF5 library
+
+LINKED_LIST LIBRARY ;
+MODULE LIB: END: ;
+
+LIBRARY := LIB: ::
+  EDIT 1
+  NMIX 10
+  ANIS 1
+  MIXS LIB: DRAGON FIL: 'libraries/hdf5/gal_xs_99g.h5'
+  MIX 1 293.0
+     H1      = H1      6.68E-2
+     O16     = O16     3.34E-2
+  MIX 2 293.0
+     ZR90    = ZR90    2.22E-3
+     ZR91    = ZR91    4.84E-4
+     ZR92    = ZR92    7.40E-4
+     ZR94    = ZR94    7.50E-4
+     ZR96    = ZR96    1.21E-4
+  MIX 3 293.0
+     HE4     = HE4     2.69E-5
+  MIX 4 293.0
+     ZR90    = ZR90    2.22E-3
+     ZR91    = ZR91    4.84E-4
+     ZR92    = ZR92    7.40E-4
+     ZR94    = ZR94    7.50E-4
+     ZR96    = ZR96    1.21E-4
+  MIX 5 293.0
+     C0      = C0      8.00E-2
+  MIX 6 900.0
+     U235    = U235    5.50E-4 1
+     U238    = U238    2.25E-2 1
+     O16     = O16     4.61E-2
+  MIX 7 900.0
+     U235    = U235    5.50E-4 1
+     U238    = U238    2.25E-2 1
+     O16     = O16     4.61E-2
+  MIX 8 900.0
+     U235    = U235    5.50E-4 1
+     U238    = U238    2.25E-2 1
+     O16     = O16     4.61E-2
+  MIX 9 900.0
+     U235    = U235    5.50E-4 1
+     U238    = U238    2.25E-2 1
+     O16     = O16     4.61E-2
+  MIX 10 600.0
+     ZR90    = ZR90    2.22E-3
+     ZR91    = ZR91    4.84E-4
+     ZR92    = ZR92    7.40E-4
+     ZR94    = ZR94    7.50E-4
+     ZR96    = ZR96    1.21E-4
+  ;
+
+END: ;
+
+QUIT .

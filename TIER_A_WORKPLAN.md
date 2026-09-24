@@ -1,5 +1,7 @@
 # Tier A Work Order — Offline RBMK Physics (DRAGON5 / DONJON5)
 
+*(Paths in this document are relative to the repository root.)*
+
 **Audience: an implementing agent.** Follow tasks in order. Each task has a hard
 **GATE** — do not start the next task until the gate passes. If a gate fails twice, **stop
 and report**; do not improvise a workaround and do not move on.
@@ -27,25 +29,33 @@ Background and rationale: `EVALUATION.md`. Status: `PROGRESS.md`. Roadmap: `PROJ
 ## Environment
 
 ```bash
-export PATH="/home/wilkie/code/RBMK/install/bin:$PATH"
-export LD_LIBRARY_PATH="/home/wilkie/code/RBMK/install/lib:$LD_LIBRARY_PATH"
+export PATH="$PWD/install/bin:$PATH"
+export LD_LIBRARY_PATH="$PWD/install/lib:$LD_LIBRARY_PATH"
 ```
 
-Running a deck (input must live in `data/`; output lands in `Linux_aarch64/<name>.result`):
+Decks are authored in `decks/`, not in the submodule. `tools/link_decks.sh` symlinks
+them into `5.1/{Dragon,Donjon}/data/`, which is where rdragon insists on finding them —
+see README.md for why. Run the script after adding a deck.
+
+Running a deck (output lands in `Linux_<arch>/<name>.result`):
 
 ```bash
-cd /home/wilkie/code/RBMK/5.1/Dragon  && ./rdragon -c custom -p 1 -w data/<name>.x2m
-cd /home/wilkie/code/RBMK/5.1/Donjon  && ./rdonjon -c custom -p 1 -w data/<name>.don
+cd 5.1/Dragon  && ./rdragon -c custom -p 1 -w rbmk_<name>.x2m
+cd 5.1/Donjon  && ./rdonjon -c custom -p 1 -w rbmk_<name>.don
 ```
 
-A deck that needs the nuclear-data library must have a sibling `data/<name>.access` script
-that symlinks `DLIB_99`. Copy `data/rbmk_cell_dlib99_v2.access` and rename it; the script is
-generic apart from its usage message.
+A deck that needs the nuclear-data library must have a sibling `<name>.access` hook. Do
+not copy one: symlink it to the shared script, which is the only copy of that logic.
+
+```bash
+ln -s ../../common/dlib99.access decks/Dragon/data/<name>.access   # stages DLIB_99
+ln -s ../../common/compo.access  decks/Donjon/data/<name>.don.access   # stages the COMPO
+```
 
 Reading results — always check the tail, not just the exit code:
 
 ```bash
-tail -30 /home/wilkie/code/RBMK/5.1/Dragon/Linux_aarch64/<name>.result
+tail -30 5.1/Dragon/Linux_aarch64/<name>.result
 grep -n -i "XABORT\|kernel error\|FAILURE\|K-INFINITY\|K-EFFECTIVE" <result>
 ```
 
@@ -72,7 +82,7 @@ Re-run the IAEA case after every subsequent task as a regression check.
 **Goal:** remove decks that encode false results, so nobody builds on them again.
 
 ```bash
-mkdir -p /home/wilkie/code/RBMK/quarantine
+mkdir -p quarantine
 ```
 
 Move into `quarantine/` (do **not** delete — they are evidence):
@@ -80,7 +90,7 @@ Move into `quarantine/` (do **not** delete — they are evidence):
 - `5.1/Dragon/data/rbmk_cell_iaea_xs.dra` — hand-tuned `MAC:` block, no nuclear data
 - `5.1/Dragon/data/rbmk_cell.x2m`, `rbmk_cell_iaea_sph*.x2m`, `rbmk_cell_sph.x2m`,
   `rbmk_cell_sph2.x2m`, `rbmk_cell_sph_save.x2m`, `rbmk_cell_realistic.dra`
-- `/home/wilkie/code/RBMK/rbmk_cell_simple.dra` and `/home/wilkie/code/RBMK/rbmk_cell.dra`
+- `rbmk_cell_simple.dra` and `rbmk_cell.dra`
 - `5.1/Donjon/data/rbmk_transient*.don` (all five — invented syntax)
 - `5.1/Donjon/data/rbmk_core_3d_iaea_xs.don`, `rbmk_core_3d_dlib99_xs*.don`
 
@@ -400,8 +410,8 @@ without checking in.** Report:
 Find a **bundled deck that runs** and does the thing you need, and copy its exact syntax:
 
 ```bash
-grep -rl "MODULE_YOU_NEED:" /home/wilkie/code/RBMK/5.1/*/data/ | head
-ls /home/wilkie/code/RBMK/5.1/Dragon/Linux_aarch64/*.result   # decks that have run
+grep -rl "MODULE_YOU_NEED:" 5.1/*/data/ | head
+ls 5.1/Dragon/Linux_aarch64/*.result   # decks that have run
 ```
 
 Or read the module's Fortran header under `5.1/<code>/src/<MODULE>.f` — every module

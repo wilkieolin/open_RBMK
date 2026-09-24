@@ -1,0 +1,196 @@
+* DRAGON5 RBMK-1000 Lattice Cell Model (Simplified)
+* 25 cm square pitch, 18-rod cluster, Zr-Nb pressure tube
+* Graphite moderator, light water coolant
+* Using inline cross sections (like IAEA-2D benchmark)
+
+LINKED_LIST MACRO GEOMF TRK SYS FLUX EDI SPHED ;
+MODULE GEO: MAC: NXT: ASM: FLU: EDI: SPH: END: ;
+PROCEDURE assertS ;
+
+*==============================================================
+* MACRO: Inline cross sections (2-group)
+* Groups: 1=fast (>0.625 eV), 2=thermal (<0.625 eV)
+*==============================================================
+MACRO := MAC: ::
+  EDIT 2 NGRO 2 NMIX 10 NIFI 1
+  READ INPUT
+
+* MIX 1: Light water coolant (H2O)
+  MIX     1
+      DIFF  1.500E+00  4.000E-01
+      TOTAL  3.000E-02  8.000E-02
+     NUSIGF  0.000E+00  0.000E+00
+       CHI  1.000E+00  0.000E+00
+   H-FACTOR  0.000E+00  0.000E+00
+       SCAT  1 1 0.0  2 2 0.0  2.0E-02
+
+* MIX 2: Zr-Nb pressure tube
+  MIX     2
+      DIFF  2.000E+00  3.000E-01
+      TOTAL  4.000E-02  1.000E-02
+     NUSIGF  0.000E+00  0.000E+00
+       CHI  0.000E+00  0.000E+00
+   H-FACTOR  0.000E+00  0.000E+00
+       SCAT  1 1 0.0  2 2 0.0  4.0E-02
+
+* MIX 3: Gap gas (He)
+  MIX     3
+      DIFF  2.000E+00  3.000E-01
+      TOTAL  4.000E-02  5.500E-02
+     NUSIGF  0.000E+00  0.000E+00
+       CHI  0.000E+00  0.000E+00
+   H-FACTOR  0.000E+00  0.000E+00
+       SCAT  1 1 0.0  2 2 0.0  4.0E-02
+
+* MIX 4: Zr calandria tube
+  MIX     4
+      DIFF  2.000E+00  3.000E-01
+      TOTAL  4.000E-02  1.000E-02
+     NUSIGF  0.000E+00  0.000E+00
+       CHI  0.000E+00  0.000E+00
+   H-FACTOR  0.000E+00  0.000E+00
+       SCAT  1 1 0.0  2 2 0.0  4.0E-02
+
+* MIX 5: Graphite moderator
+  MIX     5
+      DIFF  2.000E+00  3.000E-01
+      TOTAL  4.000E-02  5.500E-02
+     NUSIGF  0.000E+00  0.000E+00
+       CHI  0.000E+00  0.000E+00
+   H-FACTOR  0.000E+00  0.000E+00
+       SCAT  1 1 0.0  2 2 0.0  4.0E-02
+
+* MIX 6: Central fuel pin (2% enr UO2)
+  MIX     6
+      DIFF  1.200E+00  2.000E-01
+      TOTAL  4.000E-02  5.000E-01
+     NUSIGF  0.000E+00  1.350E-01
+       CHI  1.000E+00  0.000E+00
+   H-FACTOR  0.000E+00  1.350E-01
+       SCAT  1 1 0.0  2 2 0.0  5.0E-02
+
+* MIX 7: Inner ring fuel (same)
+  MIX     7
+      DIFF  1.200E+00  2.000E-01
+      TOTAL  4.000E-02  5.000E-01
+     NUSIGF  0.000E+00  1.350E-01
+       CHI  1.000E+00  0.000E+00
+   H-FACTOR  0.000E+00  1.350E-01
+       SCAT  1 1 0.0  2 2 0.0  5.0E-02
+
+* MIX 8: Middle ring fuel (same)
+  MIX     8
+      DIFF  1.200E+00  2.000E-01
+      TOTAL  4.000E-02  5.000E-01
+     NUSIGF  0.000E+00  1.350E-01
+       CHI  1.000E+00  0.000E+00
+   H-FACTOR  0.000E+00  1.350E-01
+       SCAT  1 1 0.0  2 2 0.0  5.0E-02
+
+* MIX 9: Outer ring fuel (same)
+  MIX     9
+      DIFF  1.200E+00  2.000E-01
+      TOTAL  4.000E-02  5.000E-01
+     NUSIGF  0.000E+00  1.350E-01
+       CHI  1.000E+00  0.000E+00
+   H-FACTOR  0.000E+00  1.350E-01
+       SCAT  1 1 0.0  2 2 0.0  5.0E-02
+
+* MIX 10: Zr sheath/cladding
+  MIX     10
+      DIFF  2.000E+00  3.000E-01
+      TOTAL  4.000E-02  1.000E-02
+     NUSIGF  0.000E+00  0.000E+00
+       CHI  0.000E+00  0.000E+00
+   H-FACTOR  0.000E+00  0.000E+00
+       SCAT  1 1 0.0  2 2 0.0  4.0E-02
+
+  ;
+
+*==============================================================
+* GEOMETRY for Flux (9 rings matching CFC-CELL)
+* 9 rings = 10 radii, 10 mixes
+* Radii: 0, 0.724, 2.162, 3.603, 5.077, 5.5, 5.85, 6.45, 6.5875, 10.437
+* Mixes: 1, 1,    1,    1,    1,    1,   2,   3,   4,     5
+* (last mix 5=graphite extends to cell boundary at 12.5)
+*==============================================================
+GEOMF := GEO: :: CARCEL 9 1 1
+  EDIT 0
+  X- REFL MESHX -12.5 12.5 X+ REFL
+  Y- TRAN MESHY -12.5 12.5 Y+ TRAN
+  RADIUS  0.0     0.724  2.162  3.603  5.077
+          5.5     5.85   6.45   6.5875  10.437
+  MIX     1       1      1      1      1
+          1       2      3      4       5
+  CLUSTER ROD1 ROD2 ROD3 ROD4
+  ::: ROD1 := GEO: TUBE 2
+    MIX  6 10
+    NPIN 1
+    RPIN 0.0
+    APIN 0.0
+    RADIUS 0.0000 0.612 0.654 ;
+  ::: ROD2 := GEO: TUBE 2
+    MIX  7 10
+    NPIN 6
+    RPIN  1.4885 1.4885 1.4885 1.4885 1.4885 1.4885
+    APIN  0.0    1.047  2.094  3.142  4.189  5.236
+    RADIUS 0.0000 0.612 0.654 ;
+  ::: ROD3 := GEO: TUBE 2
+    MIX  8 10
+    NPIN 12
+    RPIN  2.8755 2.8755 2.8755 2.8755 2.8755 2.8755
+          2.8755 2.8755 2.8755 2.8755 2.8755 2.8755
+    APIN  0.0    0.524  1.047  1.571  2.094  2.618
+          3.142  3.665  4.189  4.712  5.236  5.760
+    RADIUS 0.0000 0.612 0.654 ;
+  ::: ROD4 := GEO: TUBE 2
+    MIX  9 10
+    NPIN 18
+    RPIN  4.3305 4.3305 4.3305 4.3305 4.3305 4.3305
+          4.3305 4.3305 4.3305 4.3305 4.3305 4.3305
+          4.3305 4.3305 4.3305 4.3305 4.3305 4.3305
+    APIN  0.0    0.349  0.698  1.047  1.396  1.745
+          2.094  2.443  2.793  3.142  3.491  3.840
+          4.189  4.538  4.887  5.236  5.585  5.934
+    RADIUS 0.0000 0.612 0.654 ;
+  ;
+
+*==============================================================
+* TRACKING: NXT (transport)
+*==============================================================
+TRK := NXT: GEOMF ::
+  EDIT 0
+  TITLE 'RBMK-CELL'
+  TISO 15 30.0
+  ;
+
+*==============================================================
+* ASSEMBLY: System matrices (no ARM for transport)
+*==============================================================
+SYS := ASM: MACRO TRK :: EDIT 1 ;
+
+*==============================================================
+* FLUX: Transport calculation (k-eigenvalue, 3 args like diffusion)
+*==============================================================
+FLUX := FLU: MACRO TRK SYS :: TYPE K EXTE 1.0E-6 ;
+
+*==============================================================
+* EDIT: Extract k-infinity
+*==============================================================
+EDI := EDI: FLUX TRK MACRO ::
+  EDIT 2
+  ;
+
+* Check k-infinity (current dummy XS give ~0.099)
+assertS FLUX :: 'K-INFINITY' 1 0.09875 ;
+
+*==============================================================
+* SPH: Homogenize
+*==============================================================
+SPHED := SPH: EDI TRK ::
+  EDIT 2
+  ;
+
+END: ;
+
+QUIT .

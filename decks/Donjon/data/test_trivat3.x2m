@@ -1,0 +1,99 @@
+* Test TRIVAT with USPLIT + MAC + MACINI + RESINI + FLPOW
+LINKED_LIST GEO GEO2 MACRO MACRO2 MATEX TRACK SYSTEM FLUX LMAP FLMAP POWER ;
+MODULE GEO: MAC: TRIVAT: TRIVAA: FLUD: USPLIT: MACINI: RESINI: FLPOW: END: ;
+
+GEO := GEO: :: CAR3D 5 5 3
+      EDIT 0
+      X- VOID X+ VOID
+      Y- VOID Y+ VOID
+      Z- VOID Z+ VOID
+      MIX
+      PLANE 1
+      0 0 2 0 0
+      0 2 1 2 0
+      2 1 1 1 2
+      0 2 1 2 0
+      0 0 2 0 0
+      PLANE 2
+      0 0 2 0 0
+      0 2 1 2 0
+      2 1 1 1 2
+      0 2 1 2 0
+      0 0 2 0 0
+      PLANE 3
+      0 0 2 0 0
+      0 2 1 2 0
+      2 1 1 1 2
+      0 2 1 2 0
+      0 0 2 0 0
+      MESHX 0.0 1.0 2.0 3.0 4.0 5.0
+      MESHY 0.0 1.0 2.0 3.0 4.0 5.0
+      MESHZ 0.0 1.0 2.0 3.0
+      ;
+
+MACRO := MAC: ::
+  EDIT 2 NGRO 2 NMIX 2 NIFI 1
+  READ INPUT
+  MIX 1
+    DIFFX 1.5 0.4
+    TOTAL 0.03 0.1
+    NUSIGF 0.0 0.135
+    H-FACTOR 0.0 0.135
+    SCAT 1 1 0.0 2 2 0.0 0.02
+  MIX 2
+    DIFFX 2.0 0.3
+    TOTAL 0.04 0.01
+    SCAT 1 1 0.0 2 2 0.0 0.04
+  ;
+
+GEO2 MATEX := USPLIT: GEO :: EDIT 1
+  NGRP 2 MAXR 1000 NMIX 2
+  NREFL 1 RMIX 2
+  NFUEL 1 FMIX 1
+  ;
+
+MACRO2 MATEX := MACINI: MATEX MACRO :: EDIT 1 ;
+
+LMAP FLMAP MATEX := RESINI: MATEX :: 
+      ::: GEO: CAR3D 5 5 3
+                EDIT  0
+                X- VOID      X+ VOID
+                Y- VOID      Y+ VOID
+                Z- VOID      Z+ VOID
+      MIX
+      PLANE 1
+      0 0 0 0 0
+      0 0 1 0 0
+      0 1 1 1 0
+      0 0 1 0 0
+      0 0 0 0 0
+      PLANE 2
+      0 0 0 0 0
+      0 0 1 0 0
+      0 1 1 1 0
+      0 0 1 0 0
+      0 0 0 0 0
+      PLANE 3
+      0 0 0 0 0
+      0 0 1 0 0
+      0 1 1 1 0
+      0 0 1 0 0
+      0 0 0 0 0
+      MESHX 0.0 1.0 2.0 3.0 4.0 5.0
+      MESHY 0.0 1.0 2.0 3.0 4.0 5.0
+      MESHZ 0.0 1.0 2.0 3.0
+      ;
+
+TRACK := TRIVAT: GEO2 ::
+  TITLE 'TEST'
+  EDIT 1 MAXR 1000 DUAL 1 1 ;
+
+SYSTEM := TRIVAA: MACRO2 TRACK :: EDIT 1 ;
+
+FLUX := FLUD: SYSTEM TRACK :: EDIT 1 EXTE 1.0E-7 100 ;
+
+POWER := FLPOW: FLMAP FLUX TRACK MATEX MACRO2
+  :: EDIT 10 PTOT 1000.0  PRINT ALL ;
+  
+END: ;
+QUIT .

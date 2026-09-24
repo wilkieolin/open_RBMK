@@ -1,0 +1,25 @@
+# The OpenMC environment the cross-check results were produced with.
+#
+#   python3 -m venv .venv-openmc
+#   .venv-openmc/bin/pip install -r openmc/requirements.txt
+#
+# (tools/bootstrap.sh does this for you.)
+#
+# OpenMC is pinned to a git commit, not a PyPI release: the runs in
+# docs/report.html used 0.16.1.dev46+g1d75981db, which is 46 commits past
+# v0.16.0.  It builds its C++ core from source, so the machine needs cmake, a
+# C++17 compiler, and the HDF5 and libpng development packages:
+#
+#   sudo apt install cmake g++ libhdf5-dev libpng-dev
+#
+# Everything is CPU-only.  Nothing in openmc/ allocates on the GPU.
+openmc @ git+https://github.com/openmc-dev/openmc.git@1d75981db
+
+h5py==3.16.0
+lxml==6.1.3
+numpy==2.5.3
+pandas==3.0.6
+scipy==1.18.1
+uncertainties==3.2.3
+matplotlib==3.11.2
+endf==0.1.12

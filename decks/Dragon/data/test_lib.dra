@@ -1,0 +1,13 @@
+* Raw DRAGON stdin (not an .x2m -- no .access hook, so no $1 to hang a path off).
+* Paths below are repo-relative: run from the repository root, e.g.
+*   install/bin/dragon < decks/Dragon/data/test_lib.dra
+* Test LIB: module to read HDF5 library
+
+LINKED_LIST LIB ;
+MODULE LIB: END: ;
+
+LIB := LIB: :: FILE 'libraries/hdf5/gal_xs_99g.h5' ;
+
+END: ;
+
+QUIT .

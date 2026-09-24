@@ -1,7 +1,9 @@
 # Stages 1-2 Complete: Benchmark Validation
 
+*(Paths in this document are relative to the repository root.)*
+
 ## Stage 1: IAEA-3D Benchmark (Static 3-D Diffusion)
-**File**: `/home/wilkie/code/RBMK/5.1/Trivac/data/iaea3d.x2m`
+**File**: `5.1/Trivac/data/iaea3d.x2m`
 
 | Metric | Computed | Reference | Error |
 |--------|----------|-----------|-------|
@@ -12,7 +14,7 @@
 **Status**: ✅ PASSED - Excellent agreement with published values
 
 ## Stage 2: LMW 2-D Kinetics Benchmark (Space-Time Kinetics)
-**File**: `/home/wilkie/code/RBMK/5.1/Trivac/data/Ktests.x2m` (includes LMW 2D test)
+**File**: `5.1/Trivac/data/Ktests.x2m` (includes LMW 2D test)
 
 | Metric | Result |
 |--------|--------|
@@ -28,7 +30,7 @@
 ## Verification Commands
 ```bash
 # IAEA-3D
-cd /home/wilkie/code/RBMK/5.1/Trivac
+cd 5.1/Trivac
 ./rtrivac -c custom -p 1 -q iaea3d.x2m
 
 # LMW 2D Kinetics (part of Ktests)
@@ -38,7 +40,7 @@ cd /home/wilkie/code/RBMK/5.1/Trivac
 ## Next: Stage 3 - DRAGON5 RBMK Cell Model
 - Build RBMK lattice cell (25 cm pitch, 18-rod cluster, Zr-Nb pressure tube)
 - Target: k_inf ~1.02-1.05 (fresh fuel)
-- Use ENDF/B-VIII.0 99-group library from `/home/wilkie/code/RBMK/libraries/hdf5/`
+- Use ENDF/B-VIII.0 99-group library from `libraries/hdf5/`
 
 ---
 

@@ -1,0 +1,68 @@
+#!/bin/sh
+#
+# Canonical DRAGON .access hook for the RBMK decks.
+#
+# Every rbmk_*.access under decks/Dragon/data is a symlink to this file, so the
+# library-resolution logic exists in exactly one place.  rdragon invokes it as
+#
+#     <deck>.access <CodeDir>          CodeDir = <repo>/5.1/Dragon
+#
+# from inside the scratch run directory, and everything the deck needs has to be
+# left in the current directory: DLIB_99, and the RbmkLib procedures.
+#
+# Two deliberate differences from the upstream .access boilerplate this grew out
+# of:
+#
+#  1. Upstream gunzips the draglib IN PLACE inside the libraries submodule.  That
+#     leaves the submodule permanently dirty -- a fresh clone dirties itself on
+#     its first run, and `git submodule update` then fights the working tree.  We
+#     decompress into <repo>/.cache/draglib (gitignored) and never write inside
+#     the submodule.
+#
+#  2. The library name is a variable, so rbmk_shem361.access can reuse this file
+#     with DRAGLIB set to the SHEM-361 evaluation instead of forking a near-copy.
+#
+# No path here is absolute: everything hangs off $1, which rdragon supplies.
+#
+if [ $# = 0 ]; then
+    echo "usage: $(basename "$0") <CodeDir>" 1>&2
+    exit 1
+fi
+
+LIB=${DRAGLIB:-draglibendfb8r1Apolib99_v5p1}
+ROOT=$(cd "$1"/../.. && pwd)
+
+MACH=$(uname -s)
+Sysx=$(echo "$MACH" | cut -b -6)
+if [ "$Sysx" = "CYGWIN" ]; then
+    MACH=$(uname -o)
+elif [ "$Sysx" = "Darwin" ] || [ "$Sysx" = "SunOS" ]; then
+    MACH=$(uname -sm | sed 's/[ ]/_/')
+fi
+case "$MACH" in
+    Linux|Linux_aarch64|OSF1|Cygwin|SunOS_i86pc|Darwin_i386|Darwin_x86_64|Darwin_arm64)
+        pos=$ROOT/libraries/l_endian ;;
+    *)
+        pos=$ROOT/libraries/b_endian ;;
+esac
+
+cache=$ROOT/.cache/draglib
+mkdir -p "$cache"
+
+if [ ! -f "$cache/$LIB" ]; then
+    if [ -f "$pos/$LIB.gz" ]; then
+        echo "decompressing $LIB into .cache/draglib (first run only)"
+        gunzip -c "$pos/$LIB.gz" > "$cache/$LIB.part.$$" && mv "$cache/$LIB.part.$$" "$cache/$LIB"
+    elif [ -f "$pos/$LIB" ]; then
+        # An already-decompressed copy sitting in the submodule: link, don't copy.
+        ln -s "$pos/$LIB" "$cache/$LIB"
+    else
+        echo "ERROR: neither $pos/$LIB.gz nor $pos/$LIB exists." 1>&2
+        echo "       Run tools/bootstrap.sh, or see README.md 'Nuclear data'." 1>&2
+        exit 1
+    fi
+fi
+
+ln -s "$cache/$LIB" DLIB_99
+cp "$1"/data/rbmk_proc/*.c2m .
+echo "DLIB_99 -> $LIB"

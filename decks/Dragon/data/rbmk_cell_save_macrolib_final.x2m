@@ -1,0 +1,164 @@
+*----
+*  Test: Save 2-group macrolib to binary file for Donjon
+*----
+LINKED_LIST LIBRARY GEOMF TRK SYS FLUX EDI MACRO_2G ;
+*  Written into rdragon's scratch directory; rbmk_cell_save_macrolib_final.save moves it to
+*  <CodeDir>/macrolib/ afterwards.  An absolute path here pinned the deck to one
+*  machine, and rdragon discards the scratch directory, so the hook is the only
+*  way the file survives at all.
+SEQ_BINARY MACRO_BIN :: FILE 'MACRO_2G.bin' ;
+MODULE LIB: GEO: NXT: ASM: FLU: EDI: EQU: UTL: END: ;
+PROCEDURE assertS ;
+
+*==============================================================
+*  Library: DLIB_99 (ENDF/B-VIII.0 99-group APOLIB)
+*==============================================================
+LIBRARY := LIB: ::
+  EDIT 1
+  NMIX 10
+  CTRA APOL
+  ANIS 2
+  MIXS LIB: DRAGON FIL: DLIB_99
+* MIX 1: Light water coolant
+  MIX     1  573.0
+     H1      = H1      4.90E-2
+     O16     = O16     2.45E-2
+* MIX 2: Zr-Nb pressure tube
+  MIX     2  573.0
+     Zr90    = Zr90    2.22E-3
+     Zr91    = Zr91    4.84E-4
+     Zr92    = Zr92    7.40E-4
+     Zr94    = Zr94    7.50E-4
+     Zr96    = Zr96    1.21E-4
+     Nb93    = Nb93    1.00E-4
+* MIX 3: Gap gas (He)
+  MIX     3  573.0
+     He4     = He4     2.50E-5
+* MIX 4: Zr calandria tube
+  MIX     4  573.0
+     Zr90    = Zr90    2.22E-3
+     Zr91    = Zr91    4.84E-4
+     Zr92    = Zr92    7.40E-4
+     Zr94    = Zr94    7.50E-4
+     Zr96    = Zr96    1.21E-4
+* MIX 5: Graphite moderator (density 1.6 g/cm3)
+  MIX     5  573.0
+     C12_GR  = C12_GR  8.00E-2
+* MIX 6: Central fuel pin (~2% enr UO2)
+  MIX     6  900.0
+     U235    = U235    5.50E-4  1
+     U238    = U238    2.25E-2  1
+     O16     = O16     4.61E-2
+* MIX 7: Inner ring fuel
+  MIX     7  900.0
+     U235    = U235    5.50E-4  1
+     U238    = U238    2.25E-2  1
+     O16     = O16     4.61E-2
+* MIX 8: Middle ring fuel
+  MIX     8  900.0
+     U235    = U235    5.50E-4  1
+     U238    = U238    2.25E-2  1
+     O16     = O16     4.61E-2
+* MIX 9: Outer ring fuel
+  MIX     9  900.0
+     U235    = U235    5.50E-4  1
+     U238    = U238    2.25E-2  1
+     O16     = O16     4.61E-2
+* MIX 10: Zr sheath/cladding
+  MIX     10  600.0
+     Zr90    = Zr90    2.22E-3
+     Zr91    = Zr91    4.84E-4
+     Zr92    = Zr92    7.40E-4
+     Zr94    = Zr94    7.50E-4
+     Zr96    = Zr96    1.21E-4
+  ;
+
+*==============================================================
+*  Geometry for Flux (CARCEL with CLUSTER for NXT)
+*==============================================================
+GEOMF := GEO: :: CARCEL 9 1 1
+  EDIT 0
+  X- REFL MESHX -12.5 12.5 X+ REFL
+  Y- TRAN MESHY -12.5 12.5 Y+ TRAN
+  RADIUS  0.0     0.724  2.162  3.603  5.077
+          5.5     5.85   6.45   6.5875  10.437
+  MIX     1       1      1      1      1
+          1       2      3      4       5
+  CLUSTER ROD1 ROD2 ROD3 ROD4
+  ::: ROD1 := GEO: TUBE 2
+    MIX  6 10
+    NPIN 1
+    RPIN 0.0
+    APIN 0.0
+    RADIUS 0.0000 0.612 0.654 ;
+  ::: ROD2 := GEO: TUBE 2
+    MIX  7 10
+    NPIN 6
+    RPIN  1.4885 1.4885 1.4885 1.4885 1.4885 1.4885
+    APIN  0.0    1.047  2.094  3.142  4.189  5.236
+    RADIUS 0.0000 0.612 0.654 ;
+  ::: ROD3 := GEO: TUBE 2
+    MIX  8 10
+    NPIN 12
+    RPIN  2.8755 2.8755 2.8755 2.8755 2.8755 2.8755
+          2.8755 2.8755 2.8755 2.8755 2.8755 2.8755
+    APIN  0.0    0.524  1.047  1.571  2.094  2.618
+          3.142  3.665  4.189  4.712  5.236  5.760
+    RADIUS 0.0000 0.612 0.654 ;
+  ::: ROD4 := GEO: TUBE 2
+    MIX  9 10
+    NPIN 18
+    RPIN  4.3305 4.3305 4.3305 4.3305 4.3305 4.3305
+          4.3305 4.3305 4.3305 4.3305 4.3305 4.3305
+          4.3305 4.3305 4.3305 4.3305 4.3305 4.3305
+    APIN  0.0    0.349  0.698  1.047  1.396  1.745
+          2.094  2.443  2.793  3.142  3.491  3.840
+          4.189  4.538  4.887  5.236  5.585  5.934
+    RADIUS 0.0000 0.612 0.654 ;
+  ;
+
+*==============================================================
+*  TRACKING: NXT (transport)
+*==============================================================
+TRK := NXT: GEOMF ::
+  EDIT 0
+  TITLE 'RBMK-CELL DLIB99'
+  TISO 15 30.0
+  ;
+
+*==============================================================
+*  ASSEMBLY
+*==============================================================
+SYS := ASM: LIBRARY TRK :: EDIT 1 ;
+
+*==============================================================
+*  FLUX: 99-group transport k-eigenvalue
+*==============================================================
+FLUX := FLU: LIBRARY TRK SYS :: TYPE K EXTE 1.0E-6 ;
+
+*==============================================================
+*  EDITION: Condense to 2-group macrolib
+*==============================================================
+EDI := EDI: LIBRARY TRK FLUX GEOMF SYS ::
+  EDIT 2
+  MICR ALL
+  MERG MIX
+  COND 1 2
+  SAVE ON COND2
+  ;
+
+*==============================================================
+*  Extract 2-group macrolib from EDI
+*==============================================================
+MACRO_2G := EQU: EDI :: STEP UP COND2 ;
+
+*==============================================================
+*  Save macrolib to binary file
+*==============================================================
+UTL: :: EDIT 2 COPY MACRO_2G MACRO_BIN ;
+
+* Check k-infinity from 99-group flux
+assertS FLUX :: 'K-INFINITY' 1 1.0176 ;
+
+END: ;
+QUIT .

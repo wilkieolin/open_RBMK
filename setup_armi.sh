@@ -4,7 +4,7 @@ set -euo pipefail
 # ARMI Plugin Setup for DRAGON5
 # Installs Terrapower's dragon-armi-plugin with local DRAGON5
 
-ROOT_DIR="/home/wilkie/code/RBMK"
+ROOT_DIR="${RBMK_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 ARMI_DIR="${ROOT_DIR}/armi"
 PREFIX="${ROOT_DIR}/install"
 

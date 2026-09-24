@@ -1,8 +1,12 @@
 """Pull the 2-group per-isotope absorption balance out of the DRAGON edition
 and put it in the same form as the OpenMC tallies in rates_d*.txt."""
-import re, sys
+import os, platform, re, sys
 
-R = "/home/wilkie/code/RBMK/5.1/Dragon/Linux_aarch64/rbmk_rates.result"
+# The DRAGON result lands in the arch-named output dir of the 5.1 submodule.
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ARCH = os.environ.get("DRAGON_ARCH", f"Linux_{platform.machine()}")
+R = os.environ.get("DRAGON_RESULT",
+                   os.path.join(ROOT, "5.1", "Dragon", ARCH, "rbmk_rates.result"))
 txt = open(R, errors="ignore").read()
 
 # the two cases appear in order: dca = 0.72 then dca = 0.02

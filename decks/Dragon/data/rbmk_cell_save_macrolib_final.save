@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# SAVE HOOK FOR rbmk_cell_save_macrolib_final.x2m
+#
+# rdragon runs the deck in a scratch directory and moves only the .result back;
+# the binary macrolib the deck writes would go with the scratch directory.
+# rdragon executes data/<deck>.save from inside the run directory afterwards
+# (rdragon:139-143) -- this is that hook.
+#
+if [ $# = 0 ]; then
+   echo "usage: rbmk_cell_save_macrolib_final.save directory" 1>&2
+   exit 1
+fi
+dest="$1"/macrolib
+mkdir -p "$dest"
+if [ -f MACRO_2G.bin ]; then
+   mv MACRO_2G.bin "$dest"/MACRO_2G.bin
+   echo "saved $dest/MACRO_2G.bin ($(wc -c < "$dest"/MACRO_2G.bin) bytes)"
+else
+   echo "WARNING: MACRO_2G.bin was not produced by the run" 1>&2
+fi

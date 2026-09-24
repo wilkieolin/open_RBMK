@@ -1,0 +1,22 @@
+* Test GEO: CARCEL
+
+LINKED_LIST GEOMS TRKS ;
+MODULE GEO: NXT: END: ;
+
+GEOMS := GEO: :: CARCEL 1 1 1
+  EDIT 1
+  X- REFL X+ REFL
+  Y- REFL Y+ REFL
+  RADIUS 0.0 1.0
+  MIX 1
+  ;
+
+TRKS := NXT: GEOMS ::
+  EDIT 1
+  TITLE 'TEST'
+  TISO 11 15.0
+  ;
+
+END: ;
+
+QUIT .

@@ -1,0 +1,11 @@
+*----
+*  Draglib conversion: ENDF/B-VIII.0 99-group APOLIB format to DRAGLIB
+*----
+XSM_FILE DRGLIB :: FILE './DRGLIB' ;
+SEQ_ASCII EXPORT ;
+MODULE UTL: END: ;
+*
+DRGLIB := EXPORT :: EDIT 10 ;
+UTL: DRGLIB :: DIR ;
+END: ;
+QUIT .

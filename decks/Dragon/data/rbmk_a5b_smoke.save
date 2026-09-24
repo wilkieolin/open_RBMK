@@ -1,0 +1,26 @@
+#!/bin/sh
+#
+# SAVE HOOK FOR rbmk_a5b_smoke.x2m
+#
+# rdragon runs the deck in a scratch directory (/tmp/rundirNN) and moves only
+# the .result back; everything else, including any SEQ_ASCII the deck writes,
+# is discarded with the scratch directory.  So the MULTICOMPO export was being
+# thrown away at the last possible moment -- the same failure mode as leaving
+# it in memory, one step later.  rdragon executes data/<deck>.save from inside
+# the run directory after the run (rdragon:137-143); this is that hook.
+#
+# Destination: <CodeDir>/compo/  (NOT Linux_aarch64/, which rdragon and the
+# regression scripts treat as disposable).
+#
+if [ $# = 0 ]; then
+   echo "usage: rbmk_a5b_smoke.save directory" 1>&2
+   exit 1
+fi
+dest="$1"/compo
+mkdir -p "$dest"
+if [ -f _ACompoSmoke ]; then
+   mv _ACompoSmoke "$dest"/_ACompoSmoke
+   echo "saved $dest/_ACompoSmoke ($(wc -c < "$dest"/_ACompoSmoke) bytes)"
+else
+   echo "WARNING: _ACompoSmoke was not produced by the run" 1>&2
+fi

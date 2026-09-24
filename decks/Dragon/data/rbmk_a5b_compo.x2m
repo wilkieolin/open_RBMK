@@ -1,0 +1,280 @@
+*----
+*  RBMK-1000  --  A5b: MULTICOMPO EXPORT
+*
+*  THE ARTIFACT THAT CONNECTS DRAGON TO DONJON.  Until this deck ran, nothing
+*  in this project had ever written cross sections to disk: every good cell
+*  calculation left its result in an in-memory LCM directory that END: threw
+*  away, and the DONJON core decks ran on generic IAEA 2-group PWR constants.
+*  The lattice work and the core work were not connected at all.
+*
+*  Geometry, tracking, self-shielding and depletion are exactly those of
+*  rbmk_a5_void.x2m and rbmk_cell_a3.x2m; compositions come from
+*  rbmk_proc/RbmkLib.c2m, which since 2026-09-23 uses bound H1_H2O.  What is
+*  new here is the COMPO: object, the four branch axes, and the export.
+*
+*  AXES
+*    burnup   IRRA          0 -> 20 MWd/kg at 16.7 MW/t
+*    DCA      VALU REAL     coolant density 0.72 -> 0.02 g/cm3 -- THE VOID AXIS
+*    TF       TEMP MIX 6    fuel temperature -- Doppler
+*    TG       TEMP MIX 5    graphite temperature -- RBMK-specific and large
+*                           (graphite is 89.6 % of the cell)
+*
+*  Xe is NOT an axis here.  XENON: in DONJON gives equilibrium xenon only, so
+*  an explicit Xe axis is needed eventually for the ORM story, but it
+*  multiplies the grid by ~4 and should not delay the first working COMPO.
+*  That is A5b.2, after this file is proven to load in DONJON.
+*
+*  ON THE VOID AXIS AND ITS UNCERTAINTY.  DRAGON and OpenMC agree on the sign
+*  and the burnup trend of the void coefficient and disagree on its magnitude
+*  by ~2x at discharge burnup and ~12x at fresh fuel (PROGRESS.md, "OpenMC
+*  cross-check").  This deck produces the DRAGON side.  A second COMPO, whose
+*  void branches are scaled to OpenMC's branch RATIO k_void/k_nom, is built
+*  downstream; A8 runs under both.  Nothing here is tuned toward either.
+*
+*  LEAKAGE MODEL AT ZERO BUCKLING -- why FLU: is not plain TYPE K.
+*  COMPO: copies diffusion coefficients into the MULTICOMPO only when the
+*  edit object's state vector says a leakage model was used (EDIPXS.f:413-419
+*  sets IDATA(9); COMACR.f:91,169 reads it).  EDI: GOLVER writes a 'DIFF'
+*  block but does NOT set that flag, so the coefficients are computed and then
+*  silently dropped, and DONJON stops at "TRISYS: NO DIFFUSION COEFFICIENTS".
+*  So a leakage model is mandatory.  BUCK 0.0 imposes ZERO buckling, which
+*  activates the B1 machinery without perturbing the spectrum -- k-infinity
+*  must come out bit-identical to the plain TYPE K value (1.310172 fresh), and
+*  that identity is checked rather than assumed.  A critical-buckling search
+*  (TYPE B B1) would instead reweight the spectrum for ~24 %% leakage, which is
+*  wrong for a channel sitting inside a 12.25 m core whose real geometric
+*  buckling is ~3e-5 cm-2.
+*
+*  MICR list: 31 nuclides.  Every name was verified to exist in the DLIB_99
+*  depletion chain (rbmk_chainprobe.x2m), and the list was then closed under
+*  EDI:'s own lumping rule (rbmk_micrprobe.x2m, driven to a fixed point):
+*  EDILUM.f:230-254 refuses to lump any isotope whose maximum fission yield
+*  exceeds 1 %% and which is stable or has a half-life over 30 days.  Ru103 is
+*  the only one this adds beyond the physically-motivated list.  MICR ALL
+*  would instead carry all 299 depleting isotopes at every branch point.
+*----
+LINKED_LIST LIBRARY LIBSS GEOSS GEOFL TRKSS TRK SYS FLUX BURNUP
+            EDIOBJ COMPO DONNEES ;
+SEQ_BINARY  FTRKSS FTRK ;
+SEQ_ASCII   _ACompo :: FILE './_ACompo' ;
+MODULE      LIB: GEO: NXT: USS: ASM: FLU: EVO: EDI: COMPO:
+            GREP: DELETE: UTL: END: ;
+PROCEDURE   RbmkLib ;
+
+*--------------------------------------------------------------
+*  NOMINAL STATE AND BRANCH GRIDS
+*--------------------------------------------------------------
+REAL tfnom := 900.0 ;   ! K, nominal fuel temperature
+REAL tgnom := 750.0 ;   ! K, nominal graphite temperature
+REAL tcool :=  573.0 ;  ! K, coolant and structure (saturation at 6.9 MPa)
+REAL dnom  :=   0.72 ;  ! g/cm3, nominal coolant density
+REAL fpwr  :=   16.7 ;  ! MW per tonne initial heavy metal (3200 MWth / 192 t)
+
+INTEGER nbu := 6 ;
+INTEGER ndc := 7 ;
+INTEGER ntf := 5 ;
+INTEGER ntg := 3 ;
+
+DONNEES := UTL: :: CREA 'burn' <<nbu>> =
+   0.0  2000.0  5000.0  10000.0  15000.0  20000.0 ;
+DONNEES := UTL: DONNEES :: CREA 'dca' <<ndc>> =
+   0.72  0.60  0.45  0.30  0.15  0.05  0.02 ;
+DONNEES := UTL: DONNEES :: CREA 'tf' <<ntf>> =
+   600.0  900.0  1200.0  1500.0  2000.0 ;
+DONNEES := UTL: DONNEES :: CREA 'tg' <<ntg>> =
+   500.0  750.0  900.0 ;
+
+INTEGER istep iv itf itg ;
+REAL bubeg buend tbeg tend dbr tfbr tgbr kinf ;
+
+*--------------------------------------------------------------
+*  GEOMETRY AND TRACKING  (identical to rbmk_cell_a3.x2m)
+*--------------------------------------------------------------
+GEOSS := GEO: :: CARCEL 5
+  EDIT 0
+  X- REFL X+ REFL MESHX -12.5 12.5
+  Y- REFL Y+ REFL MESHY -12.5 12.5
+  RADIUS  0.00     4.00   4.40   4.55   5.70   11.00
+  MIX     1        2      3      4      5      5
+  CLUSTER CARR ROD1 ROD2
+  ::: CARR := GEO: TUBE 2
+    MIX  1 9   NPIN 1  RPIN 0.00  APIN 0.00
+    RADIUS 0.0000 0.5000 0.6500 ;
+  ::: ROD1 := GEO: TUBE 4
+    MIX  3 6 3 8   NPIN 6  RPIN 1.60  APIN 0.00
+    RADIUS 0.0000 0.1000 0.5750 0.5975 0.6800 ;
+  ::: ROD2 := GEO: ROD1
+    MIX  3 7 3 8   NPIN 12  RPIN 3.10  APIN 0.261799 ;
+  ;
+GEOFL := GEO: GEOSS :: SPLITR 4 1 1 2 6
+  ::: CARR := GEO: CARR SPLITR 1 1 ;
+  ::: ROD1 := GEO: ROD1 SPLITR 1 3 1 1 ;
+  ::: ROD2 := GEO: ROD2 SPLITR 1 3 1 1 ;
+  ;
+TRKSS FTRKSS := NXT: GEOSS ::
+  EDIT 0 TITLE 'RBMK-A5B-SS' ALLG BATCH 100 TISO 8 15.0 ;
+TRK   FTRK   := NXT: GEOFL ::
+  EDIT 0 TITLE 'RBMK-A5B-FLUX' ALLG BATCH 100 TISO 15 30.0 ;
+
+*--------------------------------------------------------------
+*  COMPO INITIALIZATION
+*    Reference: rep900_mco.x2m:218-247 (declaration) and :944 (export).
+*    TF and TG are TEMP axes, so COMPO: reads them from the mixture
+*    temperatures of the LIBRARY it is handed -- they are not set by name.
+*    DCA has no library counterpart and is set explicitly per branch.
+*--------------------------------------------------------------
+COMPO := COMPO: ::
+  EDIT 1
+  STEP UP 'EDIRBMK'
+  MAXCAL 5
+  COMM 'RBMK-1000 channel cell, 2 wt% U-235, DLIB_99 (ENDF/B-VIII.1)' ENDC
+  PARA 'burnup' IRRA
+  PARA 'TF'  TEMP LIBRARY 6
+  PARA 'TG'  TEMP LIBRARY 5
+  PARA 'DCA' VALU REAL
+  INIT
+  ;
+
+*--------------------------------------------------------------
+*  REFERENCE DEPLETION AT THE NOMINAL STATE
+*--------------------------------------------------------------
+ECHO "=== A5b: reference depletion at dca" dnom "TF" tfnom "TG" tgnom "===" ;
+
+LIBRARY := RbmkLib :: <<dnom>> <<tfnom>> <<tgnom>> <<tcool>> ;
+LIBSS   := USS: LIBRARY TRKSS FTRKSS :: EDIT 0 PASS 2 GRMIN 18 ;
+SYS     := ASM: LIBSS TRK FTRK :: EDIT 0 ;
+FLUX    := FLU: LIBSS TRK SYS :: TYPE K B1 SIGS BUCK 0.0 EXTE 1.0E-6 ;
+GREP: FLUX :: GETVAL 'K-INFINITY' 1 >>kinf<< ;
+ECHO "A5BREF  BU 0.0  k-inf" kinf ;
+
+EVALUATE tend := 0.0 ;
+BURNUP LIBSS := EVO: LIBSS FLUX TRK ::
+  EDIT 0 SAVE <<tend>> DAY POWR <<fpwr>> ;
+
+EVALUATE istep := 1 ;
+WHILE istep nbu < DO
+  EVALUATE istep := istep 1 + ;
+  EVALUATE bubeg tbeg := buend tend ;
+  GREP: DONNEES :: GETVAL 'burn' <<istep>> >>buend<< ;
+  EVALUATE tend := buend fpwr / ;
+
+  BURNUP LIBSS := EVO: BURNUP LIBSS FLUX TRK ::
+    EDIT 0 NOEX DEPL <<tbeg>> <<tend>> DAY POWR <<fpwr>> ;
+
+  SYS  := DELETE: SYS ;
+  SYS  := ASM: LIBSS TRK FTRK :: EDIT 0 ;
+  FLUX := FLU: FLUX LIBSS TRK SYS :: TYPE K B1 SIGS BUCK 0.0 EXTE 1.0E-6 ;
+  GREP: FLUX :: GETVAL 'K-INFINITY' 1 >>kinf<< ;
+  ECHO "A5BREF  BU" buend "  k-inf" kinf ;
+
+  BURNUP LIBSS := EVO: BURNUP LIBSS FLUX TRK ::
+    EDIT 0 SAVE <<tend>> DAY POWR <<fpwr>> ;
+ENDWHILE ;
+
+*--------------------------------------------------------------
+*  BRANCH TENSOR AND COMPO FEEDING
+*
+*  At every burnup point the library is rebuilt at the branch state, the
+*  depleted fuel isotopics are restored from the BURNUP object, and the cell
+*  is RE-SELF-SHIELDED before being re-solved.  Re-doing USS: per branch is
+*  not optional: voiding hardens the spectrum into the U-238 resonances, and
+*  that is precisely where self-shielding acts.
+*--------------------------------------------------------------
+ECHO "" ;
+ECHO "=== A5b: branch tensor, DCA x TF x TG at each burnup ===" ;
+
+EVALUATE istep := 0 ;
+WHILE istep nbu < DO
+  EVALUATE istep := istep 1 + ;
+  GREP: DONNEES :: GETVAL 'burn' <<istep>> >>buend<< ;
+  EVALUATE tend := buend fpwr / ;
+
+  EVALUATE itg := 0 ;
+  WHILE itg ntg < DO
+    EVALUATE itg := itg 1 + ;
+    GREP: DONNEES :: GETVAL 'tg' <<itg>> >>tgbr<< ;
+
+    EVALUATE itf := 0 ;
+    WHILE itf ntf < DO
+      EVALUATE itf := itf 1 + ;
+      GREP: DONNEES :: GETVAL 'tf' <<itf>> >>tfbr<< ;
+
+      EVALUATE iv := 0 ;
+      WHILE iv ndc < DO
+        EVALUATE iv := iv 1 + ;
+        GREP: DONNEES :: GETVAL 'dca' <<iv>> >>dbr<< ;
+
+        LIBRARY := DELETE: LIBRARY ;
+        LIBRARY := RbmkLib :: <<dbr>> <<tfbr>> <<tgbr>> <<tcool>> ;
+        LIBRARY := LIB: LIBRARY BURNUP ::
+          EDIT 0 BURN <<istep>> MIX 6 MIX 7 ;
+
+        LIBSS := DELETE: LIBSS ;
+        LIBSS := USS: LIBRARY TRKSS FTRKSS :: EDIT 0 PASS 2 GRMIN 18 ;
+        SYS   := DELETE: SYS ;
+        SYS   := ASM: LIBSS TRK FTRK :: EDIT 0 ;
+        FLUX  := DELETE: FLUX ;
+        FLUX  := FLU: LIBSS TRK SYS :: TYPE K B1 SIGS BUCK 0.0 EXTE 1.0E-6 ;
+        GREP: FLUX :: GETVAL 'K-INFINITY' 1 >>kinf<< ;
+        ECHO "A5BTAB" buend dbr tfbr tgbr kinf ;
+
+        EDIOBJ := EDI: LIBSS TRK FLUX GEOFL SYS ::
+          EDIT 0
+          MICR 31
+            U234  U235  U236  U238  Np237 Np239 Pu238 Pu239 Pu240 Pu241
+            Pu242 Am241 Am242m Am243 Cm242 Cm243 Cm244
+            Xe135 I135  Sm149 Pm149 Sm151
+            Nd143 Ru103 Rh103 Cs133 Tc99  Gd155 Gd157 Eu153 B10
+          MERG COMP
+          COND 0.625
+*         GOLVER asks for diffusion coefficients by the Golfier-Vergain
+*         formula, D = 1 / (3 (Sigma_t - Sigma_s1)).  It is NOT sufficient on
+*         its own, and the failure is silent:
+*           EDIPXS.f:344-351  writes the 'DIFF' block under GOLVER *or* a
+*                             leakage model, so the edit object looks right;
+*           EDIPXS.f:413-419  sets the state-vector flag IDATA(9) only under
+*                             a LEAKAGE MODEL -- GOLVER alone leaves it 0;
+*           COMACR.f:91,169   reads NLEAK=IPAR(9) and only then copies 'DIFF'
+*                             out of the edit, storing it in the COMPO under
+*                             the name 'STRD' (COMACR.f:246).
+*         With GOLVER alone the COMPO is written, is a valid L_MULTICOMPO, and
+*         has no STRD -- DONJON then stops at "TRISYS: NO DIFFUSION
+*         COEFFICIENTS" two hours of CPU later.  That is why every FLU: call in
+*         this deck is 'TYPE K B1 SIGS BUCK 0.0': the B1 machinery sets the
+*         flag, and imposing ZERO buckling leaves the spectrum untouched, so
+*         the k-infinity values cross-checked against OpenMC do not move
+*         (measured: 1.310172 -> 1.310173).  GOLVER is kept because it is what
+*         supplies the DIFF values the leakage flag then lets through.
+*         A critical-buckling search (TYPE B) would also set the flag but WOULD
+*         change the condensation spectrum; it is deliberately not used.
+          GOLVER
+          SAVE ON EDIRBMK
+          ;
+
+*       COMPO: finds the microlib BY LCM OBJECT NAME, not by argument
+*       position: the token after TEMP in the PARA declaration above is the
+*       name of the linked list to read the temperature from (COMGEP.f:135
+*       -> COMBIB.f:58-68).  So this must be LIBRARY, not LIBSS.
+        COMPO := COMPO: COMPO EDIOBJ BURNUP LIBRARY ::
+          EDIT 0
+          STEP UP 'EDIRBMK'
+          'DCA' <<dbr>>
+          SET <<tend>> DAY ;
+
+        EDIOBJ := DELETE: EDIOBJ ;
+      ENDWHILE ;
+    ENDWHILE ;
+  ENDWHILE ;
+ENDWHILE ;
+
+*--------------------------------------------------------------
+*  EXPORT.  This assignment is the step that had never been done.
+*  Without it the database lives in memory and END: discards it.
+*  DONJON reads it back with  Cpo := _ACompo ;  (channel_mphy.x2m:52,69).
+*--------------------------------------------------------------
+_ACompo := COMPO ;
+
+UTL: COMPO :: DIR ;
+
+END: ;
+QUIT .

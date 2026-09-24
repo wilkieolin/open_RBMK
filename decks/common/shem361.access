@@ -1,0 +1,8 @@
+#!/bin/sh
+#
+# Same ENDF/B-VIII.1 evaluation as the default draglib, but in the SHEM-361
+# group structure: 2.1x the resolution and a much finer mesh through the
+# resolved resonance range.  Isotope names are identical, so the deck body is
+# unchanged -- only the library binding differs.
+#
+DRAGLIB=draglibendfb8r1SHEM361_v5p1 exec "$1"/../../decks/common/dlib99.access "$@"

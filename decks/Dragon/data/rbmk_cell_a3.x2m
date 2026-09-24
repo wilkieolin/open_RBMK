@@ -1,0 +1,214 @@
+*----
+*  RBMK-1000 LATTICE CELL  --  A3 rebuild, 2026-09-22
+*
+*  Replaces rbmk_cell_v3.x2m, which was TCWU07 (a CANDU-6 37-element bundle)
+*  with the outer square resized.  That cell had a 3.85 cm solid zirconium
+*  "calandria tube" occupying 33% of the lattice, 37 pins instead of 18, and
+*  only 45% graphite.  It gave a void coefficient of -183 to -621 pcm/%void.
+*
+*  GEOMETRY  (all radii in cm; DRAGON GEO: coordinates are centimetres)
+*  ---------------------------------------------------------------------
+*   r 0.000 - 0.500  carrier rod bore, coolant          MIX 1
+*   r 0.500 - 0.650  carrier rod, Zr-1%Nb (13 mm OD)    MIX 9   [W]
+*   r 0.000 - 4.000  channel coolant, holds the cluster MIX 1
+*   r 4.000 - 4.400  pressure tube Zr-2.5%Nb, 88x4 mm   MIX 2   [?]
+*   r 4.400 - 4.550  gas clearance, ring <-> tube       MIX 3   [W]
+*   r 4.550 - 5.700  graphite rings (split sleeves)     MIX 4
+*   r 5.700 - corner graphite block, bore 11.4 cm dia   MIX 5   [W]
+*   half-pitch 12.5 (250 mm lattice)                            [W]
+*
+*  FUEL ROD  18 rods, two rings of 6 and 12, around a carrier rod
+*   r 0.0000 - 0.1000  central hole (2 mm dia), gas     MIX 3   [W]
+*   r 0.1000 - 0.5750  UO2 pellet (11.5 mm dia)         MIX 6/7 [W]
+*   r 0.5750 - 0.5975  pellet-clad gap, gas             MIX 3   [W]
+*   r 0.5975 - 0.6800  clad Zr-1%Nb, 13.6 mm OD x 0.825 MIX 8   [W]
+*   inner ring  6 rods at R = 1.60                              [?]
+*   outer ring 12 rods at R = 3.10, offset pi/12                [?]
+*
+*  [W] from the Wikipedia RBMK article, fetched 2026-09-22.
+*  [?] NOT in that source -- see "UNVERIFIED" below.  Fix in one place here.
+*
+*  UNVERIFIED, must be confirmed against a primary source:
+*   1. Pressure tube 88 x 4 mm (r 4.00/4.40).  The Wikipedia article states
+*      8.4 cm ID with a 4 mm wall, i.e. 92 x 4 mm (r 4.20/4.60).  Both figures
+*      circulate.  88 x 4 is the more commonly cited Zr-2.5%Nb technological
+*      channel and is used here.  The choice changes the coolant area by 10%,
+*      which matters for the void coefficient.
+*   2. Fuel rod ring radii 1.60 / 3.10 cm.  Not stated in the source; derived
+*      from the fit constraints (rods must clear the carrier, each other, and
+*      the tube wall).  All clearances check out but the values are inferred.
+*   3. Carrier rod modelled as a Zr tube 10/13 mm with coolant inside.  The
+*      source gives 13 mm OD only; the wall is a guess.
+*
+*  CROSS-CHECK ON GRAPHITE  (independent of the geometry above)
+*   Bore 11.4 cm in a 25 cm pitch leaves 522.9/625 = 83.7% of the cell as
+*   block graphite.  With ~2000 bored columns in a 14 m stack, the stack-average
+*   graphite fraction is ~86.8%; at 1.65 g/cm3 that is 1763 t against the
+*   published ~1700 t.  Agreement to 4% confirms pitch, bore and density.
+*
+*  TARGET VOLUME FRACTIONS (asserted at the end of this deck)
+*   graphite 89.6%   coolant 3.77%   fuel 2.90%   Zr 2.73%   gas 1.00%
+*   (the deck it replaces had graphite 45.2%, coolant 9.2%, Zr 37.6%)
+*----
+LINKED_LIST LIBRARY LIBSS GEOSS GEOFL TRKSS TRK SYS FLUX
+            EDIHOM EDIMIX SPHED MACMIX ;
+SEQ_BINARY  FTRKSS FTRK ;
+MODULE      LIB: GEO: NXT: USS: ASM: FLU: EDI: SPH: GREP: DELETE:
+            UTL: ABORT: END: ;
+PROCEDURE   assertS RbmkLib ;
+
+REAL dca   := 0.72 ;   ! nominal coolant density, g/cm3
+REAL tfuel := 900.0 ;  ! fuel temperature, K
+REAL tgrap := 750.0 ;  ! graphite temperature, K (RBMK runs 500-700 C)
+REAL tcool := 573.0 ;  ! coolant and structure temperature, K
+REAL kinf ;
+REAL v1 v2 v3 v4 v5 v6 v7 v8 v9 vtot fgra fcool ffuel fzr fgas ;
+
+*==============================================================
+*  MICROSCOPIC LIBRARY
+*  All compositions live in rbmk_proc/RbmkLib.c2m, shared with the A5 branch
+*  deck so the two cannot disagree about what a mixture contains.
+*==============================================================
+LIBRARY := RbmkLib :: <<dca>> <<tfuel>> <<tgrap>> <<tcool>> ;
+
+*==============================================================
+*  GEOMETRY -- coarse, for self-shielding
+*==============================================================
+GEOSS := GEO: :: CARCEL 5
+  EDIT 0
+  X- REFL X+ REFL MESHX -12.5 12.5
+  Y- REFL Y+ REFL MESHY -12.5 12.5
+*         coolant  tube   gas    rings  block   corner
+  RADIUS  0.00     4.00   4.40   4.55   5.70   11.00
+  MIX     1        2      3      4      5      5
+  CLUSTER CARR ROD1 ROD2
+  ::: CARR := GEO: TUBE 2
+    MIX  1 9   NPIN 1  RPIN 0.00  APIN 0.00
+    RADIUS 0.0000 0.5000 0.6500 ;
+  ::: ROD1 := GEO: TUBE 4
+    MIX  3 6 3 8   NPIN 6  RPIN 1.60  APIN 0.00
+    RADIUS 0.0000 0.1000 0.5750 0.5975 0.6800 ;
+  ::: ROD2 := GEO: ROD1
+    MIX  3 7 3 8   NPIN 12  RPIN 3.10  APIN 0.261799 ;
+  ;
+
+*==============================================================
+*  GEOMETRY -- refined, for transport
+*  coolant -> 4 rings, block graphite -> 6 rings, pellets -> 3 rings
+*==============================================================
+GEOFL := GEO: GEOSS :: SPLITR 4 1 1 2 6
+  ::: CARR := GEO: CARR SPLITR 1 1 ;
+  ::: ROD1 := GEO: ROD1 SPLITR 1 3 1 1 ;
+  ::: ROD2 := GEO: ROD2 SPLITR 1 3 1 1 ;
+  ;
+
+*==============================================================
+*  SELF-SHIELDING  --  absent from every previous RBMK deck, so all
+*  resonance absorption up to now was at infinite dilution
+*==============================================================
+TRKSS FTRKSS := NXT: GEOSS ::
+  EDIT 0 TITLE 'RBMK-A3-SS' ALLG BATCH 100 TISO 8 15.0 ;
+
+LIBSS := USS: LIBRARY TRKSS FTRKSS :: EDIT 1 PASS 2 GRMIN 18 ;
+
+*==============================================================
+*  TRANSPORT
+*==============================================================
+TRK FTRK := NXT: GEOFL ::
+  EDIT 0 TITLE 'RBMK-A3-FLUX' ALLG BATCH 100 TISO 15 30.0 ;
+
+SYS  := ASM: LIBSS TRK FTRK :: EDIT 1 ;
+FLUX := FLU: LIBSS TRK SYS :: TYPE K EXTE 1.0E-6 ;
+
+GREP: FLUX :: GETVAL 'K-INFINITY' 1 >>kinf<< ;
+ECHO "RBMK-A3 k-infinity =" kinf ;
+
+*==============================================================
+*  EDITIONS
+*   EDIMIX -- per-mixture, feeds SPH and the volume check
+*   EDIHOM -- fully homogenized 2-group macrolib for DONJON
+*==============================================================
+EDIMIX := EDI: LIBSS TRK FLUX GEOFL SYS ::
+  EDIT 2 MICR ALL MERG MIX  COND 0.625 SAVE ON MIXED ;
+
+EDIHOM := EDI: LIBSS TRK FLUX GEOFL SYS ::
+  EDIT 2 MICR ALL MERG COMP COND 0.625 SAVE ON HOMOG ;
+
+*  SPH applies to the PER-MIXTURE edition only.  Tested 2026-09-22:
+*    SPH: EDIHOM ...  ->  SPHDRV: INVALID NUMBER OF MACRO-REGIONS (9 1)
+*  SPH needs one homogenized region per tracking macro-region, so it cannot
+*  be applied to a full-cell (MERG COMP) homogenization at all.  For the
+*  DONJON model -- one node per channel -- EDIHOM is used directly and needs
+*  no SPH: flux-volume weighting with reflective boundaries already preserves
+*  k-infinity exactly.  SPH is needed at the CORE level instead, for the
+*  graphite reflector and for control-rod cells.  That reframes task A4.
+*
+*  Kept here because it exercises the SEQ_BINARY tracking file that the
+*  original "SPH is incompatible with NXT" blocker was really about, and
+*  because a multi-region channel model would need these factors.
+SPHED := SPH: EDIMIX TRK FTRK :: EDIT 2 ;
+
+*==============================================================
+*  VOLUME-FRACTION GUARDRAIL
+*
+*  This is the check that was missing.  The deck this replaces was a CANDU-6
+*  bundle (graphite 45.2%, zirconium 37.6%) and nothing caught it -- the error
+*  only surfaced when the void coefficient came out at -621 pcm/%void, six
+*  branch calculations later.  A lattice deck that does not verify what it
+*  actually built cannot be trusted.  Bounds are loose enough to tolerate the
+*  unresolved pressure-tube dimension, tight enough to reject a PWR or CANDU.
+*==============================================================
+MACMIX := EDIMIX :: STEP UP MIXED ;
+GREP: MACMIX :: GETVAL 'MIXTURESVOL' 1 >>v1<< ;
+GREP: MACMIX :: GETVAL 'MIXTURESVOL' 2 >>v2<< ;
+GREP: MACMIX :: GETVAL 'MIXTURESVOL' 3 >>v3<< ;
+GREP: MACMIX :: GETVAL 'MIXTURESVOL' 4 >>v4<< ;
+GREP: MACMIX :: GETVAL 'MIXTURESVOL' 5 >>v5<< ;
+GREP: MACMIX :: GETVAL 'MIXTURESVOL' 6 >>v6<< ;
+GREP: MACMIX :: GETVAL 'MIXTURESVOL' 7 >>v7<< ;
+GREP: MACMIX :: GETVAL 'MIXTURESVOL' 8 >>v8<< ;
+GREP: MACMIX :: GETVAL 'MIXTURESVOL' 9 >>v9<< ;
+
+EVALUATE vtot  := v1 v2 + v3 + v4 + v5 + v6 + v7 + v8 + v9 + ;
+EVALUATE fgra  := v4 v5 + vtot / 100.0 * ;
+EVALUATE fcool := v1 vtot / 100.0 * ;
+EVALUATE ffuel := v6 v7 + vtot / 100.0 * ;
+EVALUATE fzr   := v2 v8 + v9 + vtot / 100.0 * ;
+EVALUATE fgas  := v3 vtot / 100.0 * ;
+
+ECHO "-----------------------------------------------------" ;
+ECHO "RBMK-A3 cell area cm2 :" vtot "   (expect 625.0)" ;
+ECHO "  graphite  %          :" fgra  "   (expect 89.6)" ;
+ECHO "  coolant   %          :" fcool "   (expect  3.77)" ;
+ECHO "  fuel      %          :" ffuel "   (expect  2.90)" ;
+ECHO "  zirconium %          :" fzr   "   (expect  2.73)" ;
+ECHO "  gas       %          :" fgas  "   (expect  1.00)" ;
+ECHO "  k-infinity           :" kinf ;
+ECHO "-----------------------------------------------------" ;
+
+IF vtot 624.0 < THEN
+  ECHO "FAIL: cell area is not 25 x 25 cm" ; ABORT: ; ENDIF ;
+IF vtot 626.0 > THEN
+  ECHO "FAIL: cell area is not 25 x 25 cm" ; ABORT: ; ENDIF ;
+IF fgra 88.0 < THEN
+  ECHO "FAIL: graphite fraction too low -- this is not an RBMK cell" ;
+  ABORT: ; ENDIF ;
+IF fgra 91.0 > THEN
+  ECHO "FAIL: graphite fraction too high -- channel is missing" ;
+  ABORT: ; ENDIF ;
+IF fcool 3.0 < THEN
+  ECHO "FAIL: too little coolant" ; ABORT: ; ENDIF ;
+IF fcool 4.5 > THEN
+  ECHO "FAIL: too much coolant -- cell is water-moderated, not graphite" ;
+  ABORT: ; ENDIF ;
+IF ffuel 2.5 < THEN
+  ECHO "FAIL: too little fuel" ; ABORT: ; ENDIF ;
+IF ffuel 3.3 > THEN
+  ECHO "FAIL: too much fuel -- wrong number of pins?" ; ABORT: ; ENDIF ;
+IF fzr 3.5 > THEN
+  ECHO "FAIL: too much zirconium -- is there a calandria tube in here?" ;
+  ABORT: ; ENDIF ;
+ECHO "volume-fraction guardrail PASSED" ;
+
+END: ;
+QUIT "LIST" .

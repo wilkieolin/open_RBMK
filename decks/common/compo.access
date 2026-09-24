@@ -1,0 +1,28 @@
+#!/bin/sh
+#
+# Canonical DONJON .access hook: bring the DRAGON-side MULTICOMPO into the run
+# directory.  $1 is the Donjon CodeDir, so the Dragon tree is a sibling and the
+# COMPO that rbmk_a5b_compo.save wrote is at ../Dragon/compo/_ACompo.
+#
+# Falls back to the smoke-test COMPO with a loud warning rather than failing, so
+# a deck can be exercised before the 630-point database has been rebuilt -- but
+# never silently: a result computed against _ACompoSmoke is not a result against
+# the full database.
+#
+if [ $# = 0 ]; then
+    echo "usage: $(basename "$0") <CodeDir>" 1>&2
+    exit 1
+fi
+src="$1"/../Dragon/compo
+if [ -f "$src"/_ACompo ]; then
+    cp "$src"/_ACompo .
+    echo "using the full MULTICOMPO: $(wc -c < _ACompo) bytes"
+elif [ -f "$src"/_ACompoSmoke ]; then
+    cp "$src"/_ACompoSmoke _ACompo
+    echo "WARNING: full _ACompo absent -- falling back to the SMOKE compo" 1>&2
+    echo "using _ACompoSmoke: $(wc -c < _ACompo) bytes"
+else
+    echo "ERROR: no COMPO found in $src" 1>&2
+    echo "       Run ./rdragon -c custom -p 1 rbmk_a5b_compo.x2m first." 1>&2
+    exit 1
+fi

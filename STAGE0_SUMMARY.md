@@ -1,8 +1,10 @@
 # Stage 0 Complete: DRAGON5/DONJON5 Toolchain Built
 
+*(Paths in this document are relative to the repository root.)*
+
 ## Build Summary
-- **Source**: `/home/wilkie/code/RBMK/5.1` (monorepo v5.1.0)
-- **Install prefix**: `/home/wilkie/code/RBMK/install`
+- **Source**: `5.1` (monorepo v5.1.0)
+- **Install prefix**: `install`
 - **Build method**: Native Makefiles (sequential build required due to Makefile target naming)
 
 ## Built Components
@@ -15,7 +17,7 @@
 | DONJON5 | `donjon` | `libDonjon.a` | ✅ Built, executable starts |
 
 ## Nuclear Data Libraries (Pre-installed)
-Location: `/home/wilkie/code/RBMK/libraries/`
+Location: `libraries/`
 - `hdf5/gal_xs_99g.h5` - 99-group cross sections (~318 MB)
 - `hdf5/gal_ss_99g.h5` - Self-shielding library (~60 MB)
 - `hdf5/gal_bateman_99g.h5` - Bateman depletion (~0.3 MB)
@@ -30,11 +32,11 @@ Location: `/home/wilkie/code/RBMK/libraries/`
 ## Verification Commands
 ```bash
 # Test executables start
-echo "END" | /home/wilkie/code/RBMK/install/bin/dragon
-echo "END" | /home/wilkie/code/RBMK/install/bin/donjon
+echo "END" | install/bin/dragon
+echo "END" | install/bin/donjon
 
 # Run Ganlib tests
-cd /home/wilkie/code/RBMK/5.1/Ganlib
+cd 5.1/Ganlib
 ./rganlib -c custom -p 1 -q testgan1.x2m  # ✅ PASS
 ./rganlib -c custom -p 1 -q testgan2.x2m  # ✅ PASS
 ./rganlib -c custom -p 1 -q testgan3.x2m  # ✅ PASS
@@ -47,7 +49,7 @@ cd /home/wilkie/code/RBMK/5.1/Ganlib
 
 ## Environment Setup for Stage 1+
 ```bash
-export PATH="/home/wilkie/code/RBMK/install/bin:$PATH"
-export LD_LIBRARY_PATH="/home/wilkie/code/RBMK/install/lib:$LD_LIBRARY_PATH"
-export DRAGON_LIBRARY_PATH="/home/wilkie/code/RBMK/libraries/hdf5"
+export PATH="$PWD/install/bin:$PATH"
+export LD_LIBRARY_PATH="$PWD/install/lib:$LD_LIBRARY_PATH"
+export DRAGON_LIBRARY_PATH="$PWD/libraries/hdf5"
 ```

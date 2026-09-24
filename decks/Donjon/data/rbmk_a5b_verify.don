@@ -1,0 +1,70 @@
+*----
+*  RBMK-1000 -- A5b VERIFICATION: can DONJON actually read the MULTICOMPO,
+*  and does DRAGON's k-infinity survive the round trip?
+*
+*  "A COMPO exists on disk" is not the gate.  The artifact is only useful if
+*  NCR: can interpolate it and TRIVAA:/FLUD: can solve with the result.  This
+*  deck closes that loop end to end:
+*
+*    DRAGON cell  ->  EDI: 2 groups  ->  COMPO:  ->  _ACompo on disk
+*                 ->  NCR:  ->  macrolib  ->  TRIVAA:  ->  FLUD:  ->  k
+*
+*  The geometry is a single homogeneous 25 cm cube, reflective on all six
+*  faces.  There is no leakage, so the diffusion eigenvalue reduces exactly to
+*  nu-Sigma-f / Sigma-a -- i.e. to k-infinity.  It must reproduce the value
+*  DRAGON printed for the same branch point (A5BTAB in the Dragon listing).
+*
+*  A mismatch here means the condensation, the homogenisation or the COMPO
+*  interpolation is losing something, and it would otherwise show up much
+*  later as an unexplained bias in the 3-D core.
+*
+*  Interpolation is requested at an EXACT grid point, so LINEAR and CUBIC must
+*  agree and the comparison is against DRAGON directly, not against a fit.
+*----
+LINKED_LIST Cpo Macro GEOM TRACK SYSTEM FLUX ;
+SEQ_ASCII   _ACompo :: FILE './_ACompo' ;
+MODULE      NCR: GEO: TRIVAT: TRIVAA: FLUD: GREP: UTL: END: ;
+
+REAL kinf ;
+REAL bu   := 0.0   ;   ! MWd/t   -- exact grid point
+REAL dca  := 0.72  ;   ! g/cm3   -- exact grid point
+REAL tf   := 900.0 ;   ! K       -- exact grid point
+REAL tg   := 750.0 ;   ! K       -- exact grid point
+
+Cpo := _ACompo ;
+UTL: Cpo :: DIR ;
+
+Macro := NCR: Cpo ::
+  EDIT 2
+  MACRO LINEAR NMIX 1
+  COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1
+    SET 'burnup' <<bu>>
+    SET 'DCA'    <<dca>>
+    SET 'TF'     <<tf>>
+    SET 'TG'     <<tg>>
+  ENDMIX
+  ;
+
+UTL: Macro :: DIR ;
+
+GEOM := GEO: :: CAR3D 1 1 1
+  EDIT 1
+  X- REFL X+ REFL
+  Y- REFL Y+ REFL
+  Z- REFL Z+ REFL
+  MIX 1
+  MESHX 0.0 25.0
+  MESHY 0.0 25.0
+  MESHZ 0.0 25.0
+  ;
+
+TRACK  := TRIVAT: GEOM   :: EDIT 1 MAXR 10 MCFD 1 ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 1 ;
+FLUX   := FLUD: SYSTEM TRACK  :: EDIT 2 ;
+
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BVERIFY  bu" bu " dca" dca " TF" tf " TG" tg " k-inf-from-COMPO" kinf ;
+
+END: ;
+QUIT .

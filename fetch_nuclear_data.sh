@@ -4,7 +4,7 @@ set -euo pipefail
 # Nuclear Data Fetch Script - ENDF/B-VIII.0
 # Downloads and prepares nuclear data for DRAGON5
 
-ROOT_DIR="/home/wilkie/code/RBMK"
+ROOT_DIR="${RBMK_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 DATA_DIR="${ROOT_DIR}/nuclear-data/endfb8"
 PREFIX="${ROOT_DIR}/install"
 

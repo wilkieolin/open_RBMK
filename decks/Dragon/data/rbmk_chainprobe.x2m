@@ -1,0 +1,30 @@
+*----
+*  RBMK-1000 -- PROBE: what isotope names does the DLIB_99 depletion chain use?
+*
+*  A5b needs an explicit MICR list for EDI:.  MICR ALL would carry ~380
+*  nuclides into the MULTICOMPO at every branch point -- hundreds of MB of
+*  ASCII -- while a misspelled name in an explicit list aborts the run.  The
+*  names are library-specific, so they are read from the library here rather
+*  than recalled.
+*
+*  THROWAWAY PROBE.  It defines its own one-mixture LIB: block only because
+*  RbmkLib.c2m is pinned at EDIT 0; the composition here is not used for any
+*  physics result and must not be copied anywhere.  Delete once A5b's MICR
+*  list is settled.
+*----
+LINKED_LIST LIBRARY ;
+MODULE      LIB: END: ;
+
+LIBRARY := LIB: ::
+  EDIT 3
+  NMIX 1
+  DEPL LIB: DRAGON FIL: DLIB_99
+  MIXS LIB: DRAGON FIL: DLIB_99
+  MIX 1  900.0
+     U235    = U235    4.69750E-4  1
+     U238    = U238    2.27272E-2  1
+     O16     = O16     4.63940E-2
+;
+
+END: ;
+QUIT .

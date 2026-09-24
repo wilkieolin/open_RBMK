@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build script for DRAGON5/DONJON5 monorepo at /home/wilkie/code/RBMK/5.1
+# Build script for DRAGON5/DONJON5 monorepo in the 5.1 submodule
 # Uses the native Makefile system with environment variable controls
 
-ROOT_DIR="/home/wilkie/code/RBMK"
+ROOT_DIR="${RBMK_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 MONOREPO="${ROOT_DIR}/5.1"
 BUILD_DIR="${ROOT_DIR}/build"
 PREFIX="${ROOT_DIR}/install"
 
 # HDF5 paths (Ubuntu 24.04)
 export HDF5_INC="/usr/include/hdf5/serial"
-export HDF5_API="/usr/lib/aarch64-linux-gnu/hdf5/serial"
+MULTIARCH="$(gcc -print-multiarch 2>/dev/null || echo "$(uname -m)-linux-gnu")"
+export HDF5_API="/usr/lib/${MULTIARCH}/hdf5/serial"
 
 # Build configuration
 export openmp=1

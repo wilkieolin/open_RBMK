@@ -4,7 +4,7 @@ set -euo pipefail
 # Master Stage 0 Build Script
 # Runs complete toolchain build: fetch -> build -> test -> nuclear data -> ARMI
 
-ROOT_DIR="/home/wilkie/code/RBMK"
+ROOT_DIR="${RBMK_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 
 echo "=========================================="
 echo "  RBMK-1000 Stage 0: Toolchain Build"

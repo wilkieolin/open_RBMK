@@ -1,0 +1,95 @@
+* DONJON5 RBMK 1D Test - Fuel channel + graphite
+
+LINKED_LIST RBMK MACRO TRACK SYSTEM FLUX ;
+MODULE GEO: MAC: TRIVAT: TRIVAA: FLUD: GREP: END: ;
+REAL Keff ;
+PROCEDURE assertS ;
+
+*==============================================================
+* GEOMETRY: 1D slab - fuel (10cm) + graphite (40cm) + fuel (10cm)
+*==============================================================
+RBMK := GEO: :: CAR3D 1 1 12
+          EDIT 2
+          X- VOID  X+ VOID 
+          Y- VOID  Y+ VOID 
+          Z- VOID  Z+ VOID 
+          
+          MIX
+          PLANE 1  ! Fuel
+          1
+          PLANE 2
+          1
+          PLANE 3
+          1
+          PLANE 4
+          1
+          PLANE 5  ! Graphite
+          2
+          PLANE 6
+          2
+          PLANE 7
+          2
+          PLANE 8
+          2
+          PLANE 9
+          2
+          PLANE 10
+          2
+          PLANE 11
+          2
+          PLANE 12  ! Fuel
+          1
+          MESHX 0.00 0.25
+          MESHY 0.00 0.25
+          MESHZ 0.00 0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00 2.25 2.50 2.75 3.00
+          ;
+
+*==============================================================
+* MACROLIB: 2-group XS
+*==============================================================
+MACRO := MAC: ::
+  EDIT 2 NGRO 2 NMIX 2 NIFI 1
+  READ INPUT
+* Mix 1: Fuel channel
+  MIX     1
+      DIFFX  1.450E+00  3.800E-01
+      TOTAL  3.000E-02  1.200E-01
+     NUSIGF  0.000E+00  2.000E-02
+   H-FACTOR  0.000E+00  2.000E-02
+       SCAT  1 1 0.0  2 2 0.0  2.50E-02
+* Mix 2: Graphite
+  MIX     2
+      DIFFX  1.950E+00  2.850E-01
+      TOTAL  3.000E-04  2.000E-04
+     NUSIGF  0.000E+00  0.000E+00
+   H-FACTOR  0.000E+00  0.000E+00
+       SCAT  1 1 0.0  2 2 0.0  3.90E-02
+  ;
+
+*==============================================================
+* TRACKING
+*==============================================================
+TRACK := TRIVAT: RBMK ::
+      TITLE 'RBMK 1D TEST'
+      EDIT 1 MAXR 100000 DUAL 3 3 ;
+
+*==============================================================
+* ASSEMBLY
+*==============================================================
+SYSTEM := TRIVAA: MACRO TRACK :: EDIT 1 ;
+
+*==============================================================
+* FLUX
+*==============================================================
+FLUX := FLUD: SYSTEM TRACK :: EDIT 2 EXTE 1.0E-7 1000 ;
+
+*==============================================================
+* CHECK
+*==============================================================
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>Keff<< ;
+ECHO "Keff=" Keff ;
+assertS FLUX :: 'K-EFFECTIVE' 1 1.0 ;
+
+END: ;
+
+QUIT .

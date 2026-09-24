@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Non-Regression Test Runner for DRAGON5/DONJON5
 
-ROOT_DIR="/home/wilkie/code/RBMK"
+ROOT_DIR="${RBMK_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 BUILD_DIR="${ROOT_DIR}/build"
 PREFIX="${ROOT_DIR}/install"
 REGRESS_DIR="${ROOT_DIR}/regress"

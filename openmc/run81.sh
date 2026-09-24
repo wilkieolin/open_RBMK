@@ -2,13 +2,14 @@
 # ENDF/B-VIII.1 -- the library DRAGON's DLIB_99 is built from, so this is the
 # comparison that isolates method (172-group deterministic vs continuous-energy
 # Monte Carlo) from nuclear data.
-export OPENMC_CROSS_SECTIONS=/home/wilkie/nucdata/endfb-viii.1-hdf5/cross_sections.xml
-cd /home/wilkie/code/RBMK/openmc
-PY=/home/wilkie/code/RBMK/.venv-openmc/bin/python
 
 # wait for the VIII.0 sweep and the depletion smoke test to release the cores
 # VIII.0 sweep already complete
 # no contending jobs
+cd "$(dirname "${BASH_SOURCE[0]}")"
+ENDF_RELEASE=viii.1
+. ./env.sh
+
 echo "=== VIII.1 sweep starting ==="
 
 for d in 0.72 0.35 0.02; do

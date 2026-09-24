@@ -18,8 +18,10 @@ import numpy as np
 import openmc, openmc.deplete
 from rbmk_cell import make_model, R_PELLET, R_HOLE, RING1_N, RING2_N
 
-CHAIN   = os.environ.get("RBMK_CHAIN",
-                         "/home/wilkie/nucdata/chain_endfb80_thermal.xml")
+CHAIN   = os.environ.get(
+    "RBMK_CHAIN",
+    os.path.join(os.environ.get("NUCDATA_DIR", os.path.expanduser("~/nucdata")),
+                 "chain_endfb80_thermal.xml"))
 DEPLDIR = os.environ.get("RBMK_DEPLDIR", "depl")
 BRDIR   = os.environ.get("RBMK_BRDIR",   "branch")
 RESJSON = os.environ.get("RBMK_RESJSON", "branch_results.json")

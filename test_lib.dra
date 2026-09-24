@@ -1,4 +1,0 @@
-LIB:  ::  EDIT 1
-    GETXSLIB  /home/wilkie/code/RBMK/libraries/hdf5/gal_xs_99g.h5  300.0
-    ;
-END:

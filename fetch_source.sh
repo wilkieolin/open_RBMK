@@ -7,7 +7,7 @@ set -euo pipefail
 #   Export NEA_TOKEN=your_token before running
 #   Or: git config --global credential.helper store  (then enter credentials once)
 
-ROOT_DIR="/home/wilkie/code/RBMK"
+ROOT_DIR="${RBMK_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 SRC_DIR="${ROOT_DIR}/src"
 NEA_BASE="https://git.oecd-nea.org"
 

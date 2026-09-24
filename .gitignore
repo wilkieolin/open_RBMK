@@ -42,9 +42,19 @@ openmc/smoke_depl/
 # DRAGON/DONJON generated output.  `.result` listings are rebuilt by rerunning
 # the deck -- and standing rule 5 says delete them before you do.
 *.result
-Linux_aarch64/
+Linux_*/
+Darwin_*/
 
 # Exported MULTICOMPO databases.  _ACompo alone is 114 MB and is rebuilt by
 # rbmk_a5b_compo.x2m in 81 minutes.
 _ACompo*
 ACOMPO*
+
+# Draglibs decompressed out of the `libraries` submodule by
+# decks/common/dlib99.access, so the submodule itself stays clean.
+.cache/
+
+# Stage-0 scratch from the pre-submodule build scripts.
+src/
+nuclear-data/
+regress/

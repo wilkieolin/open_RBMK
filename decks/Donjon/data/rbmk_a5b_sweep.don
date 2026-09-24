@@ -1,0 +1,117 @@
+*----
+*  RBMK-1000 -- A5b VERIFICATION: can DONJON actually read the MULTICOMPO,
+*  and does DRAGON's k-infinity survive the round trip?
+*
+*  "A COMPO exists on disk" is not the gate.  The artifact is only useful if
+*  NCR: can interpolate it and TRIVAA:/FLUD: can solve with the result.  This
+*  deck closes that loop end to end:
+*
+*    DRAGON cell  ->  EDI: 2 groups  ->  COMPO:  ->  _ACompo on disk
+*                 ->  NCR:  ->  macrolib  ->  TRIVAA:  ->  FLUD:  ->  k
+*
+*  The geometry is a single homogeneous 25 cm cube, reflective on all six
+*  faces.  There is no leakage, so the diffusion eigenvalue reduces exactly to
+*  nu-Sigma-f / Sigma-a -- i.e. to k-infinity.  It must reproduce the value
+*  DRAGON printed for the same branch point (A5BTAB in the Dragon listing).
+*
+*  A mismatch here means the condensation, the homogenisation or the COMPO
+*  interpolation is losing something, and it would otherwise show up much
+*  later as an unexplained bias in the 3-D core.
+*
+*  Interpolation is requested at an EXACT grid point, so LINEAR and CUBIC must
+*  agree and the comparison is against DRAGON directly, not against a fit.
+*----
+LINKED_LIST Cpo Macro GEOM TRACK SYSTEM FLUX ;
+SEQ_ASCII   _ACompo :: FILE './_ACompo' ;
+MODULE      NCR: GEO: TRIVAT: TRIVAA: FLUD: GREP: UTL: DELETE: END: ;
+REAL kinf bu dca tf tg ;
+Cpo := _ACompo ;
+UTL: Cpo :: DIR ;
+
+GEOM := GEO: :: CAR3D 1 1 1 EDIT 0
+  X- REFL X+ REFL  Y- REFL Y+ REFL  Z- REFL Z+ REFL
+  MIX 1  MESHX 0.0 25.0  MESHY 0.0 25.0  MESHZ 0.0 25.0 ;
+TRACK := TRIVAT: GEOM :: EDIT 0 MAXR 10 MCFD 1 ;
+
+EVALUATE bu dca tf tg := 0.0 0.72 900.0 750.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEP" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
+EVALUATE bu dca tf tg := 20000.0 0.02 2000.0 900.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEP" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
+EVALUATE bu dca tf tg := 10000.0 0.3 1200.0 750.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEP" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
+EVALUATE bu dca tf tg := 5000.0 0.72 600.0 500.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEP" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
+EVALUATE bu dca tf tg := 15000.0 0.15 1500.0 900.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEP" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
+EVALUATE bu dca tf tg := 2000.0 0.45 900.0 500.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEP" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
+EVALUATE bu dca tf tg := 20000.0 0.72 600.0 900.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEP" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
+EVALUATE bu dca tf tg := 0.0 0.02 2000.0 500.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEP" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
+END: ;
+QUIT .

@@ -1,0 +1,79 @@
+*DECK MakeBranchLib
+*----
+*  Procedure to create RBMK branch library with given coolant density
+*----
+*  Called as: LIBRARY := MakeBranchLib :: <<dca>> ;
+*  Input: dca = coolant density (relative to nominal)
+*  Output: LIBRARY = microlib object
+*----
+
+PARAMETER LIBRARY ::
+   EDIT 0
+      ::: LINKED_LIST LIBRARY ;
+;
+
+REAL dca ;
+:: >>dca<< ;
+
+* Nominal coolant densities (at 573K)
+REAL H1_nom := 4.90E-2 ;
+REAL O16_nom := 2.45E-2 ;
+
+REAL H1_new := H1_nom dca * ;
+REAL O16_new := O16_nom dca * ;
+
+MODULE LIB: UTL: END: ;
+
+LIBRARY := LIB: ::
+  EDIT 0
+  NMIX 10
+  CTRA APOL
+  ANIS 2
+  DEPL LIB: DRAGON FIL: DLIB_99
+  MIXS LIB: DRAGON FIL: DLIB_99
+  MIX     1  573.0
+     H1      = H1      <<H1_new>>
+     O16     = O16     <<O16_new>>
+  MIX     2  573.0
+     Zr90    = Zr90    2.22E-3
+     Zr91    = Zr91    4.84E-4
+     Zr92    = Zr92    7.40E-4
+     Zr94    = Zr94    7.50E-4
+     Zr96    = Zr96    1.21E-4
+     Nb93    = Nb93    1.00E-4
+  MIX     3  573.0
+     He4     = He4     2.50E-5
+  MIX     4  573.0
+     Zr90    = Zr90    2.22E-3
+     Zr91    = Zr91    4.84E-4
+     Zr92    = Zr92    7.40E-4
+     Zr94    = Zr94    7.50E-4
+     Zr96    = Zr96    1.21E-4
+  MIX     5  573.0
+     C12_GR  = C12_GR  8.00E-2
+  MIX     6  900.0
+     U235    = U235    5.50E-4  1
+     U238    = U238    2.25E-2  1
+     O16     = O16     4.61E-2
+  MIX     7  900.0
+     U235    = U235    5.50E-4  1
+     U238    = U238    2.25E-2  1
+     O16     = O16     4.61E-2
+  MIX     8  900.0
+     U235    = U235    5.50E-4  1
+     U238    = U238    2.25E-2  1
+     O16     = O16     4.61E-2
+  MIX     9  900.0
+     U235    = U235    5.50E-4  1
+     U238    = U238    2.25E-2  1
+     O16     = O16     4.61E-2
+  MIX     10  600.0
+     Zr90    = Zr90    2.22E-3
+     Zr91    = Zr91    4.84E-4
+     Zr92    = Zr92    7.40E-4
+     Zr94    = Zr94    7.50E-4
+     Zr96    = Zr96    1.21E-4
+;
+
+END: ;
+QUIT .
