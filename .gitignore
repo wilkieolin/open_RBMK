@@ -58,3 +58,8 @@ ACOMPO*
 src/
 nuclear-data/
 regress/
+
+# Third-party source documents (see sources/README.md for where to get each)
+sources/*
+!sources/README.md
+*:Zone.Identifier

@@ -62,7 +62,7 @@ cat <<'DONE'
 Ready.  Smoke test the DRAGON side:
 
     cd 5.1/Dragon && ./rdragon -c custom -p 1 rbmk_cell_a3.x2m
-    grep -m1 'FINAL KINF' Linux_*/rbmk_cell_a3.result      # expect 1.304717
+    grep -m1 'FINAL KINF' Linux_*/rbmk_cell_a3.result      # expect 1.304123
 
 The 630-point cross-section database (decks/Dragon/data/rbmk_a5b_compo.x2m)
 is NOT in the repo -- it is a 114 MB derived artifact and takes hours to build.

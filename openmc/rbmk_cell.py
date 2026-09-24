@@ -45,11 +45,13 @@ R_CTUBE_OUT  = 0.750   # central tube OD 15 mm
 
 # Fuel rod, corrected 2026-09-24 against the same page:
 # clad OD 13.5 mm, wall 0.9 mm, pellet 11.5 mm.  Previously 13.6 x 0.825,
-# which made the pellet-clad gap ~2.3x too thick.
-R_HOLE       = 0.1000  # fuel pellet central hole -- NOT in Dollezhal, unconfirmed
+# which made the pellet-clad gap ~2.3x too thick.  Refined 2026-09-24 (3) to
+# the drawing nominal 13.58 x ID 11.7 (dvoika.net RBMK page; LEI/SKB 2005);
+# see sources/README.md and the rbmk_cell_a3.x2m header.
+R_HOLE       = 0.1000  # 2 mm pellet hole -- confirmed [RU-A][LEI05][BIB]
 R_PELLET     = 0.5750
 R_GAP        = 0.5850
-R_CLAD       = 0.6750
+R_CLAD       = 0.6790
 
 RING1_R, RING1_N, RING1_A = 1.60, 6,  0.0
 RING2_R, RING2_N, RING2_A = 3.10, 12, 0.261799   # 15 deg, as APIN in the deck
