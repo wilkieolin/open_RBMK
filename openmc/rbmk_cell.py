@@ -35,13 +35,21 @@ R_PT_OUT     = 4.40    # pressure tube / gas clearance
 R_GAS_OUT    = 4.55    # gas clearance / graphite rings
 R_RINGS_OUT  = 5.70    # graphite rings / graphite block
 
-R_CARR_IN    = 0.50    # carrier rod bore (coolant)
-R_CARR_OUT   = 0.65    # carrier rod Zr-1%Nb
+# Carrier, corrected 2026-09-24 against Dollezhal & Emelyanov (1980) p.11:
+# 18 rods on a CENTRAL TUBE of Zr "15 x 1.25 mm" (OD 15, ID 12.5); inside it
+# "either a carrier rod of diameter 12 mm, or a carrier tube 12 x 2.5 mm".
+# The solid 12 mm rod is the standard channel and is what is modelled.
+R_CARR_ROD   = 0.600   # solid Zr carrier rod, 12 mm
+R_CTUBE_IN   = 0.625   # central tube ID 12.5 mm  (0.25 mm water annulus)
+R_CTUBE_OUT  = 0.750   # central tube OD 15 mm
 
-R_HOLE       = 0.1000  # fuel pellet central hole
+# Fuel rod, corrected 2026-09-24 against the same page:
+# clad OD 13.5 mm, wall 0.9 mm, pellet 11.5 mm.  Previously 13.6 x 0.825,
+# which made the pellet-clad gap ~2.3x too thick.
+R_HOLE       = 0.1000  # fuel pellet central hole -- NOT in Dollezhal, unconfirmed
 R_PELLET     = 0.5750
-R_GAP        = 0.5975
-R_CLAD       = 0.6800
+R_GAP        = 0.5850
+R_CLAD       = 0.6750
 
 RING1_R, RING1_N, RING1_A = 1.60, 6,  0.0
 RING2_R, RING2_N, RING2_A = 3.10, 12, 0.261799   # 15 deg, as APIN in the deck
@@ -138,16 +146,22 @@ def build_geometry(m):
     s_pt    = openmc.ZCylinder(r=R_PT_OUT)
     s_gas   = openmc.ZCylinder(r=R_GAS_OUT)
     s_rings = openmc.ZCylinder(r=R_RINGS_OUT)
-    s_ci    = openmc.ZCylinder(r=R_CARR_IN)
-    s_co    = openmc.ZCylinder(r=R_CARR_OUT)
+    s_rod   = openmc.ZCylinder(r=R_CARR_ROD)
+    s_ci    = openmc.ZCylinder(r=R_CTUBE_IN)
+    s_co    = openmc.ZCylinder(r=R_CTUBE_OUT)
 
     cells = []
 
-    # Carrier rod at the cell centre
-    c = openmc.Cell(name="carrier bore", fill=m["coolant"], region=-s_ci)
+    # Carrier assembly at the cell centre: solid 12 mm Zr rod, a 0.25 mm water
+    # annulus, then the 15 x 1.25 mm central tube the spacer grids sit on.
+    c = openmc.Cell(name="carrier rod", fill=m["carrier"], region=-s_rod)
+    cells.append(c)
+    c = openmc.Cell(name="carrier annulus", fill=m["coolant"],
+                    region=+s_rod & -s_ci)
     c.temperature = T_COOL
     cells.append(c)
-    c = openmc.Cell(name="carrier wall", fill=m["carrier"], region=+s_ci & -s_co)
+    c = openmc.Cell(name="central tube", fill=m["carrier"],
+                    region=+s_ci & -s_co)
     cells.append(c)
 
     # Fuel rods
