@@ -1,0 +1,132 @@
+*----
+*  RBMK-1000 LATTICE CELL with DLIB_99 + SPH (simplified pin-cell geometry)
+*  SYBILT for self-shielding, G2S for tracking, SPH on macrolib
+*----
+LINKED_LIST LIBRARY GEOM TRACK_SS TRK SYS FLUX EDI MACRO_SPH SPHED ;
+MODULE LIB: GEO: SYBILT: NXT: TONE: ASM: FLU: EDI: SPH: END: ;
+PROCEDURE assertS ;
+
+*==============================================================
+*  Library: DLIB_99 (ENDF/B-VIII.0 99-group APOLIB)
+*==============================================================
+LIBRARY := LIB: ::
+  EDIT 1
+  NMIX 10
+  CTRA APOL
+  ANIS 2
+  MIXS LIB: DRAGON FIL: DLIB_99
+* MIX 1: Light water coolant
+  MIX     1  573.0
+     H1      = H1      4.90E-2
+     O16     = O16     2.45E-2
+* MIX 2: Zr-Nb pressure tube
+  MIX     2  573.0
+     Zr90    = Zr90    2.22E-3
+     Zr91    = Zr91    4.84E-4
+     Zr92    = Zr92    7.40E-4
+     Zr94    = Zr94    7.50E-4
+     Zr96    = Zr96    1.21E-4
+     Nb93    = Nb93    1.00E-4
+* MIX 3: Gap gas (He)
+  MIX     3  573.0
+     He4     = He4     2.50E-5
+* MIX 4: Zr calandria tube
+  MIX     4  573.0
+     Zr90    = Zr90    2.22E-3
+     Zr91    = Zr91    4.84E-4
+     Zr92    = Zr92    7.40E-4
+     Zr94    = Zr94    7.50E-4
+     Zr96    = Zr96    1.21E-4
+* MIX 5: Graphite moderator (density 1.6 g/cm3)
+  MIX     5  573.0
+     C12_GR  = C12_GR  8.00E-2
+* MIX 6: Central fuel pin (~2% enr UO2)
+  MIX     6  900.0
+     U235    = U235    5.50E-4  1
+     U238    = U238    2.25E-2  1
+     O16     = O16     4.61E-2
+* MIX 7: Inner ring fuel
+  MIX     7  900.0
+     U235    = U235    5.50E-4  1
+     U238    = U238    2.25E-2  1
+     O16     = O16     4.61E-2
+* MIX 8: Middle ring fuel
+  MIX     8  900.0
+     U235    = U235    5.50E-4  1
+     U238    = U238    2.25E-2  1
+     O16     = O16     4.61E-2
+* MIX 9: Outer ring fuel
+  MIX     9  900.0
+     U235    = U235    5.50E-4  1
+     U238    = U238    2.25E-2  1
+     O16     = O16     4.61E-2
+* MIX 10: Zr sheath/cladding
+  MIX     10  600.0
+     Zr90    = Zr90    2.22E-3
+     Zr91    = Zr91    4.84E-4
+     Zr92    = Zr92    7.40E-4
+     Zr94    = Zr94    7.50E-4
+     Zr96    = Zr96    1.21E-4
+  ;
+
+*==============================================================
+*  Geometry: Simplified pin cell (single fuel pin in graphite)
+*==============================================================
+GEOM := GEO: :: CARCEL 3 1 1
+  EDIT 0
+  X- REFL MESHX -6.5875 6.5875 X+ REFL
+  Y- TRAN MESHY -6.5875 6.5875 Y+ TRAN
+  RADIUS  0.0  0.612  0.654  6.5875
+  MIX     5     6     10     5
+  ;
+
+*==============================================================
+*  Self-shielding tracking with SYBILT
+*==============================================================
+TRACK_SS := SYBILT: GEOM ::
+  TITLE 'RBMK-CELL SS'
+  MAXR 500 QUA2 20 3 DP01 MAXZ 1000000 ;
+
+*==============================================================
+*  Self-shielding with TONE (using SYBILT tracking)
+*==============================================================
+LIBRARY := TONE: LIBRARY TRACK_SS :: EDIT 1 GRMIN 18 PIJ ;
+
+*==============================================================
+*  NXT tracking on simplified geometry
+*==============================================================
+TRK := NXT: GEOM ::
+  EDIT 0
+  TITLE 'RBMK-CELL NXT'
+  TISO 15 30.0
+  ;
+
+*==============================================================
+*  Flux calculation with NXT tracking
+*==============================================================
+SYS := ASM: LIBRARY TRK :: EDIT 1 ARM ;
+FLUX := FLU: LIBRARY TRK SYS :: TYPE K EXTE 1.0E-6 ;
+
+*==============================================================
+*  EDITION: Condense to 26-group macrolib for SPH
+*==============================================================
+EDI := EDI: LIBRARY TRK FLUX GEOM SYS ::
+  EDIT 2
+  MICR ALL
+  MERG MIX
+  COND  4 9 13 17 21 28 40 51 61 73 82 89 100 108 117 122 128 135 139 145 154 161 186
+        204 212 235 248 260 270 285 338 354
+  SAVE ON COND26
+  ;
+
+*==============================================================
+*  SPH Homogenization on 26-group macrolib with FLUX (contains tracking info)
+*==============================================================
+MACRO_SPH := EDI :: STEP UP COND26 ;
+SPHED := SPH: MACRO_SPH FLUX :: EDIT 2 ITER 1.0E-5 ;
+
+* Check k-infinity from 99-group flux
+assertS FLUX :: 'K-INFINITY' 1 1.0306 ;
+
+END: ;
+QUIT .

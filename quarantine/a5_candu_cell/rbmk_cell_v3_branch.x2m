@@ -1,0 +1,396 @@
+*----
+*  RBMK-1000 LATTICE CELL with DLIB_99 - Branch calculations for COMPO export
+*  A5: Coolant density (void) branch loop at zero burnup
+*  Using PROCEDURE MkBranchLib (reference deck pattern)
+*----
+LINKED_LIST
+  GEOMF TRK SYS FLUX EDI_SPH EDI LIBRARY_EVO LIBRARY
+  EDI_SPH1 EDI1 EDI_SPH2 EDI2 EDI_SPH3 EDI3 EDI_SPH4 EDI4
+  EDI_SPH5 EDI5 EDI_SPH6 EDI6 EDI_SPH7 EDI7
+  MACRO_2G MAC GREP SPHED COMPO DONNEES BURNUP EVO SYS_EVO FLUX_EVO ;
+SEQ_BINARY FILTRK ;
+SEQ_ASCII ACOMPO :: FILE '/home/wilkie/code/RBMK/5.1/Dragon/ACOMPO' ;
+MODULE
+  GEO: SYBILT: EXCELT: MCCGT: DELETE: GREP: NXT: BIVACT: END:
+  LIB: ASM: FLU: EDI: MAC: SPH: COMPO: UTL: EVO: ABORT: ;
+PROCEDURE
+  MkBranchLib
+  ;
+PROCEDURE
+  assertS
+  ;
+
+*==============================================================
+*  COMPO output file declaration
+*==============================================================
+
+*==============================================================
+*  Parameter tree for branch calculations
+*==============================================================
+INTEGER n_dca := 7 ;
+INTEGER n_tf := 5 ;
+INTEGER n_tg := 3 ;
+DONNEES := UTL: :: CREA 'dca' <<n_dca>> =
+      0.72 0.60 0.45 0.30 0.15 0.05 0.02 ;
+DONNEES := UTL: DONNEES :: CREA 'tf' <<n_tf>> =
+      600.0 900.0 1200.0 1500.0 2000.0 ;
+DONNEES := UTL: DONNEES :: CREA 'tg' <<n_tg>> =
+      500.0 700.0 900.0 ;
+
+*==============================================================
+*  Geometry for Flux (CARCEL with CLUSTER for RBMK 18-pin cluster)
+*==============================================================
+GEOMF := GEO: :: CARCEL 9 1 1
+  EDIT 0
+  X- REFL MESHX -12.5 12.5 X+ REFL
+  Y- TRAN MESHY -12.5 12.5 Y+ TRAN
+  RADIUS  0.0     0.724  2.162  3.603  5.077
+          5.5     5.85   6.45   6.5875  10.437
+  MIX     1       1      1      1      1
+          1       2      3      4       5
+  CLUSTER ROD1 ROD2 ROD3 ROD4
+  ::: ROD1 := GEO: TUBE 2
+    MIX  6 10
+    NPIN 1
+    RPIN 0.0
+    APIN 0.0
+    RADIUS 0.0000 0.612 0.654 ;
+  ::: ROD2 := GEO: TUBE 2
+    MIX  7 10
+    NPIN 6
+    RPIN  1.4885 1.4885 1.4885 1.4885 1.4885 1.4885
+    APIN  0.0    1.047  2.094  3.142  4.189  5.236
+    RADIUS 0.0000 0.612 0.654 ;
+  ::: ROD3 := GEO: TUBE 2
+    MIX  8 10
+    NPIN 12
+    RPIN  2.8755 2.8755 2.8755 2.8755 2.8755 2.8755
+          2.8755 2.8755 2.8755 2.8755 2.8755 2.8755
+    APIN  0.0    0.524  1.047  1.571  2.094  2.618
+          3.142  3.665  4.189  4.712  5.236  5.760
+    RADIUS 0.0000 0.612 0.654 ;
+  ::: ROD4 := GEO: TUBE 2
+    MIX  9 10
+    NPIN 18
+    RPIN  4.3305 4.3305 4.3305 4.3305 4.3305 4.3305
+          4.3305 4.3305 4.3305 4.3305 4.3305 4.3305
+          4.3305 4.3305 4.3305 4.3305 4.3305 4.3305
+    APIN  0.0    0.349  0.698  1.047  1.396  1.745
+          2.094  2.443  2.793  3.142  3.491  3.840
+          4.189  4.538  4.887  5.236  5.585  5.934
+    RADIUS 0.0000 0.612 0.654 ;
+;
+
+*==============================================================
+*  TRACKING: NXT (transport) with binary file for SPH
+*==============================================================
+TRK FILTRK := NXT: GEOMF ::
+  EDIT 0
+  TITLE 'RBMK-CELL'
+  TISO 15 30.0
+;
+
+*==============================================================
+*  EVO to create BURNUP object at zero burnup (once, using nominal DCA library)
+*==============================================================
+LIBRARY_EVO := LIB: ::
+  EDIT 1
+  NMIX 10
+  CTRA APOL
+  ANIS 2
+  DEPL LIB: DRAGON FIL: DLIB_99
+  MIXS LIB: DRAGON FIL: DLIB_99
+  MIX     1  573.0
+     H1      = H1      4.90E-2
+     O16     = O16     2.45E-2
+  MIX     2  573.0
+     Zr90    = Zr90    2.22E-3
+     Zr91    = Zr91    4.84E-4
+     Zr92    = Zr92    7.40E-4
+     Zr94    = Zr94    7.50E-4
+     Zr96    = Zr96    1.21E-4
+     Nb93    = Nb93    1.00E-4
+  MIX     3  573.0
+     He4     = He4     2.50E-5
+  MIX     4  573.0
+     Zr90    = Zr90    2.22E-3
+     Zr91    = Zr91    4.84E-4
+     Zr92    = Zr92    7.40E-4
+     Zr94    = Zr94    7.50E-4
+     Zr96    = Zr96    1.21E-4
+  MIX     5  573.0
+     C12_GR  = C12_GR  8.00E-2
+  MIX     6  900.0
+     U235    = U235    5.50E-4  1
+     U238    = U238    2.25E-2  1
+     O16     = O16     4.61E-2
+  MIX     7  900.0
+     U235    = U235    5.50E-4  1
+     U238    = U238    2.25E-2  1
+     O16     = O16     4.61E-2
+  MIX     8  900.0
+     U235    = U235    5.50E-4  1
+     U238    = U238    2.25E-2  1
+     O16     = O16     4.61E-2
+  MIX     9  900.0
+     U235    = U235    5.50E-4  1
+     U238    = U238    2.25E-2  1
+     O16     = O16     4.61E-2
+  MIX     10  600.0
+     Zr90    = Zr90    2.22E-3
+     Zr91    = Zr91    4.84E-4
+     Zr92    = Zr92    7.40E-4
+     Zr94    = Zr94    7.50E-4
+     Zr96    = Zr96    1.21E-4
+;
+
+SYS_EVO := ASM: LIBRARY_EVO TRK FILTRK :: EDIT 1 ;
+FLUX_EVO := FLU: LIBRARY_EVO TRK SYS_EVO :: TYPE K EXTE 1.0E-6 ;
+BURNUP LIBRARY_EVO := EVO: LIBRARY_EVO FLUX_EVO TRK :: EDIT 0 SAVE 0.0 DAY POWR 1.0 ;
+
+*==============================================================
+*  Branch 1: DCA = 0.72 (nominal)
+*==============================================================
+LIBRARY := MkBranchLib :: 0.72 ;
+SYS := ASM: LIBRARY TRK FILTRK :: EDIT 1 ;
+FLUX := FLU: LIBRARY TRK SYS :: TYPE K EXTE 1.0E-6 ;
+EDI_SPH1 := EDI: LIBRARY TRK FLUX GEOMF SYS ::
+  EDIT 2
+  MICR ALL
+  MERG MIX
+  COND  0.625
+  SAVE ON COND2_SPH
+;
+EDI1 := EDI: LIBRARY TRK FLUX GEOMF SYS ::
+  EDIT 2
+  MICR ALL
+  MERG COMP
+  COND  0.625
+  SAVE ON COND2
+;
+SPHED := SPH: EDI_SPH1 TRK FILTRK :: EDIT 2 ;
+
+*==============================================================
+*  COMPO initialization with parameter tree
+*==============================================================
+COMPO := COMPO: ::
+  EDIT 1
+  STEP UP 'EDI2B'
+  MAXCAL 5
+  COMM 'RBMK-1000 channel' ENDC
+  PARA 'burnup' IRRA
+  PARA 'TF'  TEMP LIBRARY 6
+  PARA 'TCA' TEMP LIBRARY 1
+  PARA 'TG'  VALU REAL
+  PARA 'DCA' VALU REAL
+  INIT
+;
+
+*==============================================================
+*  COMPO step for Branch 1
+*==============================================================
+COMPO := COMPO: COMPO EDI1 EDI_SPH1 BURNUP LIBRARY :: EDIT 2
+  EDIT 2
+  STEP UP 'EDI2B'
+  'DCA' 0.72
+  'TG'  573.0
+  SET 0.0 DAY
+;
+
+*==============================================================
+*  Branch 2: DCA = 0.60
+*==============================================================
+LIBRARY SYS FLUX := DELETE: LIBRARY SYS FLUX ;
+SPHED := DELETE: SPHED ;
+LIBRARY := MkBranchLib :: 0.60 ;
+SYS := ASM: LIBRARY TRK FILTRK :: EDIT 1 ;
+FLUX := FLU: LIBRARY TRK SYS :: TYPE K EXTE 1.0E-6 ;
+EDI_SPH2 := EDI: LIBRARY TRK FLUX GEOMF SYS ::
+  EDIT 2
+  MICR ALL
+  MERG MIX
+  COND  0.625
+  SAVE ON COND2_SPH
+;
+EDI2 := EDI: LIBRARY TRK FLUX GEOMF SYS ::
+  EDIT 2
+  MICR ALL
+  MERG COMP
+  COND  0.625
+  SAVE ON COND2
+;
+SPHED := SPH: EDI_SPH2 TRK FILTRK :: EDIT 2 ;
+COMPO := COMPO: COMPO EDI2 EDI_SPH2 BURNUP LIBRARY :: EDIT 2
+  EDIT 2
+  STEP UP 'EDI2B'
+  'DCA' 0.60
+  'TG'  573.0
+  SET 0.0 DAY
+;
+
+*==============================================================
+*  Branch 3: DCA = 0.45
+*==============================================================
+LIBRARY SYS FLUX := DELETE: LIBRARY SYS FLUX ;
+SPHED := DELETE: SPHED ;
+LIBRARY := MkBranchLib :: 0.45 ;
+SYS := ASM: LIBRARY TRK FILTRK :: EDIT 1 ;
+FLUX := FLU: LIBRARY TRK SYS :: TYPE K EXTE 1.0E-6 ;
+EDI_SPH3 := EDI: LIBRARY TRK FLUX GEOMF SYS ::
+  EDIT 2
+  MICR ALL
+  MERG MIX
+  COND  0.625
+  SAVE ON COND2_SPH
+;
+EDI3 := EDI: LIBRARY TRK FLUX GEOMF SYS ::
+  EDIT 2
+  MICR ALL
+  MERG COMP
+  COND  0.625
+  SAVE ON COND2
+;
+SPHED := SPH: EDI_SPH3 TRK FILTRK :: EDIT 2 ;
+COMPO := COMPO: COMPO EDI3 EDI_SPH3 BURNUP LIBRARY :: EDIT 2
+  EDIT 2
+  STEP UP 'EDI2B'
+  'DCA' 0.45
+  'TG'  573.0
+  SET 0.0 DAY
+;
+
+*==============================================================
+*  Branch 4: DCA = 0.30
+*==============================================================
+LIBRARY SYS FLUX := DELETE: LIBRARY SYS FLUX ;
+SPHED := DELETE: SPHED ;
+LIBRARY := MkBranchLib :: 0.30 ;
+SYS := ASM: LIBRARY TRK FILTRK :: EDIT 1 ;
+FLUX := FLU: LIBRARY TRK SYS :: TYPE K EXTE 1.0E-6 ;
+EDI_SPH4 := EDI: LIBRARY TRK FLUX GEOMF SYS ::
+  EDIT 2
+  MICR ALL
+  MERG MIX
+  COND  0.625
+  SAVE ON COND2_SPH
+;
+EDI4 := EDI: LIBRARY TRK FLUX GEOMF SYS ::
+  EDIT 2
+  MICR ALL
+  MERG COMP
+  COND  0.625
+  SAVE ON COND2
+;
+SPHED := SPH: EDI_SPH4 TRK FILTRK :: EDIT 2 ;
+COMPO := COMPO: COMPO EDI4 EDI_SPH4 BURNUP LIBRARY :: EDIT 2
+  EDIT 2
+  STEP UP 'EDI2B'
+  'DCA' 0.30
+  'TG'  573.0
+  SET 0.0 DAY
+;
+
+*==============================================================
+*  Branch 5: DCA = 0.15
+*==============================================================
+LIBRARY SYS FLUX := DELETE: LIBRARY SYS FLUX ;
+SPHED := DELETE: SPHED ;
+LIBRARY := MkBranchLib :: 0.15 ;
+SYS := ASM: LIBRARY TRK FILTRK :: EDIT 1 ;
+FLUX := FLU: LIBRARY TRK SYS :: TYPE K EXTE 1.0E-6 ;
+EDI_SPH5 := EDI: LIBRARY TRK FLUX GEOMF SYS ::
+  EDIT 2
+  MICR ALL
+  MERG MIX
+  COND  0.625
+  SAVE ON COND2_SPH
+;
+EDI5 := EDI: LIBRARY TRK FLUX GEOMF SYS ::
+  EDIT 2
+  MICR ALL
+  MERG COMP
+  COND  0.625
+  SAVE ON COND2
+;
+SPHED := SPH: EDI_SPH5 TRK FILTRK :: EDIT 2 ;
+COMPO := COMPO: COMPO EDI5 EDI_SPH5 BURNUP LIBRARY :: EDIT 2
+  EDIT 2
+  STEP UP 'EDI2B'
+  'DCA' 0.15
+  'TG'  573.0
+  SET 0.0 DAY
+;
+
+*==============================================================
+*  Branch 6: DCA = 0.05
+*==============================================================
+LIBRARY SYS FLUX := DELETE: LIBRARY SYS FLUX ;
+SPHED := DELETE: SPHED ;
+LIBRARY := MkBranchLib :: 0.05 ;
+SYS := ASM: LIBRARY TRK FILTRK :: EDIT 1 ;
+FLUX := FLU: LIBRARY TRK SYS :: TYPE K EXTE 1.0E-6 ;
+EDI_SPH6 := EDI: LIBRARY TRK FLUX GEOMF SYS ::
+  EDIT 2
+  MICR ALL
+  MERG MIX
+  COND  0.625
+  SAVE ON COND2_SPH
+;
+EDI6 := EDI: LIBRARY TRK FLUX GEOMF SYS ::
+  EDIT 2
+  MICR ALL
+  MERG COMP
+  COND  0.625
+  SAVE ON COND2
+;
+SPHED := SPH: EDI_SPH6 TRK FILTRK :: EDIT 2 ;
+COMPO := COMPO: COMPO EDI6 EDI_SPH6 BURNUP LIBRARY :: EDIT 2
+  EDIT 2
+  STEP UP 'EDI2B'
+  'DCA' 0.05
+  'TG'  573.0
+  SET 0.0 DAY
+;
+
+*==============================================================
+*  Branch 7: DCA = 0.02
+*==============================================================
+LIBRARY SYS FLUX := DELETE: LIBRARY SYS FLUX ;
+SPHED := DELETE: SPHED ;
+LIBRARY := MkBranchLib :: 0.02 ;
+SYS := ASM: LIBRARY TRK FILTRK :: EDIT 1 ;
+FLUX := FLU: LIBRARY TRK SYS :: TYPE K EXTE 1.0E-6 ;
+EDI_SPH7 := EDI: LIBRARY TRK FLUX GEOMF SYS ::
+  EDIT 2
+  MICR ALL
+  MERG MIX
+  COND  0.625
+  SAVE ON COND2_SPH
+;
+EDI7 := EDI: LIBRARY TRK FLUX GEOMF SYS ::
+  EDIT 2
+  MICR ALL
+  MERG COMP
+  COND  0.625
+  SAVE ON COND2
+;
+SPHED := SPH: EDI_SPH7 TRK FILTRK :: EDIT 2 ;
+COMPO := COMPO: COMPO EDI7 EDI_SPH7 BURNUP LIBRARY :: EDIT 2
+  EDIT 2
+  STEP UP 'EDI2B'
+  'DCA' 0.02
+  'TG'  573.0
+  SET 0.0 DAY
+;
+
+*==============================================================
+*  Export COMPO to disk
+*==============================================================
+ACOMPO := COMPO ;
+
+* Print 2-group macrolib (last branch)
+MACRO_2G := EDI7 :: STEP UP COND2 ;
+GREP: MACRO_2G :: GETVAL 'DIRECTORY' ;
+
+END: ;
+QUIT "LIST" .

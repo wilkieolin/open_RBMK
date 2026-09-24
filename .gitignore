@@ -17,3 +17,34 @@ libraries/
 .vscode/
 .idea/
 _DUMMY
+
+# ---------------------------------------------------------------------------
+# Generated artifacts.  Everything below is reproducible from the decks and
+# scripts that ARE tracked; none of it should ever be the only copy of a result.
+# ---------------------------------------------------------------------------
+
+# Python virtualenv for OpenMC (761 MB)
+.venv-openmc/
+__pycache__/
+*.pyc
+
+# OpenMC run directories: statepoints, summaries, depletion results.
+# The distilled numbers live in openmc/*.json, which IS tracked.
+openmc/run*/
+openmc/depl*/
+openmc/branch81*/
+openmc/beta81*/
+openmc/rates_d*/
+openmc/candu_v*/
+openmc/smoke_depl/
+*.h5
+
+# DRAGON/DONJON generated output.  `.result` listings are rebuilt by rerunning
+# the deck -- and standing rule 5 says delete them before you do.
+*.result
+Linux_aarch64/
+
+# Exported MULTICOMPO databases.  _ACompo alone is 114 MB and is rebuilt by
+# rbmk_a5b_compo.x2m in 81 minutes.
+_ACompo*
+ACOMPO*

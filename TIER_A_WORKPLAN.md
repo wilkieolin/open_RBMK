@@ -262,7 +262,13 @@ COMPO := COMPO: ::
   INIT ;
 ```
 
-**The export is a plain assignment, and it is the step that has never been done.** After all
+**The export is a plain assignment, and it is the step that has never been done.**
+(2026-09-23 (3): **superseded.** The second COMPO is not producible — DRAGON has no
+cross-section scaling facility in `LIB:`, `EDI:` or `COMPO:`, the whole write path. The
+bracket is carried instead as a ratio table, `openmc/void_bracket.py`, and applied in the
+consuming deck. Still the branch *ratio* k_void/k_nom, never absolute k: the two codes'
+depletion trajectories diverge, so correcting absolute k would fold a depletion difference
+into a void correction. A8 still runs under both variants.) After all
 branches are filled, write the in-memory COMPO object out to the declared file:
 
 ```
@@ -297,13 +303,47 @@ The library carries `NDEL 6`. Get β and λ from it — do **not** hardcode 700 
 quarantined transient decks did. Confirm `LAMBDA-D` is present in the exported COMPO
 (`NCRMAC.f:164` copies it through to the macrolib, and `INIKIN:` requires it).
 
-**GATE A5 — this is the most important gate in Tier A:**
-- `_ACompo` exists on disk and `UTL: ... DIR` lists the parameter tree
-- **the void coefficient is positive**, order **+2 to +5 pcm/%void** at representative burnup
-- β_eff from the library is ≈ 0.0065–0.0075
+**GATE A5 — this is the most important gate in Tier A: PASSED 2026-09-23 (3).**
+- `_ACompo` exists on disk and `UTL: ... DIR` lists the parameter tree — ✅ 113.9 MB, 630
+  points, `burnup × TF × TG × DCA`. Xe axis deferred.
+- **the void coefficient is positive and rises steeply with burnup** — ✅ in both codes.
+  DRAGON +222 → +2190 pcm, OpenMC +1030 → +4007 pcm, fresh → 20 MWd/t at full void.
+- β_eff comes out of the library as a **burnup curve**, not a scalar — ✅ 0.006824 → 0.004680,
+  and it agrees with OpenMC's prompt-vs-total to −0.5 % at the one state both can reach.
 
-A negative or near-zero void coefficient means the model is not an RBMK. **Stop and report** —
-do not proceed, and do not adjust anything to force the sign.
+Two checks not in the original gate, added because "a COMPO exists on disk" is not evidence
+of anything: the DRAGON→DONJON round trip is **6.4 pcm** worst-case over eight nodes spanning
+every axis extreme (not the 0.4 pcm of the corner point), and off-grid `LINEAR` interpolation
+— which is what the transient will actually use — is **27 pcm** worst-case.
+
+A negative or near-zero void coefficient at operating burnup means the model is not an RBMK.
+**Stop and report** — do not proceed, and do not adjust anything to force the sign.
+
+> **Both numeric targets originally written here were wrong. Corrected 2026-09-23.**
+>
+> *"+2 to +5 pcm/%void"* was low by an order of magnitude. It was corrected once, to
+> "+1 to +3 % Δk/k for near-complete voiding", and that is wrong too — OpenMC gives +4.0 %
+> at 20 MWd/kg. The magnitude is genuinely uncertain: DRAGON and OpenMC differ by 2× at
+> discharge, and the disagreement is not resolved. (The "12× at fresh fuel" figure quoted
+> here was computed before the `H1_H2O` fix; with bound hydrogen it is 4.6×, and with four
+> OpenMC densities instead of two it is clear the *shapes* differ at fresh fuel, so no single
+> fresh-fuel ratio is meaningful. At discharge the shapes agree and the ratio is a stable
+> 1.83–1.98.) **Do not gate on a number.** Gate on the sign and the trend, and carry the magnitude as a bracket between the
+> two codes. Setting a numeric target here is what standing rule 1 exists to prevent: the
+> only way to hit a target of unknown correctness is to tune toward it.
+>
+> *"β_eff ≈ 0.0065–0.0075"* is a fresh-fuel figure. β_eff **falls** with burnup as Pu-239
+> (β ≈ 0.0021) displaces U-235 (β ≈ 0.0065), so a single number cannot be right across the
+> burnup axis — and the state that matters is discharge burnup, where it is nearer 0.0045.
+> This compounds: the void worth in dollars grows twice over with burnup, numerator up and
+> denominator down. Extract the curve. Cheap independent check: OpenMC gives
+> β_eff ≈ 1 − k_prompt/k_total via `settings.create_delayed_neutrons = False`.
+>
+> **Done 2026-09-23 (3).** Measured: 0.006824, 0.006361, 0.005877, 0.005358, 0.004985,
+> 0.004680 at 0/2/5/10/15/20 MWd/t. The guess above was good — 0.0068 fresh, 0.0047 at
+> discharge. OpenMC's independent check gives 0.006856 ± 0.000162 at fresh fuel, −0.5 % from
+> DRAGON. The compounding is real: full-void worth goes from +0.33 $ to +4.68 $ (DRAGON) or
+> +1.51 $ to +8.56 $ (OpenMC) over life — **prompt-supercritical at discharge either way.**
 
 ---
 

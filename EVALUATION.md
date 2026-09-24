@@ -72,6 +72,12 @@ Only 2 of 19 DONJON RBMK decks ever produced a k_eff. Both ≈ 0.05.
 
 ### 1. The core is 12.25 cm across, not 12.25 m — this is all of k_eff = 0.054
 
+> **Fixed 2026-09-22; this section is kept as the diagnosis, not as current status.**
+> `gen_rbmk_realistic.py:6` now reads `PITCH = 25.0  # cm` and the generated deck
+> meshes to 1225 cm with `MCFD 1` and a reflector. What remains open is that the
+> corrected deck has never been run. `gen_rbmk_donjon.py`, `gen_rbmk_geo.py` and
+> `gen_rbmk_simple.py` still carry PITCH in metres.
+
 `gen_rbmk_realistic.py` sets `PITCH = 0.25  # meters` and writes mesh coordinates directly.
 DONJON `GEO:` coordinates are **centimetres**:
 
