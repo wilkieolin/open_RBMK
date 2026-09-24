@@ -29,6 +29,15 @@
 > A2 units bug is already fixed in the generator, and the "not reachable from the deck"
 > claim was overstated. Both corrected below. Next steps: `plans/` (A5b MULTICOMPO first).
 
+> **2026-09-24 (2): cell geometry pinned to the designer's own monograph.** Dollezhal &
+> Emelyanov (Atomizdat, 1980) settles three of the four open geometry questions. The
+> pressure tube **88 × 4 is confirmed** — the Wikipedia 92 × 4 reading is wrong, closing a
+> 10 % coolant-area ambiguity. The **carrier was wrong** (a 15 × 1.25 central tube with a
+> solid 12 mm rod inside, not a 13 mm hollow tube) and the **clad was wrong** (13.5 × 0.9,
+> not 13.6 × 0.825). Ring radii remain open and are deliberately unchanged. Coolant −3.2 %,
+> Zr +9.3 %; graphite and fuel untouched. **k∞, the A5 void curve and the A5b MULTICOMPO are
+> all superseded and must be re-run.** See the last section before "Standing rules".
+
 ## Objective
 
 3-D spatially-resolved coupled neutronics/TH RBMK-1000 model, driving a historically
@@ -81,10 +90,10 @@ Access via the per-deck `<name>.access` script, which symlinks `DLIB_99`.
 | Item | Result | Status |
 |---|---|---|
 | IAEA-3D benchmark, `Donjon/data/iaea3d_fuelmap.x2m` | k_eff = 1.028980 (ref 1.029069, **−8.9 pcm**) | ✅ Genuine. Standing regression test and the structural template for the core workflow. |
-| RBMK lattice cell, `Dragon/data/rbmk_cell_a3.x2m` | **k∞ = 1.310172**, self-shielded, 2 groups | ✅ Correct RBMK geometry, verified in-deck against design volume fractions. Value is post-hydrogen-fix (2026-09-23) and matches what `rbmk_h2otest.x2m` measured independently; the old free-gas value was 1.312816. |
-| Void coefficient vs burnup, `Dragon/data/rbmk_a5_void.x2m` | +1957 pcm (~4 β) full-void at 20 MWd/kg, rising with burnup | ⚠️ **Sign and trend confirmed by OpenMC; magnitude is not.** OpenMC gives +4007 pcm (~8 β) at the same burnup and +1030 vs +82 pcm at fresh fuel. Treat the DRAGON value as a lower bound of unknown tightness. |
+| RBMK lattice cell, `Dragon/data/rbmk_cell_a3.x2m` | ~~k∞ = 1.310172~~ **SUPERSEDED 2026-09-24**, not yet re-run | ⚠️ Geometry corrected against Dollezhal (1980): carrier and clad were both wrong. Coolant −3.2 %, Zr +9.3 %. Expect a small k∞ decrease. Previously: correct RBMK geometry, verified in-deck against design volume fractions. Value is post-hydrogen-fix (2026-09-23) and matches what `rbmk_h2otest.x2m` measured independently; the old free-gas value was 1.312816. |
+| Void coefficient vs burnup, `Dragon/data/rbmk_a5_void.x2m` | ~~+1957 pcm (~4 β) at 20 MWd/kg~~ **SUPERSEDED 2026-09-24**, not yet re-run | ⚠️ Geometry corrected; there is now 3.2 % less coolant to void, so this should fall — **widening**, not closing, the gap below. **Sign and trend confirmed by OpenMC; magnitude is not.** OpenMC gives +4007 pcm (~8 β) at the same burnup and +1030 vs +82 pcm at fresh fuel. Treat the DRAGON value as a lower bound of unknown tightness. |
 | CANDU-6 control, `Dragon/data/rbmk_candu.x2m` + `openmc/candu_cell.py` | DRAGON +1624 pcm vs OpenMC +1603 pcm full-void | ✅ Same geometry, library and compositions in both codes; **agree to 22 pcm (1.3 %)**. This is what validates the OpenMC model and localises the RBMK disagreement. |
-| Cell volume fractions, analytic vs DRAGON tracking | graphite 89.5938 % vs 89.594 %, coolant 3.7721 % vs 3.772 %, fuel 2.9009 % vs 2.901 % | ✅ Independent of DRAGON entirely (`openmc/volcheck.py`). The geometry is right. |
+| Cell volume fractions, analytic vs DRAGON tracking | graphite 89.5938 % vs 89.594 %, coolant 3.7721 % vs 3.772 %, fuel 2.9009 % vs 2.901 % | ✅ Method sound and independent of DRAGON (`openmc/volcheck.py`). **Numbers superseded 2026-09-24**: new analytic targets are graphite 89.5938, coolant 3.6527, fuel 2.9009, Zr 2.9823, gas 0.8702. Graphite and fuel unchanged; the DRAGON column is stale until re-run. |
 
 **Retracted claims.** The first three were retracted by the audit; the fourth is a
 retraction of the audit's own finding; the fifth is a retraction of the A5 result recorded
@@ -258,8 +267,9 @@ Checks now in place:
 | Void coefficient **sign and burnup trend** | ✅ confirmed independently by OpenMC |
 | Void coefficient **magnitude** | ❌ **not confirmed — the two codes differ by 2–12×** |
 | Independent Monte Carlo | ✅ done 2026-09-23, see below |
-| Cell geometry, analytic vs DRAGON tracking volumes | ✅ match to every printed digit |
+| Cell geometry, analytic vs DRAGON tracking volumes | ✅ match to every printed digit — but see below, the DRAGON side is now stale |
 | Method validated on a non-RBMK lattice (CANDU-6, both codes) | ✅ agree to 22 pcm on the void coefficient |
+| Cell dimensions against a primary design source | ✅ 2026-09-24, Dollezhal & Emelyanov (1980) — two corrections found, one confirmation |
 
 **OpenMC status: WORKING.** The earlier note that conda-forge has no linux-aarch64 build was
 correct, but a source build already existed at `~/code/openmc` (v0.16.1-dev46) with the
@@ -274,13 +284,24 @@ binary installed and only the Python bindings and data missing. Both are now in 
   depleted). No GPU use, no memory risk on the ~110 GB budget.
 
 Open geometry questions that an MC cross-check would not settle either — these need a
-primary source:
+primary source. **Items 1 and 3 were resolved 2026-09-24 against Dollezhal & Emelyanov
+(1980); see "Cell geometry pinned to a primary source" below.**
 
-1. **Pressure tube 88 × 4 mm vs 92 × 4 mm.** `rbmk_cell_a3.x2m` uses 88 × 4 (r 4.00/4.40).
-   The Wikipedia article states 8.4 cm ID with a 4 mm wall. The choice moves coolant area
-   by 10 %, which matters directly for the void coefficient. One constant in the deck.
+1. ~~**Pressure tube 88 × 4 mm vs 92 × 4 mm.**~~ **RESOLVED: 88 × 4 is correct**, stated
+   explicitly as *outer* diameter 88 with a 4 mm wall [D p.54]. The deck already had it.
+   The Wikipedia "8.4 cm ID" reading is wrong. Guardrail tightened to reject 92 × 4.
 2. **Fuel rod ring radii 1.60 / 3.10 cm** — inferred from fit constraints, not sourced.
-3. **Carrier rod wall** — only the 13 mm OD is sourced.
+   **Still open.** Not stated in [D]; fig 5.1 Б-Б confirms the 6+12 topology but is
+   dimensioned only with the ⌀79 grid envelope. Measured off it: inner 17–18, outer
+   31–32 mm ±1.5. Left unchanged rather than substituting a measured value. Needs the
+   NIKIET 2006 monograph.
+3. ~~**Carrier rod wall** — only the 13 mm OD is sourced.~~ **RESOLVED, and the deck was
+   wrong**: a 15 × 1.25 mm central tube with a solid 12 mm carrier rod inside [D p.11],
+   not a 13 mm hollow tube. Corrected. The fuel clad was wrong too (13.5 × 0.9, not
+   13.6 × 0.825).
+3b. **Pellet central hole (2 mm)** — NEW. Not mentioned anywhere in [D], which gives only
+   "tablets of diameter 11.5 mm". A solid pellet would raise fuel volume ~3.1 %. Left in
+   place, flagged.
 4. **β_eff** — assumed 0.0048 for the β-equivalent column. The library carries `NDEL 6`
    delayed data and it has never been extracted. It must come out as a **burnup curve**,
    not a scalar: β_eff falls as Pu-239 (β ≈ 0.0021) displaces U-235 (β ≈ 0.0065), so the
@@ -1025,6 +1046,166 @@ untracked, with no history. The same is true of `quarantine/` and `openmc/`. The
 to recover an overwritten deck, and no record of when any of them changed — which is why the
 A2 timestamp evidence was the only way to establish that the core deck had never been run.
 
+
+## Cell geometry pinned to a primary source — 2026-09-24 (2)
+
+Three of the four open geometry questions listed under "Validation risk" are now settled
+against the chief designer's own monograph. **One correction, one confirmation, one new
+suspect, and every downstream physics number is invalidated pending a re-run.**
+
+### The source
+
+**Доллежаль Н.А., Емельянов И.Я., «Канальный ядерный энергетический реактор»,
+Атомиздат, Москва, 1980.** 208 pp. Dollezhal was the RBMK's chief designer (главный
+конструктор, НИКИЭТ). The book **pre-dates the 1986 modifications**, so it describes the
+as-built Unit 4 configuration rather than the post-accident retrofit that most accessible
+literature documents. A DjVu scan was converted to a searchable PDF (the OCR text layer was
+re-injected as invisible UTF-8; the `ddjvu -format=pdf` path silently discards it).
+
+Page numbers below are **PDF pages of that scan**, not printed page numbers.
+
+### 1. Pressure tube 88 × 4 — CONFIRMED, no change needed
+
+[D p.54], describing fig 3.3:
+
+> «средняя часть которой состоит из трубы 9 **наружным диаметром 88 и толщиной стенки
+> 4 мм**, изготовленной из сплава Zr+2,5% Nb»
+
+— *"the middle part consists of tube 9 with **outer** diameter 88 and wall thickness 4 mm,
+of Zr+2.5% Nb."* Repeated at [D p.11]; the 80 mm bore is confirmed twice more elsewhere
+(`внутренним диаметром 80 мм`).
+
+So OD 88 → r 4.40, ID 80 → r 4.00 — **exactly what the deck already had**. The Wikipedia
+"8.4 cm ID" reading, which would imply OD 92, is wrong. The 10 % coolant-area ambiguity
+that fed directly into the void coefficient is closed, and the guardrail's coolant band has
+been tightened from 3.0–4.5 % to 3.4–4.0 % accordingly (88 × 4 → 3.653 %, 92 × 4 → 4.437 %,
+so the wrong tube is now actively rejected rather than tolerated).
+
+### 2. Ring radii 1.60 / 3.10 — STILL OPEN, deliberately unchanged
+
+[D] does not state them. Fig 5.1 section Б-Б shows the 6+12 arrangement, confirming the
+topology, but carries a single dimension: the grid envelope ⌀79. Measured off that figure
+against that scale: **inner 17–18 mm, outer 31–32 mm, ±1.5 mm**. 3.10 sits comfortably
+inside that; 1.60 may be ~1.5 mm small.
+
+Geometric bounds, now that the central tube is pinned at ⌀15: inner ≥ 14.25 mm (clear the
+tube), outer between 26.1 (rods touching at 30°) and 32.75 (fit inside ⌀79).
+
+**Left at the old values on purpose.** A number measured off a scanned drawing carries false
+precision, and substituting it would look like sourcing without being sourcing. Needs the
+NIKIET 2006 monograph (Абрамов и др., ISBN 5-98706-018-4), which has dimensioned assembly
+drawings.
+
+### 3. Carrier — CORRECTED, the deck was wrong
+
+[D p.11]: the 18 rods are held by spacer grids on a **central tube** of Zr
+«размером 15×1,25 мм» (OD 15, ID 12.5); inside that tube runs «либо несущий стержень
+диаметром 12 мм, либо несущая труба размером 12×2,5 мм» — *either a 12 mm solid carrier
+rod, or a 12 × 2.5 tube*. The solid rod is the standard channel; the tube variant carries
+the DKE power sensor and is not the average channel.
+
+The deck modelled a 13 mm OD hollow tube with coolant inside — **matching neither
+component**, and understating carrier metal by roughly 3×.
+
+| | was | now |
+|---|---|---|
+| carrier | Zr tube r 0.500/0.650, coolant inside | solid Zr rod r 0–0.600 |
+| water annulus | — | r 0.600/0.625 |
+| central tube | — | Zr r 0.625/0.750 |
+
+### 4. Fuel rod — CORRECTED, found while checking the carrier
+
+Same sentence, [D p.11]: clad **OD 13.5 mm, wall 0.9 mm**, pellet **11.5 mm**, UO₂ density
+up to 10.5 g/cm³, enrichment **1.8 or 2 % U-235**. The deck had clad OD 13.6 with an
+0.825 mm wall, making the pellet–clad gap ~2.3× too thick. Pellet radius 0.5750 was already
+right.
+
+`RADIUS 0.0000 0.1000 0.5750 0.5975 0.6800` → `0.0000 0.1000 0.5750 0.5850 0.6750`.
+
+### 5. Pellet central hole — NEWLY SUSPECT
+
+The 2 mm central hole is a `[W]` value. [D p.11] describes the pellets only as «таблетками
+диаметром 11,5 мм», and no central hole appears anywhere in the book. A solid pellet would
+raise fuel volume by ~3.1 %. **Left in place, flagged.** Removing it would also break the
+OpenMC volcheck agreement, so it needs deciding deliberately rather than in passing.
+
+### Volume fractions, recomputed
+
+Analytic, and independently reproduced by `openmc/volcheck.py` after the same edits —
+both give cell area exactly 625.0000 cm².
+
+| | before | after | change |
+|---|---|---|---|
+| graphite | 89.5938 % | 89.5938 % | — |
+| coolant | 3.7721 % | **3.6527 %** | −3.2 % rel |
+| fuel | 2.9009 % | 2.9009 % | — |
+| zirconium | 2.7292 % | **2.9823 %** | +9.3 % rel |
+| gas | 1.0040 % | **0.8702 %** | −13.3 % rel |
+
+Graphite and fuel are untouched, so the 1763 t graphite cross-check and the fuel fraction
+both still stand. All five clearances remain positive (tube→inner ring +1.75 mm, inner
+rod-to-rod +2.50, inner→outer +1.50, outer rod-to-rod +2.55, outer→wall +2.25), so the
+corrected cell is physically buildable.
+
+### What this invalidates
+
+**Everything downstream of the cell.** Not yet re-run — there is no DRAGON build in the
+environment these edits were made in.
+
+- **k∞ = 1.310172** — superseded. Coolant down 3.2 %, Zr (a parasitic absorber) up 9.3 %:
+  expect a small decrease.
+- **The A5 void curve (+1957 pcm at 20 MWd/kg)** — superseded, and note the *direction*:
+  there is now less coolant to void, so the DRAGON void worth should fall, which would
+  **widen** the unexplained DRAGON-vs-OpenMC gap rather than close it. That gap is a method
+  difference (the CANDU-6 control agrees to 22 pcm) and this correction does not address it.
+- **The A5b MULTICOMPO** — built on the old geometry, must be regenerated.
+- `openmc/volcheck.py`'s `dragon` dict still holds the 2026-09-22 numbers and is marked
+  stale in-file; it will not match until the deck is re-run.
+
+Re-run order: `rbmk_cell_a3.x2m` (guardrail must pass with the new bands) →
+`openmc/rbmk_cell.py` at matching burnup → `rbmk_a5_void.x2m` → `rbmk_a5b_compo.x2m`.
+
+### Applied to four decks plus OpenMC, per standing rule 6
+
+The cell geometry is **copy-pasted verbatim** into at least 13 decks. That is the same
+hazard as rule 6 ("a fix that lives in a copy of the file is not a fix"), and it is how the
+CANDU-6 bundle propagated in the first place. Changed here: `rbmk_cell_a3.x2m`,
+`rbmk_a5_void.x2m`, `rbmk_a5b_compo.x2m`, `rbmk_h2otest.x2m`, `openmc/rbmk_cell.py`,
+`openmc/volcheck.py`. The remaining diagnostic probes (`rbmk_ctra`, `rbmk_rates`,
+`rbmk_sstest`, `rbmk_ussopt`, `rbmk_grmin`, `rbmk_micrprobe`, `rbmk_shem361`,
+`rbmk_a5b_smoke`, `rbmk_a5b_offgrid`) still carry the old geometry and are now
+inconsistent with the live decks.
+
+**Recommended follow-up:** extract the cluster geometry into a shared
+`rbmk_proc/RbmkGeo.c2m`, exactly as `RbmkLib.c2m` already does for compositions and for the
+same stated reason — "so the two cannot disagree about what a mixture contains". Not done
+here because it cannot be tested without a DRAGON build, and an untested refactor of the
+geometry is precisely the class of change this log exists to prevent.
+
+### Also recovered from the same source, not yet used
+
+**A possible unit trap in the burnup axis.** [D p.95] gives the burnup plateau as
+`19,5—24,4 ГВт·сут/т **UO₂**` and the maximum as `24—28`, i.e. **per tonne UO₂, not per
+tonne U** — a 13 % offset (÷0.8815 → ~27.7–31.8 GWd/tU). This log quotes the void
+coefficient "at 20 MWd/kg" without stating the basis. If DRAGON and OpenMC disagree on that
+convention, it would present exactly as a magnitude discrepancy at nominal burnup. Worth
+ruling out before hunting the method difference further.
+
+**Operating parameters** [D p.95], for the TH coupling that does not exist yet: channel
+power 3000–3200 kW, flow 29.5–30.5 t/h, **exit quality 19.6 %**, inlet 79.6 kgf/cm² / 265 °C,
+outlet 75.3 kgf/cm² / 289.3 °C, max coolant velocity 18.5 m/s, clad surface 295 °C / inner
+323 °C, axial peaking 1.4, radial 1.06, max linear rating 360–385 W/cm, pellet centreline
+2100 °C, channel length 7000 mm, cassette = two 3.5 m TVS with a ~20 mm gap.
+
+**CPS channel** [D p.37]: OD 88 / **ID 82** mm (3 mm wall, not the fuel channel's 4 mm),
+Zr alloy grade 125. Needed for `DEVINI:` when control rods are modelled.
+
+**Graphite** [D p.11]: blocks 250 × 250 mm, density 1.65 g/cm³, bore 114 mm, 1693 cells —
+all four already match the deck. Note [D] also says graphite **rings** are shrunk onto the
+channel tube for thermal contact; the deck models a gas clearance at r 4.40–4.55, which is
+an idealisation worth revisiting.
+
+---
 
 ## Standing rules
 
