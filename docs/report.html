@@ -1,0 +1,889 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Progress report on a 3-D coupled neutronics and thermal-hydraulics model of the RBMK-1000 reactor at Chernobyl Unit 4.">
+<title>Chernobyl Unit 4 Model</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  color-scheme: light;
+  --ground:#eef1f4; --panel:#fbfcfd; --panel-2:#f3f6f8;
+  --ink:#141a21; --ink-2:#4d5661; --ink-3:#79828d;
+  --rule:#d5dbe1; --rule-2:#e6eaee;
+  --accent:#1c5cab; --accent-soft:#e3ecf8;
+  --dragon:#2a78d6; --openmc:#eb6834;
+  --danger:#c0362f; --danger-soft:#fbeae9;
+  --good:#0f7a52; --good-soft:#e3f3ec;
+  --warn:#8a5a00; --warn-soft:#faf0dc;
+  --grid:#dfe4e9;
+  --shadow:0 1px 2px rgba(20,26,33,.05), 0 8px 24px -16px rgba(20,26,33,.28);
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  --cond:"IBM Plex Sans Condensed","IBM Plex Sans",-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    color-scheme: dark;
+    --ground:#121619; --panel:#1a1f23; --panel-2:#20262b;
+    --ink:#eef1f4; --ink-2:#a7b0ba; --ink-3:#78828c;
+    --rule:#2c3339; --rule-2:#252b31;
+    --accent:#6da7ec; --accent-soft:#17283c;
+    --dragon:#3987e5; --openmc:#d95926;
+    --danger:#e66767; --danger-soft:#33201f;
+    --good:#2f9f74; --good-soft:#15291f;
+    --warn:#c98500; --warn-soft:#2b2210;
+    --grid:#2a3137;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --ground:#121619; --panel:#1a1f23; --panel-2:#20262b;
+  --ink:#eef1f4; --ink-2:#a7b0ba; --ink-3:#78828c;
+  --rule:#2c3339; --rule-2:#252b31;
+  --accent:#6da7ec; --accent-soft:#17283c;
+  --dragon:#3987e5; --openmc:#d95926;
+  --danger:#e66767; --danger-soft:#33201f;
+  --good:#2f9f74; --good-soft:#15291f;
+  --warn:#c98500; --warn-soft:#2b2210;
+  --grid:#2a3137;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--sans); font-size:16px; line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1000px; margin:0 auto; padding-inline:20px; padding-block:0 96px}
+.col{max-width:68ch}
+h1,h2,h3{font-family:var(--cond); font-weight:700; text-wrap:balance; margin:0; line-height:1.14}
+h1{font-size:clamp(2.1rem,6vw,3.1rem); letter-spacing:-.018em}
+h2{font-size:clamp(1.45rem,3.4vw,1.9rem); letter-spacing:-.012em}
+h3{font-size:1.1rem; letter-spacing:-.004em; font-weight:600}
+p{margin:0}
+a{color:var(--accent); text-underline-offset:2px; text-decoration-thickness:1px}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--accent); outline-offset:3px; border-radius:2px}
+code,.mono{font-family:var(--mono); font-size:.88em; font-variant-ligatures:none}
+code{background:var(--panel-2); padding:.08em .34em; border-radius:3px; color:var(--ink-2)}
+strong{font-weight:600}
+.num{font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:500}
+
+/* ---------- masthead ---------- */
+header.mast{border-bottom:1px solid var(--rule); padding-block:56px 30px; display:flex; flex-direction:column; gap:18px}
+.eyebrow{font-family:var(--mono); font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); font-weight:500}
+.mast .lede{max-width:62ch; color:var(--ink-2); font-size:1.08rem}
+.mast .meta{display:flex; flex-wrap:wrap; gap:6px 22px; font-family:var(--mono); font-size:.78rem; color:var(--ink-3)}
+
+/* ---------- gate strip ---------- */
+.gates{display:grid; grid-template-columns:repeat(auto-fit,minmax(112px,1fr)); gap:2px; background:var(--rule-2);
+       border:1px solid var(--rule); border-radius:5px; overflow:hidden; margin-block:34px}
+.gate{background:var(--panel); padding:11px 13px 12px; display:flex; flex-direction:column; gap:3px}
+.gate .id{font-family:var(--mono); font-size:.8rem; font-weight:600; color:var(--ink)}
+.gate .what{font-size:.76rem; color:var(--ink-3); line-height:1.35}
+.gate .st{font-family:var(--mono); font-size:.66rem; letter-spacing:.07em; text-transform:uppercase; font-weight:600;
+          border-radius:3px; padding:1px 5px; align-self:flex-start; margin-top:2px}
+.st.pass{background:var(--good-soft); color:var(--good)}
+.st.part{background:var(--warn-soft); color:var(--warn)}
+.st.open{background:var(--panel-2); color:var(--ink-3)}
+
+/* ---------- sections ---------- */
+section{padding-block:44px 0; border-top:1px solid var(--rule); margin-top:44px}
+section:first-of-type{border-top:0; margin-top:0}
+.sechead{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:6px}
+.tag{font-family:var(--mono); font-size:.7rem; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+     color:var(--accent); background:var(--accent-soft); border-radius:3px; padding:2px 7px}
+.stack{display:flex; flex-direction:column; gap:18px; margin-top:18px}
+.stack.tight{gap:12px}
+
+/* ---------- definition block (recurring object) ---------- */
+.def{display:grid; grid-template-columns:auto 1fr; gap:0 14px; align-items:start;
+     border-left:3px solid var(--accent); background:var(--panel); border-radius:0 5px 5px 0;
+     padding:12px 16px; max-width:68ch}
+.def dt{font-family:var(--mono); font-size:.85rem; font-weight:600; color:var(--ink); white-space:nowrap; padding-top:1px}
+.def dd{margin:0; font-size:.92rem; color:var(--ink-2); line-height:1.55}
+.def dd + dt{margin-top:9px} .def dd + dt + dd{margin-top:9px}
+@media (max-width:520px){ .def{grid-template-columns:1fr; gap:3px} .def dd + dt{margin-top:11px} .def dd + dt + dd{margin-top:0} }
+
+/* ---------- stat tiles ---------- */
+.tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(158px,1fr)); gap:14px; margin-top:22px}
+.tile{background:var(--panel); border:1px solid var(--rule); border-radius:5px; padding:14px 16px 15px;
+      display:flex; flex-direction:column; gap:3px}
+.tile .v{font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:1.42rem; font-weight:600; letter-spacing:-.02em; line-height:1.1}
+.tile .k{font-size:.78rem; color:var(--ink-3); line-height:1.4}
+
+/* ---------- charts ---------- */
+figure{margin:26px 0 0; background:var(--panel); border:1px solid var(--rule); border-radius:6px; overflow:hidden}
+figcaption{padding:14px 18px 0; display:flex; flex-direction:column; gap:4px}
+figcaption .ft{font-family:var(--cond); font-weight:700; font-size:1.04rem; letter-spacing:-.005em}
+figcaption .fs{font-size:.85rem; color:var(--ink-3); line-height:1.5; max-width:70ch}
+.plot{position:relative; padding:8px 14px 12px}
+.plot svg{display:block; width:100%; height:auto}
+.plot svg text{font-family:var(--sans)}
+.plot svg text.mn{font-family:var(--mono); font-variant-numeric:tabular-nums}
+.legend{display:flex; flex-wrap:wrap; gap:6px 18px; padding:0 18px 12px}
+.lg{display:inline-flex; align-items:center; gap:7px; font-size:.82rem; color:var(--ink-2)}
+.lg i{width:14px; height:3px; border-radius:2px; display:block; flex:none}
+.lg i.dash{height:0; border-top:2px dashed currentColor; border-radius:0}
+.tip{position:absolute; pointer-events:none; opacity:0; transition:opacity .09s;
+     background:var(--panel-2); border:1px solid var(--rule); border-radius:5px; box-shadow:var(--shadow);
+     padding:8px 11px; font-size:.79rem; line-height:1.5; white-space:nowrap; z-index:4; color:var(--ink)}
+.tip .th{font-family:var(--mono); font-weight:600; font-size:.74rem; color:var(--ink-3); margin-bottom:3px}
+.tip .tr{display:flex; align-items:center; gap:7px; font-variant-numeric:tabular-nums}
+.tip .tr i{width:9px; height:9px; border-radius:50%; flex:none}
+.tip .tr b{font-family:var(--mono); font-weight:600; margin-left:auto; padding-left:12px}
+details.data{border-top:1px solid var(--rule-2)}
+details.data summary{cursor:pointer; padding:10px 18px; font-size:.8rem; color:var(--ink-3); font-family:var(--mono); list-style:none}
+details.data summary::-webkit-details-marker{display:none}
+details.data summary::before{content:"▸ "; color:var(--ink-3)}
+details.data[open] summary::before{content:"▾ "}
+details.data .tw{overflow-x:auto; padding:0 18px 16px}
+
+/* ---------- tables ---------- */
+table{border-collapse:collapse; font-size:.86rem; width:100%}
+th,td{text-align:right; padding:6px 10px; border-bottom:1px solid var(--rule-2); white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{font-family:var(--mono); font-size:.72rem; letter-spacing:.05em; text-transform:uppercase;
+         color:var(--ink-3); font-weight:600; border-bottom:1px solid var(--rule)}
+tbody td{font-variant-numeric:tabular-nums; font-family:var(--mono)}
+tbody td:first-child{font-family:var(--sans)}
+tr.hi td{background:var(--accent-soft)}
+.tablewrap{overflow-x:auto; border:1px solid var(--rule); border-radius:6px; background:var(--panel); margin-top:22px}
+.tablewrap table{margin:0}
+.tablewrap th,.tablewrap td{padding:8px 14px}
+
+/* ---------- callout ---------- */
+.call{border:1px solid var(--rule); border-left:3px solid var(--danger); background:var(--panel);
+      border-radius:0 5px 5px 0; padding:15px 18px; display:flex; flex-direction:column; gap:8px; max-width:74ch}
+.call.note{border-left-color:var(--accent)}
+.call .ch{font-family:var(--cond); font-weight:700; font-size:1rem; display:flex; align-items:center; gap:9px}
+.call .ch .badge{font-family:var(--mono); font-size:.64rem; letter-spacing:.08em; text-transform:uppercase;
+                 background:var(--danger-soft); color:var(--danger); border-radius:3px; padding:2px 6px; font-weight:600}
+.call.note .ch .badge{background:var(--accent-soft); color:var(--accent)}
+.call p{font-size:.93rem; color:var(--ink-2)}
+.call code{background:var(--panel-2)}
+
+/* ---------- next-steps list ---------- */
+ol.steps{list-style:none; margin:22px 0 0; padding:0; display:flex; flex-direction:column; gap:2px;
+         border:1px solid var(--rule); border-radius:6px; overflow:hidden; background:var(--rule-2)}
+ol.steps li{background:var(--panel); padding:15px 18px; display:grid; grid-template-columns:62px 1fr; gap:4px 16px}
+ol.steps .sid{font-family:var(--mono); font-weight:600; font-size:.84rem; color:var(--accent); padding-top:2px}
+ol.steps .sh{font-family:var(--cond); font-weight:700; font-size:1.02rem}
+ol.steps .sb{grid-column:2; font-size:.91rem; color:var(--ink-2)}
+ol.steps .sg{grid-column:2; font-size:.84rem; color:var(--ink-3); margin-top:5px;
+             border-top:1px dashed var(--rule); padding-top:6px}
+ol.steps .sg b{color:var(--ink-2); font-weight:600}
+@media (max-width:520px){ ol.steps li{grid-template-columns:1fr} ol.steps .sb,ol.steps .sg{grid-column:1} }
+
+ul.plain{margin:0; padding-left:1.15em; display:flex; flex-direction:column; gap:9px}
+ul.plain li{font-size:.95rem; color:var(--ink-2)}
+ul.plain li b{color:var(--ink)}
+
+footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font-size:.82rem; color:var(--ink-3);
+       display:flex; flex-direction:column; gap:6px}
+@media (prefers-reduced-motion: reduce){ *{transition:none !important; animation:none !important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="mast">
+  <div class="eyebrow">Tier A &middot; lattice and core physics</div>
+  <h1>Chernobyl Unit&nbsp;4 Model</h1>
+  <p class="lede">Progress toward a 3-D coupled neutronics / thermal-hydraulics model of an
+    RBMK-1000 able to reproduce the AZ-5 transient of 26 April 1986 &mdash; and to drive a
+    historically accurate mnemonic display of all 1661 fuel channels. This is the physics
+    record: what has been measured, how it was checked, and what is still open.</p>
+  <div class="meta">
+    <span>2026-09-24</span>
+    <span>DRAGON5 / DONJON5 v5.1.0 &middot; ENDF/B-VIII.1 (172-group XMAS)</span>
+    <span>OpenMC 0.16.1 &middot; continuous energy, same evaluation</span>
+  </div>
+</header>
+
+<div class="gates" role="list" aria-label="Tier A gate status">
+  <div class="gate" role="listitem"><span class="id">A2</span><span class="what">3-D core geometry solves</span><span class="st pass">passed</span></div>
+  <div class="gate" role="listitem"><span class="id">A3</span><span class="what">Lattice cell, correct materials</span><span class="st pass">passed</span></div>
+  <div class="gate" role="listitem"><span class="id">A5a</span><span class="what">Void coefficient sign &amp; trend</span><span class="st part">bracketed</span></div>
+  <div class="gate" role="listitem"><span class="id">A5b</span><span class="what">Cross-section database</span><span class="st pass">passed</span></div>
+  <div class="gate" role="listitem"><span class="id">A6</span><span class="what">Graphite-tipped control rods</span><span class="st open">next</span></div>
+  <div class="gate" role="listitem"><span class="id">A7</span><span class="what">Critical core at 3200&nbsp;MW</span><span class="st open">open</span></div>
+  <div class="gate" role="listitem"><span class="id">A8</span><span class="what">AZ-5 reference transient</span><span class="st open">open</span></div>
+  <div class="gate" role="listitem"><span class="id">A9</span><span class="what">In-core detectors</span><span class="st open">open</span></div>
+</div>
+
+<!-- ============================================================ -->
+<section>
+  <div class="sechead"><span class="tag">Orientation</span></div>
+  <h2>Reading the numbers</h2>
+  <div class="stack col">
+    <p>Everything below is a statement about <em>reactivity</em> &mdash; how far a reactor is from
+      steady self-sustaining operation, and in which direction. Three units carry that, and they
+      appear on every chart.</p>
+
+    <dl class="def">
+      <dt>k</dt>
+      <dd>The multiplication factor: neutrons in one fission generation divided by neutrons in the
+        one before. <b>k&nbsp;=&nbsp;1</b> is steady power. <b>k<sub>&infin;</sub></b> ("k-infinity") is that ratio for a single
+        fuel cell with no leakage out of the sides; <b>k<sub>eff</sub></b> is the real, finite reactor.</dd>
+      <dt>&rho;, pcm</dt>
+      <dd>Reactivity, &rho;&nbsp;=&nbsp;1&nbsp;&minus;&nbsp;1/k, measured in <b>pcm</b> &mdash; <i>pour cent mille</i>,
+        parts per hundred thousand. 100&nbsp;pcm = 0.1&nbsp;% change in k. A change in reactivity is
+        always quoted relative to some reference state; here that reference is always <i>the same fuel
+        at the same burnup with the coolant at its normal density</i>.</dd>
+      <dt>&beta;</dt>
+      <dd>The delayed-neutron fraction. Roughly 0.5&nbsp;% of fission neutrons are not emitted
+        promptly but seconds to minutes later, by the decay of fission products. Those stragglers are
+        the entire reason a reactor can be controlled by mechanical rods: they stretch the response
+        time from microseconds to seconds.</dd>
+      <dt>$ (dollar)</dt>
+      <dd>Reactivity divided by &beta;. <b>One dollar is the threshold at which a reactor is critical on
+        prompt neutrons alone</b> &mdash; the delayed ones are no longer needed, the stretched response
+        time collapses, and power runs away in milliseconds. Below $1 a reactor is controllable;
+        above it, nothing mechanical is fast enough. This is <i>the</i> number that matters, and it is
+        why &beta; had to be measured rather than assumed.</dd>
+    </dl>
+
+    <p>Two more terms recur:</p>
+
+    <dl class="def">
+      <dt>void coefficient</dt>
+      <dd>How reactivity changes as coolant water boils away. In most reactors water is the
+        moderator, so losing it shuts the reaction down &mdash; the coefficient is negative and the
+        reactor is self-stabilising. In an RBMK the moderator is graphite (89.6&nbsp;% of the cell by
+        volume); the water is mainly a <i>neutron absorber</i>. Boiling it off therefore <b>adds</b>
+        reactivity. That positive coefficient is the physics at the centre of this project.</dd>
+      <dt>burnup</dt>
+      <dd>How much energy a unit mass of fuel has produced, in megawatt-days per tonne
+        (MWd/t). It stands in for how far the fuel's composition has evolved: U-235 consumed,
+        plutonium bred in, fission products accumulated. Chernobyl's core was at high burnup, and
+        nearly every dangerous property below gets worse with it.</dd>
+    </dl>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <div class="sechead"><span class="tag">A3 &middot; foundation</span></div>
+  <h2>One bad isotope label</h2>
+  <div class="stack col">
+    <p>The lattice cell describes one fuel channel: 18 fuel rods in two rings, a zirconium
+      pressure tube, and the graphite block around it. Every material composition for the whole
+      project comes from one shared procedure, so the cell deck and the branch deck cannot drift
+      apart.</p>
+    <p>That procedure declared the coolant's hydrogen as <code>H1</code> &mdash; free-gas hydrogen,
+      an unbound proton. Hydrogen in liquid water is not free: it is bound into a molecule whose
+      vibrational and rotational modes change how it scatters slow neutrons. The correct label is
+      <code>H1_H2O</code>.</p>
+    <p>Free-gas hydrogen overstates water's moderating power, which makes the water look more
+      useful than it is &mdash; and therefore makes boiling it away look less rewarding. The fix
+      changed k<sub>&infin;</sub> by only 264&nbsp;pcm, but it changed the full-void worth from
+      +82&nbsp;pcm to <strong>+222&nbsp;pcm</strong>: it nearly tripled the quantity the whole
+      project exists to get right.</p>
+
+    <div class="call">
+      <div class="ch"><span class="badge">process</span>A fix that lives in a copy of the file is not a fix</div>
+      <p>The correction had in fact been made a day earlier &mdash; in a <em>copy</em> of the
+        procedure, <code>RbmkLibH.c2m</code>. Six diagnostic decks were pointed at the copy and
+        reported the right answer, while the two headline decks still called the original and ran
+        the wrong composition. The copy has been deleted and the callers repointed. This is now a
+        standing rule in the project log.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <div class="sechead"><span class="tag">A5b &middot; the structural gap</span></div>
+  <h2>Connecting the cell to the core</h2>
+  <div class="stack col">
+    <p>Until now nothing in the project had ever written cross sections to disk. Every good cell
+      calculation left its result in memory and discarded it at exit, so the whole-core solver ran
+      on generic textbook constants for a pressurised-water reactor &mdash; a different reactor with
+      the opposite sign of void coefficient. The lattice work and the core work were not connected
+      at all.</p>
+
+    <dl class="def">
+      <dt>MULTICOMPO</dt>
+      <dd>A reactivity database. The detailed transport calculation is run once per combination of
+        conditions, condensed from 172 neutron energy groups down to 2, and tabulated. The core
+        solver then interpolates it instead of re-running transport &mdash; which it could never
+        afford to do 1661 times per time step.</dd>
+    </dl>
+
+    <p>The database now spans four axes &mdash; burnup, coolant density, fuel temperature and
+      graphite temperature &mdash; at every combination: <strong>630 points</strong>, 81 minutes,
+      114&nbsp;MB. Each point is a full re-solve including re-computed self-shielding, which is not
+      optional: boiling the coolant hardens the neutron spectrum into exactly the uranium
+      resonances that self-shielding governs.</p>
+
+    <p>But "a database exists on disk" is not evidence of anything. Three checks:</p>
+  </div>
+
+  <div class="tiles">
+    <div class="tile"><span class="v">630</span><span class="k">branch points, all present, no non-convergence</span></div>
+    <div class="tile"><span class="v" style="color:var(--good)">6.4 pcm</span><span class="k">worst round-trip loss, 8 nodes spanning every axis extreme</span></div>
+    <div class="tile"><span class="v" style="color:var(--good)">27 pcm</span><span class="k">worst off-grid interpolation error &mdash; what the transient will actually use</span></div>
+    <div class="tile"><span class="v" style="color:var(--good)">&minus;0.5 %</span><span class="k">&beta; against an independent Monte Carlo measurement</span></div>
+  </div>
+
+  <div class="stack col" style="margin-top:22px">
+    <p>The round trip compares the detailed 172-group transport answer against what comes back out
+      of the database after condensation, homogenisation, storage and interpolation. Losing
+      6.4&nbsp;pcm through all of that is two orders of magnitude below the physics uncertainties
+      here. The off-grid test matters more: the transient will never land exactly on a tabulated
+      point, so it measures error at the <em>midpoints</em> of the coolant-density and temperature
+      axes. Burnup is deliberately left on grid nodes &mdash; fuel composition does not change over
+      the forty seconds of an accident, while the other three swing violently.</p>
+    <p>An earlier check on a single corner point had reported 0.4&nbsp;pcm. That was the best case
+      by a factor of sixteen; the honest number is 6.4.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <div class="sechead"><span class="tag">A5b &middot; delayed neutrons</span></div>
+  <h2>&beta; falls as the fuel ages</h2>
+  <div class="stack col">
+    <p>The project had been assuming &beta;&nbsp;=&nbsp;0.0048 throughout. &beta; is not a constant:
+      it is a property of <em>which nuclide is fissioning</em>. Uranium-235 emits delayed neutrons
+      at 0.0065 of its fissions; the plutonium-239 that breeds in as fuel ages emits them at only
+      0.0023. As plutonium takes over, &beta; falls.</p>
+    <p>Both figures were read straight out of the nuclear data library rather than quoted &mdash;
+      and the resulting curve drops 31&nbsp;% over the fuel's life.</p>
+  </div>
+
+  <figure>
+    <figcaption>
+      <span class="ft">Delayed-neutron fraction against burnup</span>
+      <span class="fs">Measured from the library's six delayed-precursor groups through the
+        cross-section database. The dashed line is the constant the project had assumed &mdash;
+        a discharge-burnup number, wrong by +42&nbsp;% at fresh fuel. The marked point is an
+        independent Monte Carlo measurement by a completely different method.</span>
+    </figcaption>
+    <div class="plot" id="plot-beta"></div>
+    <div class="legend">
+      <span class="lg"><i style="background:var(--dragon)"></i>DRAGON, from the library's delayed data</span>
+      <span class="lg"><i style="background:var(--openmc)"></i>OpenMC, 1 &minus; k<sub>prompt</sub>/k<sub>total</sub></span>
+      <span class="lg" style="color:var(--ink-3)"><i class="dash"></i>previously assumed, 0.0048</span>
+    </div>
+    <details class="data"><summary>data table</summary><div class="tw" id="tbl-beta"></div></details>
+  </figure>
+
+  <div class="stack col" style="margin-top:24px">
+    <p>The cross-check is worth stating carefully, because the two methods share almost nothing.
+      DRAGON computes a flux-weighted ratio of delayed to total fission production in 172 energy
+      groups on a deterministic transport solve. OpenMC runs the same cell twice in continuous
+      energy by Monte Carlo &mdash; once with delayed neutrons enabled and once without &mdash; and
+      takes <b>&beta;<sub>eff</sub> = 1 &minus; k<sub>prompt</sub>/k<sub>total</sub></b>. They agree
+      to 0.5&nbsp;%, inside the Monte Carlo error bar.</p>
+
+    <div class="call">
+      <div class="ch"><span class="badge">near miss</span>A wrong answer that was self-consistent</div>
+      <p>The first extraction returned <b>0.006524 at every burnup, every void fraction and every
+        temperature</b> &mdash; identical to six digits. Two independent mistakes produced it: the
+        database query <code>GETVAL 'NUSIGF' 1</code> takes a <em>start index</em>, not a count, and
+        the aged fuel's data is stored as 18 separate fissioning nuclides. So element&nbsp;1 was
+        uranium-235 in both the numerator and the denominator, at every state &mdash; and 0.006524
+        is exactly uranium-235's &beta;.</p>
+      <p>Being self-consistent across ten different states made it look <em>more</em> trustworthy,
+        not less. What caught it was knowing beforehand what the physics had to do: &beta; must
+        fall, so a flat curve is a defect to explain, not a result to record.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <div class="sechead"><span class="tag">A5a &middot; the central quantity</span></div>
+  <h2>The void coefficient, and a disagreement</h2>
+  <div class="stack col">
+    <p>Two independent codes now compute the same quantity: how much reactivity is added when the
+      coolant in a fuel channel boils away completely. Both agree it is <strong>positive</strong>
+      and that it <strong>rises steeply with burnup</strong>. That is the RBMK's defining hazard
+      reproduced from first principles, by two methods, with no tuning.</p>
+    <p>They disagree on the magnitude by about a factor of two.</p>
+  </div>
+
+  <figure>
+    <figcaption>
+      <span class="ft">Reactivity added by complete voiding, against burnup</span>
+      <span class="fs">Coolant density 0.72&nbsp;&rarr;&nbsp;0.02&nbsp;g/cm&sup3;, measured against
+        the same fuel at normal density. Error bars are OpenMC's Monte Carlo statistics; DRAGON is
+        deterministic and has none. Chernobyl Unit 4's core averaged roughly 10&ndash;15&nbsp;MWd/t.</span>
+    </figcaption>
+    <div class="plot" id="plot-pcm"></div>
+    <div class="legend">
+      <span class="lg"><i style="background:var(--dragon)"></i>DRAGON &mdash; deterministic, 172-group</span>
+      <span class="lg"><i style="background:var(--openmc)"></i>OpenMC &mdash; Monte Carlo, continuous energy</span>
+    </div>
+    <details class="data"><summary>data table</summary><div class="tw" id="tbl-pcm"></div></details>
+  </figure>
+
+  <div class="stack col" style="margin-top:24px">
+    <p>Until today the comparison had only two coolant densities &mdash; full and empty &mdash; so
+      the disagreement was a single number with no structure. Adding two intermediate densities to
+      the Monte Carlo side changed the picture, and the change is the most useful result of the
+      day.</p>
+  </div>
+
+  <figure>
+    <figcaption>
+      <span class="ft">Shape of the void curve at discharge burnup</span>
+      <span class="fs">At 20&nbsp;MWd/t the two codes trace the <em>same shape</em> and differ by a
+        near-constant factor across the whole density range. A single multiplier describes the
+        entire disagreement, which is a far better-behaved problem than one that varies with
+        conditions.</span>
+    </figcaption>
+    <div class="plot" id="plot-dens"></div>
+    <div class="legend">
+      <span class="lg"><i style="background:var(--dragon)"></i>DRAGON, 7 densities</span>
+      <span class="lg"><i style="background:var(--openmc)"></i>OpenMC, 4 densities</span>
+    </div>
+    <details class="data"><summary>data table</summary><div class="tw" id="tbl-dens"></div></details>
+  </figure>
+
+  <div class="stack col" style="margin-top:24px">
+    <p>The ratio between the two codes at discharge burnup is <span class="num">1.95&nbsp;&plusmn;&nbsp;0.14</span>,
+      <span class="num">1.98&nbsp;&plusmn;&nbsp;0.09</span> and <span class="num">1.83&nbsp;&plusmn;&nbsp;0.05</span>
+      at the three measured void fractions &mdash; constant within its own error bars. So rather than
+      pick a winner, the project carries <strong>both</strong> and lets the accident simulation
+      decide whether the difference changes the outcome.</p>
+    <p>At low burnup the ratio is meaningless and must not be used: DRAGON's own void worth dips to
+      +155&nbsp;pcm at 5&nbsp;MWd/t, so the ratio is a small number divided by a smaller one, and at
+      fresh fuel the two curves disagree in shape rather than scale. Neither is the state the
+      reactor was in.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <div class="sechead"><span class="tag">Result</span></div>
+  <h2>Why it mattered that the fuel was old</h2>
+  <div class="stack col">
+    <p>Converting reactivity to dollars combines the two results above, and the two effects
+      compound: the numerator rises steeply with burnup while &beta;, the denominator, falls. The
+      danger grows twice over.</p>
+  </div>
+
+  <figure>
+    <figcaption>
+      <span class="ft">Void worth in dollars &mdash; the prompt-critical threshold</span>
+      <span class="fs">The same reactivities divided by the measured &beta; at each burnup. Above
+        $1 a reactor is critical on prompt neutrons alone and no mechanical control system is fast
+        enough to stop it. Both codes cross that line, and by discharge burnup both are far past it.</span>
+    </figcaption>
+    <div class="plot" id="plot-usd"></div>
+    <div class="legend">
+      <span class="lg"><i style="background:var(--dragon)"></i>DRAGON</span>
+      <span class="lg"><i style="background:var(--openmc)"></i>OpenMC</span>
+      <span class="lg" style="color:var(--danger)"><i class="dash"></i>$1.00 &mdash; prompt critical</span>
+    </div>
+    <details class="data"><summary>data table</summary><div class="tw" id="tbl-usd"></div></details>
+  </figure>
+
+  <div class="stack col" style="margin-top:24px">
+    <p>From fresh fuel to discharge the worth of complete voiding grows <strong>14&times;</strong>
+      (DRAGON) or <strong>5.7&times;</strong> (OpenMC) in dollars. At discharge burnup it is
+      <strong>+4.7&nbsp;$</strong> and <strong>+8.6&nbsp;$</strong> &mdash; prompt-supercritical at
+      both ends of the bracket. This is the first quantitative statement the project can make about
+      why the reactor was dangerous, and it does not depend on resolving the factor of two.</p>
+    <div class="call note">
+      <div class="ch"><span class="badge">caveat</span>This is not yet the accident</div>
+      <p>What is plotted is the <em>equilibrium</em> worth of completely voiding a channel at fixed
+        burnup &mdash; not a transient, not the real core, and not the graphite-tipped control rods
+        that turned the scram itself into an insertion of positive reactivity. Those come next, and
+        the reference transient will be run under both ends of the bracket.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <div class="sechead"><span class="tag">A2 &middot; whole core</span></div>
+  <h2>The core geometry solves, and quickly</h2>
+  <div class="stack col">
+    <p>The 3-D core deck &mdash; 49&nbsp;&times;&nbsp;49&nbsp;&times;&nbsp;32 nodes,
+      12.25&nbsp;&times;&nbsp;12.25&nbsp;&times;&nbsp;8&nbsp;m, 76&nbsp;832 regions &mdash; now runs
+      and converges, at k<sub>eff</sub>&nbsp;=&nbsp;<span class="num">1.123062</span>. That value is
+      not a physics result: it still uses the placeholder textbook constants, and the point of the
+      gate is only that the geometry and solver are sound. It was previously carrying an asserted
+      target value, which has been removed &mdash; a gate must report, not assert.</p>
+    <p>The surprise was speed. The flux solve takes <strong>1 second</strong> where a
+      higher-order discretisation of the same problem took 729. That is a factor of ~700, not the
+      ~40 previously estimated, and it makes a fallback architecture that keeps the reference
+      solver in the loop far more viable than budgeted.</p>
+  </div>
+  <div class="tiles">
+    <div class="tile"><span class="v">76 832</span><span class="k">mesh regions, 2 energy groups</span></div>
+    <div class="tile"><span class="v">1.123062</span><span class="k">k<sub>eff</sub>, converged (placeholder cross sections)</span></div>
+    <div class="tile"><span class="v">1 s</span><span class="k">per flux solve &mdash; vs 729 s at higher order</span></div>
+    <div class="tile"><span class="v">~100 MB</span><span class="k">projected state for the real-time solver; the machine has 110 GB</span></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <div class="sechead"><span class="tag">Next</span></div>
+  <h2>What remains</h2>
+  <div class="stack col">
+    <p>The physics chain is validated as far as a single fuel channel. Nothing downstream of it
+      exists yet &mdash; and the single most safety-relevant feature of this reactor is still absent
+      from the model entirely.</p>
+  </div>
+
+  <ol class="steps">
+    <li>
+      <span class="sid">A6</span><span class="sh">Graphite-tipped control rods</span>
+      <span class="sb">The rods that scrammed Chernobyl had graphite displacers below the boron
+        absorber. Driving them down from fully withdrawn pushed graphite &mdash; a moderator &mdash;
+        into a column of water at the bottom of the core, <em>adding</em> reactivity for the first
+        several seconds of the shutdown. The model currently has no absorber material and nowhere
+        for a rod to go: every cell is fuel or graphite.</span>
+      <span class="sg"><b>Gate:</b> inserting the displacer alone from below gives <em>positive</em>
+        reactivity. This is a stronger result than the void coefficient because it does not depend
+        on the disputed magnitude.</span>
+    </li>
+    <li>
+      <span class="sid">A7</span><span class="sh">Steady coupled core at 3200 MW</span>
+      <span class="sb">Close the loop between neutronics and thermal-hydraulics: power shape sets
+        coolant boiling, boiling sets density, density feeds back into reactivity. Apply the void
+        bracket here, as one visible multiplier on the void-induced term.</span>
+      <span class="sg"><b>Gate:</b> critical at full power with a physical axial power shape and
+        channel outlet conditions near 284&nbsp;&deg;C at ~14&nbsp;% steam quality. First output the
+        display can show.</span>
+    </li>
+    <li>
+      <span class="sid">A8</span><span class="sh">The AZ-5 transient, run twice</span>
+      <span class="sb">Start from the accident state &mdash; high burnup, xenon-poisoned, almost all
+        rods withdrawn, low coolant flow &mdash; and insert the rods at their real 0.4&nbsp;m/s.
+        Run it under both ends of the void bracket.</span>
+      <span class="sg"><b>Gate:</b> a prompt power rise before the absorber takes over. The
+        deliverable is the <em>comparison</em>: if both variants reach fuel failure at similar times
+        the factor of two is not load-bearing and can stay open. If one runs away and the other does
+        not, closing it becomes the priority.</span>
+    </li>
+    <li>
+      <span class="sid">A9</span><span class="sh">In-core detectors</span>
+      <span class="sb">Read the transient through the instruments the operators actually had, including
+        the response lag of self-powered neutron detectors &mdash; itself historically significant,
+        since indicated power lagged real power.</span>
+      <span class="sg"><b>Gate:</b> traces respond to a local rod insertion, not just to global power.</span>
+    </li>
+    <li>
+      <span class="sid">B</span><span class="sh">Real-time solver</span>
+      <span class="sb">The reference codes are single-threaded with no GPU path. A standalone
+        2-group solver with delayed-precursor tracking and per-channel thermal-hydraulics, validated
+        against the A8 trace rather than written and hoped for.</span>
+      <span class="sg"><b>Gate:</b> reproduces the reference transient to a stated tolerance
+        <em>through the excursion</em>, not just at steady state.</span>
+    </li>
+    <li>
+      <span class="sid">C</span><span class="sh">The mnemonic panel</span>
+      <span class="sb">1661 channel outlet temperatures, 211 rod positions, detector readings &mdash;
+        the control-room display as it existed, driven live by the solver.</span>
+      <span class="sg"><b>Gate:</b> updates at 10&nbsp;Hz or better with the solver in the loop.</span>
+    </li>
+  </ol>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <div class="sechead"><span class="tag">Open</span></div>
+  <h2>Known gaps</h2>
+  <div class="stack col">
+    <ul class="plain">
+      <li><b>The factor of two is unresolved.</b> Every candidate tested so far has been a nuclear
+        data or library option. Spatial discretisation and self-shielding geometry &mdash; which all
+        bite harder in a voided channel, the signature this disagreement has &mdash; have never been
+        tested. The highest-information test is a direct comparison of the neutron energy spectrum
+        between the two codes, which would localise the cause in energy rather than guess at it.</li>
+      <li><b>Xenon is not yet an axis.</b> The database holds equilibrium xenon only. The operating
+        margin story before the accident is a transient-xenon story, so this has to be added.</li>
+      <li><b>The second database the plan called for cannot be built.</b> DRAGON has no
+        cross-section scaling facility anywhere in its write path. The bracket is carried as a
+        ratio table and applied in the consuming deck instead, which keeps a single source of truth
+        for the physics. Not yet implemented or validated.</li>
+      <li><b>Unsourced geometry.</b> Pressure tube wall thickness, the two fuel-ring radii and the
+        carrier rod wall are inferred rather than taken from a primary source. The tube alone moves
+        coolant area by 10&nbsp;%, directly on the disputed quantity.</li>
+      <li><b>Steam uses liquid-water scattering data</b> in both codes. A shared approximation, so
+        it cancels in the comparison and is wrong in both.</li>
+      <li><b>Transient thermal-hydraulics is homogeneous-flow only.</b> The drift-flux model is
+        available at steady state but hardcoded off in the transient path. For a positive-void
+        reactor that is a real caveat, and the error needs bounding.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <div class="sechead"><span class="tag">Reference</span></div>
+  <h2>Terms</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Term</th><th style="text-align:left">Meaning</th></tr></thead>
+      <tbody style="font-family:var(--sans)">
+        <tr><td>k<sub>&infin;</sub> / k<sub>eff</sub></td><td style="text-align:left;font-family:var(--sans);white-space:normal">Neutron multiplication per generation, without / with leakage out of the reactor. k&nbsp;=&nbsp;1 is steady power.</td></tr>
+        <tr><td>&rho;</td><td style="text-align:left;font-family:var(--sans);white-space:normal">Reactivity, 1&nbsp;&minus;&nbsp;1/k. Always quoted as a change from a stated reference state.</td></tr>
+        <tr><td>pcm</td><td style="text-align:left;font-family:var(--sans);white-space:normal"><i>Pour cent mille</i> &mdash; 10<sup>&minus;5</sup> of reactivity. 100&nbsp;pcm = 0.1&nbsp;% in k.</td></tr>
+        <tr><td>&beta;</td><td style="text-align:left;font-family:var(--sans);white-space:normal">Delayed-neutron fraction: the share of fission neutrons emitted seconds to minutes late, by fission-product decay. Measured here as 0.0068 fresh, 0.0047 at discharge.</td></tr>
+        <tr class="hi"><td>dollar ($)</td><td style="text-align:left;font-family:var(--sans);white-space:normal">Reactivity divided by &beta;. $1 is prompt critical &mdash; self-sustaining on prompt neutrons alone, beyond mechanical control.</td></tr>
+        <tr><td>void coefficient</td><td style="text-align:left;font-family:var(--sans);white-space:normal">Reactivity change as coolant boils away. Negative and self-stabilising in a water-moderated reactor; positive in an RBMK, where graphite moderates and water mostly absorbs.</td></tr>
+        <tr><td>burnup (MWd/t)</td><td style="text-align:left;font-family:var(--sans);white-space:normal">Energy produced per tonne of fuel; a proxy for how far its composition has evolved. Chernobyl's core was at high burnup.</td></tr>
+        <tr><td>Doppler</td><td style="text-align:left;font-family:var(--sans);white-space:normal">Broadening of uranium absorption resonances as fuel heats, which absorbs more neutrons. The fast negative feedback that opposes a power excursion.</td></tr>
+        <tr><td>self-shielding</td><td style="text-align:left;font-family:var(--sans);white-space:normal">Outer fuel absorbing so strongly at resonance energies that the interior sees fewer neutrons. Must be recomputed for every void state, since boiling shifts the spectrum into those resonances.</td></tr>
+        <tr><td>prompt critical</td><td style="text-align:left;font-family:var(--sans);white-space:normal">Reactivity at or above $1, where the chain sustains on prompt neutrons alone and power rises on a millisecond timescale.</td></tr>
+        <tr><td>scram / AZ-5</td><td style="text-align:left;font-family:var(--sans);white-space:normal">Emergency shutdown. AZ-5 is the RBMK's button, pressed at Chernobyl at 01:23:40 on 26 April 1986.</td></tr>
+        <tr><td>MULTICOMPO</td><td style="text-align:left;font-family:var(--sans);white-space:normal">The tabulated cross-section database the core solver interpolates, instead of re-running transport for each of 1661 channels.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <div>Generated 2026-09-24 from the project record. Full working notes, including every failed
+    attempt and the source-code line references behind each finding, are in <code>PROGRESS.md</code>;
+    the roadmap is in <code>PROJECT_PLAN.md</code> and <code>TIER_A_WORKPLAN.md</code>.</div>
+  <div>Codes: DRAGON5 / DONJON5 v5.1.0 (&Eacute;cole Polytechnique de Montr&eacute;al) and OpenMC 0.16.1,
+    both on ENDF/B-VIII.1. Scope ends at fuel failure.</div>
+</footer>
+
+</div>
+<script>
+(() => {
+"use strict";
+
+const BU = [0, 2000, 5000, 10000, 15000, 20000];
+
+const BETA   = [0.006824, 0.006361, 0.005877, 0.005358, 0.004985, 0.004680];
+const D_PCM  = [222.2, 247.4, 154.7, 499.3, 1204.5, 2189.7];
+const O_PCM  = [1030.4, 919.0, 851.6, 1473.4, 2650.2, 4007.5];
+const O_SD   = [66.2, 80.7, 78.6, 92.1, 121.4, 117.3];
+const D_USD  = D_PCM.map((v, i) => v / 1e5 / BETA[i]);
+const O_USD  = O_PCM.map((v, i) => v / 1e5 / BETA[i]);
+const O_USDSD= O_SD.map((v, i) => v / 1e5 / BETA[i]);
+
+// discharge-burnup density sweep: void fraction = 1 - dca/0.72
+const DENS_D = [[0.72,0],[0.60,312.9],[0.45,656.1],[0.30,995.4],[0.15,1457.0],[0.05,1972.9],[0.02,2189.7]];
+// The 0.72 entry carries no error: it is the reference the others are
+// measured against, so its delta-rho is exactly zero by construction.
+const DENS_O = [[0.72,0,0],[0.35,1721.7,120.2],[0.15,2878.5,126.1],[0.02,4007.5,117.3]];
+const vf = d => 1 - d / 0.72;
+
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const SVGNS = "http://www.w3.org/2000/svg";
+const el = (t, a) => { const e = document.createElementNS(SVGNS, t);
+  for (const k in a) e.setAttribute(k, a[k]); return e; };
+
+function ticks(lo, hi, n) {
+  const raw = (hi - lo) / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), r = raw / mag;
+  const step = (r >= 5 ? 10 : r >= 2 ? 5 : r >= 1 ? 2 : 1) * mag;
+  const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10));
+  return out;
+}
+
+function chart(host, spec) {
+  const render = () => {
+    host.textContent = "";
+    const cs = getComputedStyle(host);
+    const W = Math.max(280, host.clientWidth
+      - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight));
+    const narrow = W < 460;
+    const H = narrow ? 236 : 292;
+    const pad = { t: 16, r: narrow ? 14 : 66, b: 42, l: narrow ? 46 : 58 };
+    const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+
+    const xs = spec.series.flatMap(s => s.pts.map(p => p[0]));
+    const x0 = spec.xMin ?? Math.min(...xs), x1 = spec.xMax ?? Math.max(...xs);
+    const yAll = spec.series.flatMap(s => s.pts.flatMap(p => [p[1] + (p[2] || 0), p[1] - (p[2] || 0)]))
+      .concat(spec.rules ? spec.rules.map(r => r.y) : []);
+    const y0 = spec.yMin ?? 0, y1 = spec.yMax ?? Math.max(...yAll) * 1.08;
+
+    const X = v => pad.l + (v - x0) / (x1 - x0) * iw;
+    const Y = v => pad.t + ih - (v - y0) / (y1 - y0) * ih;
+
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H,
+      role: "img", "aria-label": spec.alt });
+    const inkC = css("--ink-3"), gridC = css("--grid"), surf = css("--panel");
+
+    // horizontal grid + y labels
+    for (const t of (spec.yTicks || ticks(y0, y1, narrow ? 3 : 5))) {
+      svg.appendChild(el("line", { x1: pad.l, x2: pad.l + iw, y1: Y(t), y2: Y(t),
+        stroke: gridC, "stroke-width": 1, fill: "none" }));
+      const lb = el("text", { x: pad.l - 8, y: Y(t) + 4, "text-anchor": "end",
+        "font-size": narrow ? 10 : 11, class: "mn", fill: inkC });
+      lb.textContent = spec.yFmt(t); svg.appendChild(lb);
+    }
+    // x labels
+    for (const t of (spec.xTicks || ticks(x0, x1, narrow ? 3 : 5))) {
+      const lb = el("text", { x: X(t), y: H - 22, "text-anchor": "middle",
+        "font-size": narrow ? 10 : 11, class: "mn", fill: inkC });
+      lb.textContent = spec.xFmt(t); svg.appendChild(lb);
+    }
+    const ax = el("text", { x: pad.l + iw / 2, y: H - 5, "text-anchor": "middle",
+      "font-size": 11, fill: inkC }); ax.textContent = spec.xLabel; svg.appendChild(ax);
+    const ay = el("text", { x: 0, y: 0, "text-anchor": "middle", "font-size": 11, fill: inkC,
+      transform: `translate(${narrow ? 12 : 14},${pad.t + ih / 2}) rotate(-90)` });
+    ay.textContent = spec.yLabel; svg.appendChild(ay);
+
+    // reference rules
+    for (const r of spec.rules || []) {
+      svg.appendChild(el("line", { x1: pad.l, x2: pad.l + iw, y1: Y(r.y), y2: Y(r.y),
+        stroke: css(r.color), "stroke-width": 2, "stroke-dasharray": "5 4", fill: "none" }));
+      if (!narrow) {
+        const lb = el("text", { x: pad.l + iw - 4, y: Y(r.y) - 7, "text-anchor": "end",
+          "font-size": 11, "font-weight": 600, fill: css(r.color) });
+        lb.textContent = r.label; svg.appendChild(lb);
+      }
+    }
+
+    // series
+    for (const s of spec.series) {
+      const c = css(s.color);
+      for (const p of s.pts) if (p[2]) {                        // error bars
+        const g = el("g", { stroke: c, "stroke-width": 1.5, opacity: .5, fill: "none" });
+        g.appendChild(el("line", { x1: X(p[0]), x2: X(p[0]), y1: Y(p[1] - p[2]), y2: Y(p[1] + p[2]) }));
+        for (const yy of [p[1] - p[2], p[1] + p[2]])
+          g.appendChild(el("line", { x1: X(p[0]) - 3.5, x2: X(p[0]) + 3.5, y1: Y(yy), y2: Y(yy) }));
+        svg.appendChild(g);
+      }
+      if (s.pts.length > 1) svg.appendChild(el("path", { fill: "none", stroke: c, "stroke-width": 2,
+        "stroke-linejoin": "round", "stroke-linecap": "round",
+        d: s.pts.map((p, i) => `${i ? "L" : "M"}${X(p[0]).toFixed(1)} ${Y(p[1]).toFixed(1)}`).join(" ") }));
+      for (const p of s.pts) {
+        svg.appendChild(el("circle", { cx: X(p[0]), cy: Y(p[1]), r: 4.5, fill: c,
+          stroke: surf, "stroke-width": 2 }));
+      }
+      if (!narrow && s.endLabel !== false) {                    // direct end label
+        const last = s.pts[s.pts.length - 1];
+        const lb = el("text", { x: X(last[0]) + 9, y: Y(last[1]) + 4, "font-size": 11.5,
+          "font-weight": 600, fill: c }); lb.textContent = s.name; svg.appendChild(lb);
+      }
+    }
+
+    // hover crosshair
+    const cross = el("line", { y1: pad.t, y2: pad.t + ih, stroke: inkC, "stroke-width": 1,
+      opacity: 0, fill: "none", "stroke-dasharray": "3 3" });
+    svg.appendChild(cross);
+    host.appendChild(svg);
+
+    const tip = document.createElement("div"); tip.className = "tip"; host.appendChild(tip);
+    const keys = [...new Set(spec.series.flatMap(s => s.pts.map(p => p[0])))].sort((a, b) => a - b);
+
+    const move = ev => {
+      const r = svg.getBoundingClientRect();
+      const dx = (ev.clientX - r.left) * (W / r.width);
+      if (dx < pad.l - 14 || dx > pad.l + iw + 14) return leave();
+      const kx = keys.reduce((a, b) => Math.abs(X(b) - dx) < Math.abs(X(a) - dx) ? b : a);
+      cross.setAttribute("x1", X(kx)); cross.setAttribute("x2", X(kx)); cross.setAttribute("opacity", .45);
+      let html = `<div class="th">${spec.xTip(kx)}</div>`;
+      for (const s of spec.series) {
+        const p = s.pts.find(q => q[0] === kx); if (!p) continue;
+        html += `<div class="tr"><i style="background:${css(s.color)}"></i>${s.name}` +
+                `<b>${spec.yTip(p[1])}${p[2] ? " ±" + spec.yTip(p[2]).replace(/[^0-9.]/g, "") : ""}</b></div>`;
+      }
+      tip.innerHTML = html; tip.style.opacity = 1;
+      const tw = tip.offsetWidth, left = X(kx) * (r.width / W);
+      tip.style.left = Math.max(4, Math.min(left - tw / 2, r.width - tw - 4)) + "px";
+      tip.style.top = "6px";
+    };
+    const leave = () => { tip.style.opacity = 0; cross.setAttribute("opacity", 0); };
+    svg.addEventListener("pointermove", move);
+    svg.addEventListener("pointerleave", leave);
+  };
+  render();
+  let lastW = host.clientWidth;
+  new ResizeObserver(() => { if (host.clientWidth !== lastW) { lastW = host.clientWidth; render(); } })
+    .observe(host);
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  mq.addEventListener?.("change", render);
+  new MutationObserver(render).observe(document.documentElement,
+    { attributes: true, attributeFilter: ["data-theme"] });
+}
+
+const kfmt = v => v >= 1000 ? (v / 1000) + "k" : String(v);
+
+chart(document.getElementById("plot-beta"), {
+  alt: "Delayed neutron fraction beta falls from 0.00682 at fresh fuel to 0.00468 at 20000 MWd/t.",
+  xLabel: "burnup, MWd/t", yLabel: "β", xTicks: BU, yMin: 0.004, yMax: 0.0074,
+  yTicks: [0.004, 0.005, 0.006, 0.007],
+  xFmt: kfmt, yFmt: v => v.toFixed(4), xTip: v => v.toLocaleString() + " MWd/t",
+  yTip: v => v.toFixed(5),
+  rules: [{ y: 0.0048, label: "assumed 0.0048", color: "--ink-3" }],
+  series: [
+    { name: "DRAGON", color: "--dragon", pts: BU.map((b, i) => [b, BETA[i]]) },
+    { name: "OpenMC", color: "--openmc", pts: [[0, 0.006856, 0.000162]], endLabel: false },
+  ],
+});
+
+chart(document.getElementById("plot-pcm"), {
+  alt: "Full-void reactivity rises with burnup in both codes; DRAGON from 222 to 2190 pcm, OpenMC from 1030 to 4008 pcm.",
+  xLabel: "burnup, MWd/t", yLabel: "pcm", xTicks: BU, yMin: 0, yMax: 4400,
+  xFmt: kfmt, yFmt: v => (v ? "+" : "") + v, xTip: v => v.toLocaleString() + " MWd/t",
+  yTip: v => Math.round(v) + " pcm",
+  series: [
+    { name: "OpenMC", color: "--openmc", pts: BU.map((b, i) => [b, O_PCM[i], O_SD[i]]) },
+    { name: "DRAGON", color: "--dragon", pts: BU.map((b, i) => [b, D_PCM[i]]) },
+  ],
+});
+
+chart(document.getElementById("plot-dens"), {
+  alt: "At 20000 MWd/t both codes' void curves have the same shape, differing by a near-constant factor of about 1.9.",
+  xLabel: "void fraction  (coolant density 0.72 → 0.02 g/cm³)", yLabel: "pcm",
+  xMin: 0, xMax: 1, yMin: 0, yMax: 4400,
+  xTicks: [0, 0.25, 0.5, 0.75, 1],
+  xFmt: v => v.toFixed(2), yFmt: v => (v ? "+" : "") + v,
+  xTip: v => "void " + v.toFixed(3) + "  ·  " + (0.72 * (1 - v)).toFixed(2) + " g/cm³",
+  yTip: v => Math.round(v) + " pcm",
+  series: [
+    { name: "OpenMC", color: "--openmc", pts: DENS_O.map(([d, v, s]) => [+vf(d).toFixed(4), v, s]) },
+    { name: "DRAGON", color: "--dragon", pts: DENS_D.map(([d, v]) => [+vf(d).toFixed(4), v]) },
+  ],
+});
+
+chart(document.getElementById("plot-usd"), {
+  alt: "In dollars the void worth grows from 0.33 to 4.68 (DRAGON) and 1.51 to 8.56 (OpenMC); both cross the one-dollar prompt-critical line.",
+  xLabel: "burnup, MWd/t", yLabel: "dollars", xTicks: BU, yMin: 0, yMax: 9.4,
+  yTicks: [0, 2, 4, 6, 8],
+  xFmt: kfmt, yFmt: v => "$" + v.toFixed(0), xTip: v => v.toLocaleString() + " MWd/t",
+  yTip: v => "$" + v.toFixed(2),
+  rules: [{ y: 1, label: "$1.00  prompt critical", color: "--danger" }],
+  series: [
+    { name: "OpenMC", color: "--openmc", pts: BU.map((b, i) => [b, O_USD[i], O_USDSD[i]]) },
+    { name: "DRAGON", color: "--dragon", pts: BU.map((b, i) => [b, D_USD[i]]) },
+  ],
+});
+
+// ---- data tables -------------------------------------------------------
+const table = (id, head, rows) => {
+  document.getElementById(id).innerHTML =
+    "<table><thead><tr>" + head.map(h => `<th>${h}</th>`).join("") +
+    "</tr></thead><tbody>" +
+    rows.map(r => "<tr>" + r.map(c => `<td>${c}</td>`).join("") + "</tr>").join("") +
+    "</tbody></table>";
+};
+table("tbl-beta", ["Burnup, MWd/t", "β (DRAGON)", "vs assumed 0.0048"],
+  BU.map((b, i) => [b.toLocaleString(), BETA[i].toFixed(6), (BETA[i] / 0.0048).toFixed(2) + "×"])
+    .concat([["0 — OpenMC", "0.006856 ± 0.000162", "−0.5 % vs DRAGON"]]));
+table("tbl-pcm", ["Burnup, MWd/t", "DRAGON, pcm", "OpenMC, pcm", "ratio"],
+  BU.map((b, i) => [b.toLocaleString(), "+" + D_PCM[i].toFixed(0),
+    "+" + O_PCM[i].toFixed(0) + " ± " + O_SD[i].toFixed(0), (O_PCM[i] / D_PCM[i]).toFixed(2) + "×"]));
+table("tbl-dens", ["Coolant density, g/cm³", "Void fraction", "DRAGON, pcm", "OpenMC, pcm"],
+  DENS_D.map(([d, v]) => {
+    const o = DENS_O.find(r => r[0] === d);
+    return [d.toFixed(2), vf(d).toFixed(3), "+" + v.toFixed(0),
+      o ? "+" + o[1].toFixed(0) + (o[2] ? " ± " + o[2].toFixed(0) : "") : "—"];
+  }));
+table("tbl-usd", ["Burnup, MWd/t", "β", "DRAGON, $", "OpenMC, $"],
+  BU.map((b, i) => [b.toLocaleString(), BETA[i].toFixed(6),
+    "+" + D_USD[i].toFixed(2), "+" + O_USD[i].toFixed(2) + " ± " + O_USDSD[i].toFixed(2)]));
+})();
+</script>
+</body>
+</html>
