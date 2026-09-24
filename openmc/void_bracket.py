@@ -50,8 +50,8 @@ rho = lambda k: 1 - 1 / k
 def _dragon():
     """DRAGON branch reactivities from the A5b COMPO run, at TF=900 K, TG=750 K.
 
-    Source: the A5BTAB rows of
-    5.1/Dragon/Linux_aarch64/rbmk_a5b_compo.result (630 points).
+    Source: the A5BTAB rows of 5.1/Dragon/Linux_<arch>/rbmk_a5b_compo.result
+    (630 points), extracted by extract_a5btab.py -- regenerate, never hand-edit.
     """
     path = os.path.join(HERE, "dragon_a5b_void.json")
     with open(path) as f:
@@ -172,17 +172,16 @@ if __name__ == "__main__":
         print(f"{bu:>7} | {cells}")
     print("-" * 80)
     print("""
-The ratio is STABLE only where the DRAGON denominator is large.  At 20 MWd/t --
-the accident condition -- it is 1.83-1.98 across the whole density range and the
-two curves have the same SHAPE, so a single multiplier near 1.9 describes the
-disagreement.  At 5 MWd/t DRAGON's own void worth dips to +155 pcm, so the
-ratio there (3.1-5.5x) is a small number divided by a smaller one and carries no
-information.  Fresh fuel is worse still: the curves disagree in shape, DRAGON
-being non-monotonic in density while OpenMC is not.
+The ratio is only meaningful where the DRAGON denominator is large; where
+DRAGON's void worth is near zero it is a small number over a smaller one.
 
-Neither of those is the state the reactor was in.  Use the high-burnup rows.""")
+WHICH ROWS MATTER.  Unit 4 on 26 April 1986 averaged 10.9 MWd/kgU (Pavlovych,
+KURRI-KR-79, Table 1): 721 of 1659 assemblies at 13.7, 392 at 12.3, 154 at 10.5,
+172 near-fresh at 1.2.  Nothing was near 20.  The accident rows are 10000 and
+15000 -- not 20000, which is what this bracket was quoted at until
+2026-09-24 (3).""")
     print("\nspot values from bracket_multiplier():")
-    for bu in (0, 10000, 20000):
+    for bu in (0, 10000, 12500, 15000, 20000):
         for vf in (0.5, 0.8, 0.972):
             print(f"  BU {bu:>6d} MWd/t   void {vf:.3f}   "
                   f"r = {bracket_multiplier(bu, vf):.2f}")

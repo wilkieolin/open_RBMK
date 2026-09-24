@@ -1,0 +1,73 @@
+*DECK RbmkGeo
+*----
+*  RBMK-1000 fuel-channel cell geometry.  Single source of truth for the
+*  cluster -- every RBMK lattice deck calls this, so they cannot disagree about
+*  what the cell is.  Before 2026-09-24 (3) the block below was pasted into
+*  thirteen decks; when Dollezhal corrected the carrier and clad, four of them
+*  were updated and nine were not.  That is standing rule 6, and it is how the
+*  CANDU-6 bundle propagated in the first place.  RbmkLib.c2m does the same
+*  job for the compositions.
+*
+*  Called as:  GEOSS GEOFL := RbmkGeo ;
+*    GEOSS  coarse geometry, for self-shielding (USS:)
+*    GEOFL  the same geometry with SPLITR refinement, for the flux solution
+*
+*  Every dimension is sourced.  Tags and verbatim quotes are in
+*  sources/README.md; the reasoning behind each value is in the header of
+*  rbmk_cell_a3.x2m.  All radii in cm.
+*
+*   r 0.000 - 0.600  carrier rod, Zr, 12 mm solid       MIX 9   [D p.11]
+*   r 0.600 - 0.625  rod <-> central tube annulus       MIX 1   [D p.11]
+*   r 0.625 - 0.750  central tube Zr, 15 x 1.25 mm      MIX 9   [D p.11][LEI05]
+*   r 0.000 - 4.000  channel coolant, holds the cluster MIX 1   [D p.54]
+*   r 4.000 - 4.400  pressure tube Zr-2.5%Nb, 88x4 mm   MIX 2   [D p.54]
+*   r 4.400 - 4.550  gas clearance, ring <-> tube       MIX 3   [CAST]
+*   r 4.550 - 5.700  graphite rings (split sleeves)     MIX 4   [D p.11]
+*   r 5.700 - corner graphite block, bore 11.4 cm dia   MIX 5   [D p.11]
+*   half-pitch 12.5 (250 mm lattice)                            [D p.11]
+*
+*   fuel rod:
+*   r 0.0000 - 0.1000  central hole (2 mm dia), gas     MIX 3   [RU-A][LEI05][BIB]
+*   r 0.1000 - 0.5750  UO2 pellet (11.5 mm dia)         MIX 6/7 [D p.11]
+*   r 0.5750 - 0.5850  pellet-clad gap, gas             MIX 3   [D p.11][RU-A]
+*   r 0.5850 - 0.6790  clad Zr-1%Nb, 13.58 x ID 11.7    MIX 8   [RU-A][LEI05]
+*   inner ring  6 rods at R = 1.60 (circle dia 32)              [RU-A][LEI05]
+*   outer ring 12 rods at R = 3.10 (circle dia 62), offset pi/12
+*                                                   [RU-A][LEI05], phase [D p.96]
+*
+*  MIX 6 is inner-ring fuel and MIX 7 outer-ring fuel, so self-shielding and
+*  depletion see the two rings separately.
+*----
+PARAMETER GEOSS GEOFL ::
+   EDIT 0
+      ::: LINKED_LIST GEOSS GEOFL ;
+;
+MODULE GEO: END: ;
+
+GEOSS := GEO: :: CARCEL 5
+  EDIT 0
+  X- REFL X+ REFL MESHX -12.5 12.5
+  Y- REFL Y+ REFL MESHY -12.5 12.5
+  RADIUS  0.00     4.00   4.40   4.55   5.70   11.00
+  MIX     1        2      3      4      5      5
+  CLUSTER CARR ROD1 ROD2
+  ::: CARR := GEO: TUBE 3
+    MIX  9 1 9   NPIN 1  RPIN 0.00  APIN 0.00
+    RADIUS 0.0000 0.6000 0.6250 0.7500 ;
+  ::: ROD1 := GEO: TUBE 4
+    MIX  3 6 3 8   NPIN 6  RPIN 1.60  APIN 0.00
+    RADIUS 0.0000 0.1000 0.5750 0.5850 0.6790 ;
+  ::: ROD2 := GEO: ROD1
+    MIX  3 7 3 8   NPIN 12  RPIN 3.10  APIN 0.261799 ;
+  ;
+
+*  refined for transport: coolant -> 4 rings, block graphite -> 6 rings,
+*  pellets -> 3 rings
+GEOFL := GEO: GEOSS :: SPLITR 4 1 1 2 6
+  ::: CARR := GEO: CARR SPLITR 1 1 1 ;
+  ::: ROD1 := GEO: ROD1 SPLITR 1 3 1 1 ;
+  ::: ROD2 := GEO: ROD2 SPLITR 1 3 1 1 ;
+  ;
+
+END: ;
+QUIT .

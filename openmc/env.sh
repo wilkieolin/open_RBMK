@@ -18,6 +18,12 @@ ENDF_RELEASE="${ENDF_RELEASE:-viii.1}"
 export OPENMC_CROSS_SECTIONS="${OPENMC_CROSS_SECTIONS:-$NUCDATA_DIR/endfb-$ENDF_RELEASE-hdf5/cross_sections.xml}"
 export RBMK_CHAIN="${RBMK_CHAIN:-$NUCDATA_DIR/chain_endfb80_thermal.xml}"
 PY="${PY:-$RBMK_ROOT/.venv-openmc/bin/python}"
+# No repo venv (e.g. OpenMC from a conda env): use the active interpreter if it
+# can import openmc.
+if [ ! -x "$PY" ] && command -v python >/dev/null 2>&1 \
+   && python -c "import openmc" >/dev/null 2>&1; then
+    PY="$(command -v python)"
+fi
 
 if [ ! -f "$OPENMC_CROSS_SECTIONS" ]; then
     echo "ERROR: no cross sections at $OPENMC_CROSS_SECTIONS" 1>&2

@@ -96,7 +96,7 @@ def branch_runs(marks, outdir=DEPLDIR, particles=10_000, batches=130,
                 else:
                     newmats.append(mat)
             model.materials = openmc.Materials(newmats)
-            sp = model.run(cwd=d, threads=20, output=False)
+            sp = model.run(cwd=d, threads=int(os.environ.get("RBMK_THREADS", os.cpu_count())), output=False)
             with openmc.StatePoint(sp) as s:
                 k, sd = s.keff.nominal_value, s.keff.std_dev
             out.append(dict(bu=bu, dca=dca, k=k, sd=sd))

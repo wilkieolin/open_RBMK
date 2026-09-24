@@ -12,6 +12,7 @@ Energy cut is 0.625 eV, the same one the DRAGON deck uses in EDI: COND.
 
 Run:  python rates.py <dca> <outdir> [particles] [batches]
 """
+import os
 import sys
 import openmc
 from rbmk_cell import make_model
@@ -47,7 +48,7 @@ def main():
     parts = int(sys.argv[3]) if len(sys.argv) > 3 else 40_000
     bat   = int(sys.argv[4]) if len(sys.argv) > 4 else 160
     model = build(dca, parts, bat, 40)
-    sp_path = model.run(cwd=out, threads=20, output=False)
+    sp_path = model.run(cwd=out, threads=int(os.environ.get("RBMK_THREADS", os.cpu_count())), output=False)
 
     with openmc.StatePoint(sp_path) as sp:
         k = sp.keff

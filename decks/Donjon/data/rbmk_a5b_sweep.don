@@ -113,5 +113,91 @@ GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
 ECHO "A5BSWEEP" bu dca tf tg kinf ;
 Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
 
+*==============================================================
+*  OFF-GRID POINTS -- DCA, TF and TG all at axis midpoints, burnup on nodes.
+*  The DRAGON reference for each is the A5BOFF row of rbmk_a5b_offgrid.x2m,
+*  computed directly at the state.  Comparison: openmc/a5b_interp_check.py.
+*  (Added 2026-09-24 (3): the DONJON side of this test was never saved.)
+*==============================================================
+EVALUATE bu dca tf tg := 0.0 0.66 750.0 625.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEPOFF" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
+EVALUATE bu dca tf tg := 0.0 0.085 1750.0 825.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEPOFF" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
+EVALUATE bu dca tf tg := 10000.0 0.375 1050.0 625.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEPOFF" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
+EVALUATE bu dca tf tg := 10000.0 0.225 1350.0 825.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEPOFF" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
+EVALUATE bu dca tf tg := 20000.0 0.66 750.0 625.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEPOFF" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
+EVALUATE bu dca tf tg := 20000.0 0.375 1050.0 625.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEPOFF" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
+EVALUATE bu dca tf tg := 20000.0 0.085 1750.0 825.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEPOFF" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
+EVALUATE bu dca tf tg := 20000.0 0.225 1350.0 825.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEPOFF" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
 END: ;
 QUIT .

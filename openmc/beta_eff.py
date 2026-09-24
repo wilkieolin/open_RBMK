@@ -36,7 +36,7 @@ def run(dca, delayed, outdir, particles, batches, inactive, seed=1):
     model = make_model(dca=dca, particles=particles, batches=batches,
                        inactive=inactive, seed=seed)
     model.settings.create_delayed_neutrons = delayed
-    sp = model.run(cwd=outdir, threads=18, output=False)
+    sp = model.run(cwd=outdir, threads=int(os.environ.get("RBMK_THREADS", os.cpu_count())), output=False)
     with openmc.StatePoint(sp) as s:
         return s.keff.nominal_value, s.keff.std_dev
 
