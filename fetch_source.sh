@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# DRAGON5/DONJON5 Source Fetch Script
-# Downloads from NEA GitLab: https://git.oecd-nea.org/dragon
-# REQUIRES: NEA Data Bank access with Personal Access Token
-#   Export NEA_TOKEN=your_token before running
-#   Or: git config --global credential.helper store  (then enter credentials once)
+# DRAGON5/DONJON5 Source Fetch Script -- RETIRED.
+#
+# This cloned five per-package repositories (ganlib5/ganlib5.git, ...) that
+# git.oecd-nea.org does not serve publicly.  GitLab answers a missing path with
+# a login prompt rather than a 404, which is how this project came to believe
+# the NEA code needs credentials.  It does not: the monorepo
+# https://git.oecd-nea.org/dragon/5.1.git is public over HTTPS and is pinned as
+# the `5.1` submodule.  Use tools/bootstrap.sh.
+echo "fetch_source.sh is retired: the source is the 5.1 submodule." 1>&2
+echo "Run ./tools/bootstrap.sh (no NEA credentials needed)." 1>&2
+exit 1
 
 ROOT_DIR="${RBMK_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 SRC_DIR="${ROOT_DIR}/src"
