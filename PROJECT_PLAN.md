@@ -1,5 +1,12 @@
 # RBMK-1000 Coupled Neutronics/TH — Project Plan
 
+> **Draglib caveat (2026-09-24).** Every DRAGON number in this document was measured
+> against a draglib that is not the one the `libraries` submodule pins — a decompressed
+> leftover from an earlier revision that the `.access` hook preferred because it was
+> already on disk. The offset is −87 pcm on the A3 cell (1.310172 → 1.308679). The hook is
+> fixed; the numbers are not yet re-baselined. See the 2026-09-24 entry in `PROGRESS.md`.
+
+
 > **Rewritten 2026-09-22 after an audit.** The previous plan's Stage 4 blocker (SPH
 > homogenization) was a misdiagnosis, and its priority list was aimed at the wrong problems.
 > Full audit: `EVALUATION.md`. Current work order: `TIER_A_WORKPLAN.md`.

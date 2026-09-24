@@ -219,6 +219,26 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
 
 <!-- ============================================================ -->
 <section>
+  <div class="call" style="margin-bottom:0">
+    <div class="ch"><span class="badge">re-baseline owed</span>Every DRAGON number here was measured on the wrong library</div>
+    <p>Restructuring the repository on 24&nbsp;September exposed a silent substitution. DRAGON
+      resolves its nuclear data through a hook that decompresses the library <em>in place</em>
+      inside the <code>libraries</code> submodule &mdash; and on every later run finds the
+      decompressed file already sitting there and uses it without re-checking. When the
+      submodule moved to a newer library build, the leftover from the previous one kept
+      winning.</p>
+    <p>The reference cell returns <span class="num">1.310172</span> on the library that was
+      actually used and <span class="num">1.308679</span> on the one the repository ships: a
+      systematic <span class="num">&minus;87&nbsp;pcm</span> under every DRAGON figure below.
+      The cache is content-addressed now, so it cannot recur; the figures have not yet been
+      re-measured. <strong>The OpenMC column is unaffected</strong> &mdash; it is
+      continuous-energy ENDF/B-VIII.1 and never reads a draglib &mdash; so the DRAGON/OpenMC
+      bracket has to be recomputed rather than relabelled.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
   <div class="sechead"><span class="tag">Orientation</span></div>
   <h2>Reading the numbers</h2>
   <div class="stack col">

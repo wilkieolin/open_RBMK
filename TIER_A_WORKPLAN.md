@@ -1,5 +1,12 @@
 # Tier A Work Order — Offline RBMK Physics (DRAGON5 / DONJON5)
 
+> **Draglib caveat (2026-09-24).** Every DRAGON number in this document was measured
+> against a draglib that is not the one the `libraries` submodule pins — a decompressed
+> leftover from an earlier revision that the `.access` hook preferred because it was
+> already on disk. The offset is −87 pcm on the A3 cell (1.310172 → 1.308679). The hook is
+> fixed; the numbers are not yet re-baselined. See the 2026-09-24 entry in `PROGRESS.md`.
+
+
 *(Paths in this document are relative to the repository root.)*
 
 **Audience: an implementing agent.** Follow tasks in order. Each task has a hard

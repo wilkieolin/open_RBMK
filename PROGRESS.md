@@ -898,6 +898,63 @@ source of truth for the physics stays in `_ACompo`. This preserves the plan's in
 variants differ only in how the DCA axis is used) and moves the implementation, not the
 science. It is **not yet built or validated** — that is the first item of A7.
 
+## The draglib the whole project was running on is not the one it ships — 2026-09-24
+
+Restructuring the repo for a clean clone turned up a reproducibility defect that had been
+live since 19 September and would not have been visible any other way.
+
+`DLIB_99` is `draglibendfb8r1Apolib99_v5p1`, resolved by each deck's `.access` hook out of
+the `libraries` submodule. Upstream's hook gunzips it **in place**, which deletes the `.gz`
+and leaves the decompressed file in the submodule; on the next run the hook finds the
+decompressed file already there and uses it without looking at the `.gz` again. That is a
+cache with no key.
+
+At some point the `libraries` submodule moved to `d4456d42` ("Upgrade draglibs to NJOY2016
+release 78", 2025-12-24). The decompressed leftover from the previous revision stayed on
+disk and kept winning. Every DRAGON number recorded in this file was produced against it.
+
+| | bytes | `rbmk_cell_a3` k∞ |
+|---|---|---|
+| what was actually used | 134,497,940 | **1.310172** |
+| what the submodule pins (LFS `cb1395ffbb65…`) | 83,700,460 | **1.308679** |
+
+**−87 pcm.** Not large, but it is a systematic offset under every recorded DRAGON result,
+and a clean clone on another machine would silently have produced the second column while
+the documents claimed the first.
+
+The same check found a second one: `draglibendfb8r1ecco1962_light_v5p1`, 317,833,351 bytes on
+disk against 161,707,708 pinned. `draglibendfb8r1SHEM361_v5p1` and `draglibJef2p2Apolib99_v5p1`
+matched and were fine.
+
+The provenance of the two oversized files could not be established. They are not in the
+submodule's LFS object store at any commit in its history, and the older pointer
+(`f5cd7e2e…`, 51,120,783 compressed) was never cached locally. They are roughly twice the
+size of the pinned builds, which is consistent with a pre-NJOY-78 library carrying more
+temperature points, but that is inference, not evidence.
+
+**What changed.** `decks/common/dlib99.access` now content-addresses the cache: it digests
+the source `.gz` and decompresses to `.cache/draglib/<lib>.<sha12>`, so bytes from a
+different revision land at a different path and can never be picked up in place of the
+pinned ones. The run log prints the key and the size. `tools/tidy_libraries.sh` compares
+every decompressed leftover against the pinned `.gz` and moves non-matches to
+`.cache/draglib/unprovenanced/` rather than deleting them — results were produced with
+them and may need reproducing.
+
+**What has not changed, and is now owed.** Every DRAGON figure in this file, in
+`PROJECT_PLAN.md`, in `TIER_A_WORKPLAN.md` and in `docs/report.html` — k∞ 1.310172, the
+630-point MULTICOMPO, the β curve, the void table, the dollars table — was measured on the
+unprovenanced library and has **not** been re-baselined. The OpenMC side is unaffected: it
+is continuous-energy ENDF/B-VIII.1 and never touched a draglib, so the DRAGON/OpenMC
+bracket has to be recomputed rather than merely relabelled. Re-baselining means rerunning
+`rbmk_a5b_compo.x2m` (81 min) and the decks downstream of it.
+
+Standing rule 7, earned here:
+
+7. **A cache without a key is a silent substitution.** Any derived artifact kept beside its
+   source must carry a digest of that source in its name. "The file is already there" is not
+   evidence that it is the right file, and the failure is invisible precisely because
+   everything keeps working.
+
 ## A2 — the 3-D core, run at last — 2026-09-23
 
 | | |
@@ -1003,9 +1060,17 @@ A2 timestamp evidence was the only way to establish that the core deck had never
    applied. Correct the file everything calls; if a deliberately-wrong variant is needed for
    a comparison, that is the one that gets the new name and the do-not-use banner.
 
+7. **A cache without a key is a silent substitution.** A derived artifact kept beside its
+   source must carry a digest of that source in its name. The decompressed draglib sat in
+   the `libraries` submodule for five days after the submodule moved to a different library
+   revision, and every run preferred it because it was already there — see the 2026-09-24
+   entry. "The file is already there" is not evidence that it is the right file.
+
 ---
 
-*Last updated: 2026-09-23 (3) (A5b full 630-point COMPO built and verified: round trip
+*Last updated: 2026-09-24 (repo restructured for a clean clone; found that every DRAGON
+number below was produced against a draglib the repo does not ship — −87 pcm on the A3 cell,
+re-baseline pending — see the 2026-09-24 entry). Previously: 2026-09-23 (3) (A5b full 630-point COMPO built and verified: round trip
 6.4 pcm worst, off-grid interpolation 27 pcm worst, β curve 0.006824 → 0.004680 measured and
 confirmed against OpenMC to −0.5 %; full-void worth at discharge +4.7 $ (DRAGON) / +8.6 $
 (OpenMC) — prompt-supercritical at both ends of the bracket)*

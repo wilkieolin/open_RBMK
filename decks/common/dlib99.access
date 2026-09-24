@@ -49,20 +49,34 @@ esac
 cache=$ROOT/.cache/draglib
 mkdir -p "$cache"
 
-if [ ! -f "$cache/$LIB" ]; then
-    if [ -f "$pos/$LIB.gz" ]; then
-        echo "decompressing $LIB into .cache/draglib (first run only)"
-        gunzip -c "$pos/$LIB.gz" > "$cache/$LIB.part.$$" && mv "$cache/$LIB.part.$$" "$cache/$LIB"
-    elif [ -f "$pos/$LIB" ]; then
-        # An already-decompressed copy sitting in the submodule: link, don't copy.
-        ln -s "$pos/$LIB" "$cache/$LIB"
-    else
-        echo "ERROR: neither $pos/$LIB.gz nor $pos/$LIB exists." 1>&2
-        echo "       Run tools/bootstrap.sh, or see README.md 'Nuclear data'." 1>&2
-        exit 1
-    fi
+# Pick the source: the tracked .gz first, an already-decompressed copy only as a
+# fallback.
+if   [ -f "$pos/$LIB.gz" ]; then src=$pos/$LIB.gz
+elif [ -f "$pos/$LIB" ];    then src=$pos/$LIB
+else
+    echo "ERROR: neither $pos/$LIB.gz nor $pos/$LIB exists." 1>&2
+    echo "       Run tools/bootstrap.sh, or see README.md 'Nuclear data'." 1>&2
+    exit 1
 fi
 
-ln -s "$cache/$LIB" DLIB_99
+# The cache is CONTENT-ADDRESSED, keyed on a digest of the source.  This is not
+# fussiness.  The old scheme cached under the plain library name, and a
+# decompressed file left over from an earlier `libraries` revision sat there
+# silently winning over the pinned one for weeks -- 134,497,940 bytes where the
+# pinned library is 83,700,460, and 87 pcm of reactivity apart on the A3 cell.
+# A digest in the filename makes a stale entry impossible to mistake for the
+# current one: different bytes, different path, no silent substitution.
+key=$(sha256sum "$src" | cut -c1-12)
+target=$cache/$LIB.$key
+
+if [ ! -f "$target" ]; then
+    case "$src" in
+        *.gz) echo "decompressing $LIB ($key) into .cache/draglib (first run only)"
+              gunzip -c "$src" > "$target.part.$$" && mv "$target.part.$$" "$target" ;;
+        *)    ln -s "$src" "$target" ;;
+    esac
+fi
+
+ln -s "$target" DLIB_99
 cp "$1"/data/rbmk_proc/*.c2m .
-echo "DLIB_99 -> $LIB"
+echo "DLIB_99 -> $LIB ($key, $(stat -Lc%s "$target") bytes)"

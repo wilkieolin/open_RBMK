@@ -39,8 +39,15 @@ Smoke test:
 
 ```sh
 cd 5.1/Dragon && ./rdragon -c custom -p 1 rbmk_cell_a3.x2m
-grep 'k-infinity' Linux_*/rbmk_cell_a3.result      # 1.310172
+grep 'k-infinity' Linux_*/rbmk_cell_a3.result      # 1.308679
 ```
+
+> **The recorded results predate this number.** Every DRAGON figure in `PROGRESS.md`
+> and `docs/report.html` was produced against a decompressed draglib left over from an
+> earlier `libraries` revision, which the old `.access` hook silently preferred over the
+> one the submodule pins — 1.310172 instead of 1.308679, a systematic −87 pcm. The cache
+> is content-addressed now so it cannot recur, but the numbers have not been
+> re-baselined. See the 2026-09-24 entry in `PROGRESS.md`.
 
 Nothing in this project touches the GPU. Every run is CPU-only; peak resident
 set is ~2 GB for a lattice cell and ~1.6 GB for a depleted OpenMC branch.
