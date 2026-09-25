@@ -82,5 +82,56 @@
   "inactive": 50,
   "graphite_tsl": "c_Graphite_30p",
   "boundary": "reflective"
+ },
+ {
+  "variant": "g10p_tgrid",
+  "dca": 0.72,
+  "k": 1.3165574765546424,
+  "sd": 0.00025438530156049433,
+  "seed": 1,
+  "particles": 50000,
+  "batches": 300,
+  "inactive": 50,
+  "graphite_tsl": "c_Graphite_10p",
+  "boundary": "reflective",
+  "temps": [
+   900.0,
+   800.0,
+   600.0
+  ]
+ },
+ {
+  "variant": "g10p_tgrid",
+  "dca": 0.35,
+  "k": 1.325706792459763,
+  "sd": 0.00026572778214061275,
+  "seed": 1,
+  "particles": 50000,
+  "batches": 300,
+  "inactive": 50,
+  "graphite_tsl": "c_Graphite_10p",
+  "boundary": "reflective",
+  "temps": [
+   900.0,
+   800.0,
+   600.0
+  ]
+ },
+ {
+  "variant": "g10p_tgrid",
+  "dca": 0.02,
+  "k": 1.3305344084183766,
+  "sd": 0.0002697167272076604,
+  "seed": 1,
+  "particles": 50000,
+  "batches": 300,
+  "inactive": 50,
+  "graphite_tsl": "c_Graphite_10p",
+  "boundary": "reflective",
+  "temps": [
+   900.0,
+   800.0,
+   600.0
+  ]
  }
 ]

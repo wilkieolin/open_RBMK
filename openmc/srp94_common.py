@@ -287,6 +287,8 @@ DRAGON_VARIANTS = {
     # best + MOC P1: are the mesh and anisotropy effects additive?
     "bestmoc_zr": ("Zr", True, 4, "shem361.access", "PASS 2 MAXST 300", "TISO 30 120.0", 2),
     "bestmoc_al": ("Al", False, 4, "shem361.access", "PASS 2 MAXST 300", "TISO 30 120.0", 2),
+    "bestmoc8_zr": ("Zr", True, 8, "shem361.access", "PASS 2 MAXST 300", "TISO 40 240.0", 2),
+    "bestmoc8_al": ("Al", False, 8, "shem361.access", "PASS 2 MAXST 300", "TISO 40 240.0", 2),
 }
 
 if __name__ == "__main__":

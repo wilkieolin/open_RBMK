@@ -90,7 +90,10 @@ def main(bus):
             for d, n, mid in dropped[:8]:
                 head += f"*    {n:<10s} MIX {mid}  {d:.3E}\n"
         head += "*----\n"
-        name = f"RbmkLibOMC{bu:g}"
+        # RBMK_LIBPREFIX names a second transfer (e.g. RbmkLibOED for the
+        # energy-deposition depletion); CLE-2000 caps procedure names at 12 chars.
+        name = os.environ.get("RBMK_LIBPREFIX", "RbmkLibOMC") + f"{bu:g}"
+        assert len(name) <= 12, name
         body = src[:start] + blocks + "\n" + src[end:]
         open(os.path.join(PROC, f"{name}.c2m"), "w").write(head + body)
         fu = {m: sum(d for n, d in mats[m].get_nuclide_atom_densities().items()) for m in (6, 7)}

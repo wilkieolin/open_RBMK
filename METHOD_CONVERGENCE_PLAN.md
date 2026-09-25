@@ -79,6 +79,22 @@ Also re-run `openmc/fourfactor.py` on the best DRAGON case. Resonance escape p s
 If it does and k still doesn't, the residual has moved into another factor, and that factor
 names the next hypothesis.
 
+**Status 2026-09-25 (3)** (numbers in PROGRESS.md, "Phase A–B on the GB10"):
+
+| Step | Result |
+|---|---|
+| A1 / H5 | **Confirmed.** MOC with P1 adds +79 pcm to void (fresh), and more on the fine mesh; P2 adds nothing. |
+| A2 / H6 | **Rejected as an artefact.** Per-ring USS sets move k −890 pcm, away from OpenMC; shared sets are neutral. |
+| A3 | **Passed.** SHEM-370 vs 361: +15 nominal / +2 void. |
+| A4 | Running: 8× mesh, hot cell and SRP, with CP and with MOC. |
+| A5 / H11 | **Ruled out.** The codes agree to 18 pcm. |
+| A6 | (a) Nb-93 bound ≤ 59 pcm on void. (b) The graphite table is worth +0.06–0.08 %Δk on the SRP cell. |
+| A7 | OpenMC σ is 21 pcm per value on the hot cell; the 10P runs are seed-matched. |
+| — / H12 | Untested: `SHI:`/`TONE:` stop on this library. |
+
+`bestmoc` passes the void criterion on the hot cell (+763 vs +821 ± 21), and is within 4 % on the
+SRP cell. Nominal k∞ fails by 240 pcm; that residual is attributed to resonance escape and bounded.
+
 **GATE A:** fresh fuel meets the "verified" criterion, **or** every remaining hypothesis is
 tested and the residual is attributed and bounded.
 
@@ -89,6 +105,12 @@ tested and the residual is attributed and bounded.
 | B1 | **H10, depletion vs transport.** Export OpenMC's fuel isotopics at 10 MWd/kg (`openmc.deplete.Results.export_to_materials`) and run them in DRAGON at fixed composition, nominal and voided. The difference against DRAGON's own depleted branch is the depletion-trajectory effect. What remains is transport. |
 | B2 | Four-factor split at 10 MWd/kg in both codes (`rates.py` on depleted fuel; `rbmk_rates`-style deck at burnup). Check whether Pu-239's 0.3 eV resonance introduces a thermal disagreement that fresh fuel couldn't show. |
 | B3 | Repeat the Phase A best settings at 10 and 15 MWd/kg (`rbmk_meth_buzr361` is the start). |
+
+**Found in B1 (2026-09-25 (3)): the two codes' burnup scales differ.** OpenMC's `fission-q`
+normalisation (193.4 MeV per U-235 fission, no capture energy) books ~5 % more fissions per MWd
+than DRAGON's H-factor. Normalising OpenMC on deposited energy (`RBMK_NORM=energy-deposition`)
+removes 60–70 % of the depletion-trajectory difference. Accident-state comparisons use the
+deposited-energy scale: `openmc/accident_ref.py` (10P graphite, σ ≈ 20 pcm).
 
 **GATE B:** the accident-state criterion is met, or the residual is attributed and bounded.
 
@@ -120,6 +142,14 @@ So the reference ladder is:
 | D1 | ~~Obtain Behrens et al., Nucl. Technol. **114** (1996) 1–11.~~ **Obtained 2026-09-25 ([BEH96]).** Its Table I gives the measured k_eff and void effects for 11 assemblies; facility geometry, impurity ranges, and the Smolensk-3 cold start-up states are summarised in `sources/README.md`. The loading maps are figures only, and the assemblies are small and leakage-dominated, with negative measured void effects. D2 therefore needs a full 3-D model of the facility in each code; that's a substantial build, and it has to be scoped before it starts. |
 | D2 | If D1 specifies at least one flooded/voided pair, model it in both codes and compare the **void effect** (voided − watered), which is much less sensitive to the unknown impurity than absolute k. Also report the impurity sensitivity of the void effect by varying B-10 across the paper's range. |
 | D3 | If a code misses a measured void effect beyond its uncertainty, return to Phase A for that code with the experiment as the reference. |
+
+**Status 2026-09-25 (3).**
+- **D0 closed for OpenMC.** It is within [ALX98]'s MCNP/MCU spread plus the data effect: VIII.0 and
+  VIII.1 agree to 0.05 %Δk, and MCNP moves 0.56 between B-IV and B-VI.
+- **D0 for DRAGON.** `bestmoc` gives 4.59 / 5.04 against MCNP/MCU 4.80–4.85 / 5.28–5.47.
+- **D2 deferred until after Tier A (A6–A9), by decision.** The candidate pair is [BEH96]
+  assembly 1 (18 channels, void effect −3.1 %). The Smolensk-3 cold start-up states are a later
+  whole-core reference.
 
 **GATE D:** D0 closed for the code Tier A relies on; D2 attempted if D1 yields specifications.
 
