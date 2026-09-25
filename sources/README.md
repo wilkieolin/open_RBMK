@@ -17,6 +17,8 @@ copyrighted. Each entry says where to get it again.
 | **[USP]** | Ušpuras E. et al., *State of the art of the Ignalina RBMK-1500 safety*. Sci. Technol. Nucl. Install. 2010, 102078. | `USP_Uspuras_2010_Ignalina_RBMK1500_safety_STNI.pdf` | doi:10.1155/2010/102078 (open access; the publisher blocks scripted download) |
 | **[RU-A]** | «Реактор Большой Мощности Канальный (РБМК)», fuel-assembly page. Anonymous educational site describing RBMK-1000 and quoting drawing tolerances. | `RU-A_dvoika_net_Reactor_assembly.htm` | http://dvoika.net/Reactor/assembly.htm (saved 2026-09-24) |
 | **[RU-B]** | «Конструкция реактора РБМК-1000». Reference text mirrored on wdcb.ru and reactors.narod.ru. Its burnup figures match [D] p.95, so it is probably derived from [D]. Treat it as secondary. | `RU-B_wdcb_ru_rbmk4.html` | http://www.wdcb.ru/mining/sprav/document/rbmk/rbmk4.html (cp1251), https://reactors.narod.ru/rbmk/03_rbmk.htm |
+| **[ALX98]** | Alexeev N., Behrens D., Davydova G., Donderer R., von Ehrenstein D., Krayushkin A., Meyer S., Schumacher O., *The Monte Carlo codes MCNP and MCU for RBMK criticality calculations*. Nucl. Eng. Des. **183** (1998) 287–302. | `ALX98_Alexeev_1998_NED183_MCNP_MCU_RBMK_criticality.pdf` | doi:10.1016/S0029-5493(98)00163-0 (paywalled; user-supplied) |
+| **[PAR07]** | Parisi C., D'Auria F., *RBMK fuel channel blockage analysis by MCNP5, DRAGON and RELAP5-3D codes*. Proc. Int. Conf. Nuclear Energy for New Europe 2007, Portorož, paper 105. | `PAR07_Parisi_DAuria_2007_RBMK_FC_blockage_MCNP5_DRAGON.pdf` | user-supplied |
 | [W] | Wikipedia, *RBMK*, fetched 2026-09-22. Superseded for every cell dimension. | — | — |
 
 ## What each source was used for
@@ -43,3 +45,41 @@ copyrighted. Each entry says where to get it again.
 - **Measured void coefficient** [TD722] p.64: at Leningrad, 1.8 % enrichment, approaching
   equilibrium burnup, the steam void coefficient was 4–5 β. That is a core value with
   additional absorbers present, so it is not comparable to a k∞ branch.
+
+## Method verification: what [ALX98] and [PAR07] provide
+
+**[ALX98] — the Kurchatov critical experiments are NOT specified here.**
+- The paper describes the RRC-KI critical facility (p.6): 18 × 18 graphite columns of
+  25 × 25 × 410 cm, aluminium channel tubes, half-height fuel bundles, 32 cm top and bottom
+  reflector slices.
+- It lists seven configurations (Table 1) and plots measured k_eff and void effects (Figs 4, 7)
+  without tabulating them.
+- Full specifications are in Behrens, Donderer, von Ehrenstein, *RBMK void reactivity effects,
+  final report* (Univ. Bremen, 1994); Kuzmin, *Some experimental data obtained in the RBMK
+  critical test facility* (RRC-KI, 1993); and Behrens, Meyer, von Ehrenstein, *Validation of
+  MCNP for RBMK criticality calculations*, Nucl. Technol. **114** (1996) 1–11.
+- Crucially, p.8: the graphite's B/Cd impurity content is unknown and worth **≈ 1 % in k_eff**.
+  The authors tuned it separately for each code/library, and state that this *"keeps the
+  critical facility experiments from being utilized as a benchmark."* Relative (voided −
+  watered) effects are less affected than absolute k.
+
+**[ALX98] — a fully specified single-cell code benchmark (RBMK Safety Review Project 1994):**
+- Table 3 (dimensions) and Table 4 (number densities) define a cold, fresh, 2 %-enriched
+  infinite-lattice cell, with zircaloy and aluminium tube variants.
+- Figs 8–9 give k∞ watered / voided and void Δk from MCNP4A (four libraries), MCU-3, MONK-5W,
+  WIMS-D, WIMS-E and APOLLO-2.
+- Transcribed once in `openmc/srp94_common.py` (the `PUBLISHED` list, read off the plots to
+  ±0.001 in k); the DRAGON decks `rbmk_srp94_*.x2m` are generated from it.
+- Headline: MCNP/ENDF-B-VI and MCU agree on the Zr-tube void Δk within 0.05 % (4.80–4.85 %),
+  while the deterministic codes sit 12–18 % lower (Al tube).
+
+**[PAR07] — an independent DRAGON-vs-MCNP result on an RBMK cell** (300 K, NIKIET data):
+
+| | MCNP4C | DRAGON, 172 groups |
+|---|---|---|
+| void Δk | 0.04924 | 0.03883 (**−21 %**) |
+
+DRAGON is the collision-probability solver (EXCELL) on the IAEA WLUP 172-group library; the
+69-group library gives −32 %. It uses a different library from ours, but shows the same
+deficit, and the same dependence on group structure.
+

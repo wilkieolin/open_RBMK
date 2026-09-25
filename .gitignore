@@ -37,6 +37,7 @@ openmc/beta81*/
 openmc/rates_d*/
 openmc/rates10p_d*/
 openmc/meth_*/
+openmc/srp94_*_*/
 openmc/candu_v*/
 openmc/smoke_depl/
 *.h5

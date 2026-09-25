@@ -47,7 +47,8 @@ carried by U-238 and Zr. Everything thermal agrees. Causes found so far, largest
 |---|---|
 | **Verified** at a state | nominal k∞ within **100 pcm**, and full-void Δρ within **2σ + 5 %** of OpenMC's value, with OpenMC's σ ≤ 20 pcm on the difference |
 | **Accident state** | the two codes' full-void worth at 10 and 15 MWd/kgU within **10 %**, and on the same side of 1 $ |
-| **Validated** | both codes reproduce the measured void effect of at least one Kurchatov RBMK critical experiment (Phase D) within its stated uncertainty |
+| **Referenced** | both codes reproduce the MCNP / MCU void Δk of the RBMK Safety Review Project cell ([ALX98], Phase D0) within their spread plus the VIII.1-vs-B-VI data effect |
+| **Validated** | both codes reproduce a measured void effect of a Kurchatov critical experiment (Phase D2), if its specifications can be obtained |
 
 A residual that can't be closed is reported with its size and the mechanism it is attributed
 to. It is **not** absorbed into a fudge factor.
@@ -55,6 +56,10 @@ to. It is **not** absorbed into a fudge factor.
 ---
 
 ## Phase A — close the fresh-fuel residual (~190 pcm)
+
+Run every Phase A test on **both** cells: our hot cell (`rbmk_meth_*`), and the Safety Review
+Project cell (`rbmk_srp94_*`, Phase D0). On the SRP cell, production DRAGON's void Δk is half of
+MCNP/MCU's, so the residual there is proportionally larger and the test is sharper.
 
 All DRAGON variants go through `decks/scripts/gen_meth.py`, one change against a control, with
 the result tabulated by `openmc/method_table.py`. OpenMC runs through `openmc/method_study.py`,
@@ -101,19 +106,22 @@ Only after Gates A and B. Standing rule 6 applies: fix the file everything calls
 
 **GATE C:** every production number regenerated, and every superseded one marked as superseded.
 
-## Phase D — validate against measurement (the arbiter)
+## Phase D — independent references
 
-The only step that says which code is *right* rather than which is converged.
+*Revised 2026-09-25 after reading [ALX98] and [PAR07] (`sources/README.md`).*
+
+The Kurchatov critical experiments are **not** specified in [ALX98]. Its authors also say the
+unknown graphite B/Cd impurity (≈ 1 % in k, tuned per code) keeps them from being a benchmark.
+So the reference ladder is:
 
 | Step | What to do |
 |---|---|
-| D1 | Obtain the Kurchatov RBMK critical-experiment specifications. Primary: Alexeev et al., *Nucl. Eng. Des.* **183** (1998) 287–302, and the experiment reports it cites. Check whether any are evaluated in the IRPhE handbook. |
-| D2 | Transcribe one flooded / voided configuration pair into both codes: geometry, compositions, temperatures and the measurement uncertainty. Source every number, as for the cell (`sources/README.md`). |
-| D3 | Compute k_eff and the void effect in both codes, OpenMC first. Compare with measurement. |
-| D4 | If a code misses the measurement beyond its uncertainty, return to Phase A for that code with the experiment as the reference. |
+| **D0** | **RBMK Safety Review Project single cell** ([ALX98] Tables 3–4): fully specified, with MCNP4A and MCU-3 answers. Transcribed in `openmc/srp94_common.py`; DRAGON decks `rbmk_srp94_*.x2m`. **Gate:** OpenMC reproduces MCNP/MCU's void Δk within their spread plus data effects (VIII.1 vs B-VI). The converged DRAGON is then held to the same bar. Status: OpenMC watered k∞ agrees (1.27655 vs 1.2778–1.2806). DRAGON void Δk is 2.46 on 172 groups, 3.45 on SHEM-361 + Zr, against 4.80–4.85. **This cell is now the primary test for Phase A.** |
+| D1 | Obtain Behrens, Meyer, von Ehrenstein, *Validation of MCNP for RBMK criticality calculations*, Nucl. Technol. **114** (1996) 1–11. It is the published source of the critical-facility modelling detail and the impurity analysis. The 1993 Kuzmin and 1994 Bremen reports are unlikely to be obtainable. |
+| D2 | If D1 specifies at least one flooded/voided pair, model it in both codes and compare the **void effect** (voided − watered), which is much less sensitive to the unknown impurity than absolute k. Also report the impurity sensitivity of the void effect by varying B-10 across the paper's range. |
+| D3 | If a code misses a measured void effect beyond its uncertainty, return to Phase A for that code with the experiment as the reference. |
 
-**GATE D:** at least one measured void effect reproduced by the code Tier A relies on, within
-the experimental uncertainty.
+**GATE D:** D0 closed for the code Tier A relies on; D2 attempted if D1 yields specifications.
 
 ## Decisions this plan does not pre-empt
 - **Which code feeds Tier B.** If A–D close, DRAGON (with the converged settings) stays the

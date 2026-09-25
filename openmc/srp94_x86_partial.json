@@ -1,0 +1,36 @@
+{
+ "machine": "x86_64 Ryzen 5 3600 (runs stopped 2026-09-25 to move to GB10)",
+ "dragon": {
+  "d172_al": {
+   "tube": "Al",
+   "k_watered": 1.271722,
+   "k_voided": 1.302024,
+   "void_dk_pct": 3.03
+  },
+  "d172_zr": {
+   "tube": "Zr",
+   "k_watered": 1.275892,
+   "k_voided": 1.300458,
+   "void_dk_pct": 2.457
+  },
+  "d361_al": {
+   "tube": "Al",
+   "k_watered": 1.275643,
+   "k_voided": 1.31335,
+   "void_dk_pct": 3.771
+  },
+  "d361_zr": {
+   "tube": "Zr",
+   "k_watered": 1.282891,
+   "k_voided": 1.317401,
+   "void_dk_pct": 3.451
+  }
+ },
+ "openmc": {
+  "Zr_c_Graphite_watered": [
+   1.27655,
+   0.00025
+  ],
+  "note": "voided and Al runs killed; re-run on GB10"
+ }
+}

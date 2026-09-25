@@ -55,6 +55,16 @@
 > The DRAGON/OpenMC bracket has been read at the wrong burnup. See "Cell geometry closed" below
 > and `sources/README.md`.
 
+> **2026-09-25 (2): third-party check.** On the RBMK Safety Review Project cell from Alexeev
+> et al. (1998):
+> - Our OpenMC reproduces MCNP and MCU (watered k∞ within 0.1–0.4 %).
+> - Production DRAGON gives half their void effect (Δk 2.46 vs 4.80–4.85 %); SHEM-361 + Zr
+>   self-shielding gives 3.45.
+> - Parisi & D'Auria (2007) independently found DRAGON 21 % low against MCNP.
+> - The Kurchatov critical experiments aren't specified in that paper, and are impurity-limited.
+> - Local runs were stopped to move to the GB10; see the hand-off at the end of "Third-party
+>   benchmark".
+
 > **2026-09-25: the method gap is mostly DRAGON not being converged, and the prompt-critical
 > straddle is gone.** The four-factor split puts the whole DRAGON/OpenMC disagreement in
 > resonance absorption (U-238 and Zr); everything thermal agrees.
@@ -1601,12 +1611,80 @@ critical experiments).
 2. **The accident state** is now bracketed at +1.96 $ (DRAGON, converged library) to +2.7 $
    (OpenMC). H10 (transfer OpenMC's depleted isotopics into DRAGON) would separate the depletion
    difference from the transport difference at 10 MWd/kg.
-3. **Measured data.** Alexeev et al., *Nucl. Eng. Des.* 183 (1998) 287: seven Kurchatov RBMK
-   critical experiments, where MCNP and MCU matched measured k and void effect and WIMS-D4 did
-   not. Getting those specifications is the only way to validate rather than verify.
+3. **Measured data.** The Kurchatov critical experiments turn out not to be specified in
+   [ALX98], and are impurity-limited. See the next section.
 4. **The production library.** The COMPO, the A5 deck and every downstream number are on the
    172-group library, which this study shows is not converged for this cell. Rebuilding on
    SHEM-361 + Zr is the obvious consequence, but it should wait for (2).
+
+## Third-party benchmark: the RBMK Safety Review Project cell — 2026-09-25
+
+Alexeev et al. (1998, [ALX98]) and Parisi & D'Auria (2007, [PAR07]) were obtained and read.
+They are catalogued, with what each does and does not provide, in `sources/README.md`.
+
+**The Kurchatov critical experiments are not usable as specified.** [ALX98] describes the
+facility and seven configurations but only plots the measured k_eff and void effects. The full
+specifications are in three other documents: Behrens et al. 1994 (Bremen report), Kuzmin 1993
+(RRC-KI) and Behrens et al., *Nucl. Technol.* 114 (1996) 1. More importantly, the graphite's
+B/Cd impurity is unknown and worth ≈ 1 % in k. The authors tuned it per code, and say
+themselves that this keeps the experiments from being a benchmark. At best they constrain
+*relative* void effects.
+
+**[PAR07] reproduces our finding independently.** Their DRAGON (the same collision-probability
+solver, but the IAEA WLUP 172-group library) against NIKIET's MCNP4C gives a void Δk of 0.03883
+vs 0.04924, **−21 %**, and −32 % on 69 groups. That's a different group with a different library,
+and the same deficit with the same dependence on group structure.
+
+**[ALX98] Tables 3–4 fully specify a single-cell benchmark** (cold, fresh, 2 %, water at
+1 g/cm³, Zr or Al tube), with answers from MCNP4A, MCU-3, MONK, WIMS-D/E and APOLLO-2. It is
+transcribed once in `openmc/srp94_common.py`, which builds the OpenMC model and generates
+`rbmk_srp94_*.x2m`. The assumptions the paper doesn't settle are stated in that file, and none
+are tuned: 300 K throughout; "voided" removes the water but keeps the spacer steel; rod phase
+π/12. Void effect here is Δk × 100, as the paper plots it.
+
+| Zr tube | k∞ watered | k∞ voided | void Δk (%) |
+|---|---|---|---|
+| MCNP4A, ENDF/B-VI/L | 1.2778 | 1.3263 | 4.85 ± 0.04 |
+| MCNP4A, ENDF/B-VI/B | 1.2806 | 1.3285 | 4.81 ± 0.04 |
+| MCU-3 | 1.2800 | 1.3280 | 4.80 ± 0.05 |
+| **OpenMC, VIII.1** | **1.27655 ± 0.00025** | *killed, re-run on GB10* | — |
+| DRAGON, 172 groups | 1.2759 | 1.3005 | **2.46** |
+| DRAGON, SHEM-361 + Zr self-shielded | 1.2829 | 1.3174 | **3.45** |
+
+| Al tube | k∞ watered | k∞ voided | void Δk (%) |
+|---|---|---|---|
+| MCNP4A, ENDF/B-VI/L | 1.2714 | 1.3247 | 5.33 ± 0.04 |
+| MCU-3 (3lib / 2lib) | 1.2740 / 1.2733 | 1.3283 / 1.3280 | 5.43 / 5.47 |
+| MONK-5W · WIMS-E · WIMS-D · APOLLO-2 | 1.2838 · 1.2884 · 1.2925 · 1.2946 | 1.3310 · 1.3355 · 1.3371 · 1.3404 | 4.72 · 4.71 · 4.45 · 4.57 |
+| DRAGON, 172 groups | 1.2717 | 1.3020 | **3.03** |
+| DRAGON, SHEM-361 | 1.2756 | 1.3134 | **3.77** |
+
+The published values were read off [ALX98] Figs 8–9 to ±0.001 in k; its error bars are 3σ, and
+±σ is shown above.
+
+What this shows:
+- **Our OpenMC reproduces two independent Monte Carlo codes.** Watered k∞ 1.27655 is within
+  0.1–0.4 % of MCNP and MCU, on different data (ENDF/B-VI against VIII.1).
+- **Production DRAGON gives half the Monte Carlo void effect on a third-party cell** (2.46 vs
+  4.80–4.85 %). On the Al variant it sits well below even the 1990s deterministic codes (3.03
+  vs 4.45–4.72).
+- **The converged-library settings close part of it** (2.46 → 3.45, Zr tube). The 4× mesh
+  (`best_zr`, `best_al`) was killed before finishing. The residual on this cold, fully-watered
+  cell is proportionally larger than on our hot cell, which makes this cell the sharper test
+  for Phase A (MOC, rim self-shielding).
+- The deterministic codes' higher k∞ in [ALX98] contrasts with our DRAGON, whose k∞ is close
+  to OpenMC's on this cell (1.2759 vs 1.2766), yet whose void effect is far lower. Here too the
+  gap is in how the codes respond to voiding, not in the base k.
+
+### Hand-off to the GB10 (runs killed on the x86 box, 2026-09-25)
+- `rbmk_srp94_best_zr`, `rbmk_srp94_best_al` (SHEM-361, Zr self-shielded, 4× mesh): about 1.5 h
+  each on this box.
+- OpenMC benchmark cell, Zr and Al, watered and voided: `openmc/srp94_run.py run Zr`, then `run
+  Al`. Then `srp94_run.py table`.
+- Everything is generated. Regenerate first with `python openmc/srp94_common.py` and `python
+  decks/scripts/gen_meth.py`, then `tools/link_decks.sh`.
+- Don't co-schedule DRAGON with a multi-threaded OpenMC on the same physical cores. On the x86
+  box that made the COMPO 4× slower.
 
 ---
 
