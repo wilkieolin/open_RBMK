@@ -24,18 +24,23 @@ DRA = os.path.join(os.path.dirname(HERE), "5.1", "Dragon",
 
 def run(tube, tsl):
     import openmc
-    rec = dict(tube=tube, graphite_tsl=tsl)
+    # The evaluation comes from OPENMC_CROSS_SECTIONS (env.sh, ENDF_RELEASE).
+    # Records without "data" predate the key and are VIII.1.
+    data = os.environ.get("ENDF_RELEASE", "viii.1")
+    rec = dict(tube=tube, graphite_tsl=tsl, data=data)
+    sfx = "" if data == "viii.1" else f"_{data}"
     for tag, watered in (("watered", True), ("voided", False)):
-        d = os.path.join(HERE, f"srp94_{tube}_{tsl}_{tag}")
+        d = os.path.join(HERE, f"srp94_{tube}_{tsl}_{tag}{sfx}")
         os.makedirs(d, exist_ok=True)
         sp = S.openmc_model(tube, watered, graphite_tsl=tsl).run(
             cwd=d, output=False, threads=int(os.environ.get("RBMK_THREADS", os.cpu_count())))
         with openmc.StatePoint(sp) as s:
             rec[tag] = (s.keff.nominal_value, s.keff.std_dev)
-        print(f"SRP94 OpenMC {tube} {tsl} {tag}: k = {rec[tag][0]:.5f} +/- {rec[tag][1]:.5f}",
+        print(f"SRP94 OpenMC {data} {tube} {tsl} {tag}: k = {rec[tag][0]:.5f} +/- {rec[tag][1]:.5f}",
               flush=True)
     recs = json.load(open(OUT)) if os.path.exists(OUT) else []
-    recs = [r for r in recs if not (r["tube"] == tube and r["graphite_tsl"] == tsl)]
+    recs = [r for r in recs if not (r["tube"] == tube and r["graphite_tsl"] == tsl
+                                    and r.get("data", "viii.1") == data)]
     json.dump(recs + [rec], open(OUT, "w"), indent=1)
 
 
@@ -58,7 +63,8 @@ def table():
     if os.path.exists(OUT):
         for r in json.load(open(OUT)):
             (kw, sw), (kv, sv) = r["watered"], r["voided"]
-            rows.append((f"OpenMC (VIII.1, {r['graphite_tsl']})", r["tube"], kw, kv,
+            rows.append((f"OpenMC ({r.get('data', 'viii.1').upper()}, {r['graphite_tsl']})",
+                         r["tube"], kw, kv,
                          100 * (kv - kw), 100 * (sw**2 + sv**2) ** 0.5))
     for vid, (tube, kw, kv) in dragon().items():
         rows.append((f"DRAGON {vid} (VIII.1)", tube, kw, kv, 100 * (kv - kw), None))

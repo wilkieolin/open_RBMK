@@ -218,9 +218,18 @@ def build_geometry(m, boundary="reflective"):
 
 
 def make_model(dca=DCA_NOM, particles=50_000, batches=150, inactive=30,
-               seed=1, graphite_tsl="c_Graphite", boundary="reflective"):
-    mats, m = build_materials(dca, graphite_tsl)
-    geom = build_geometry(m, boundary)
+               seed=1, graphite_tsl="c_Graphite", boundary="reflective", temps=None):
+    """temps = (fuel, graphite, coolant) in K overrides T_FUEL / T_GRAP / T_COOL
+    for this model only (METHOD_CONVERGENCE_PLAN A5); None keeps the defaults."""
+    global T_FUEL, T_GRAP, T_COOL
+    saved = T_FUEL, T_GRAP, T_COOL
+    if temps:
+        T_FUEL, T_GRAP, T_COOL = temps
+    try:
+        mats, m = build_materials(dca, graphite_tsl)
+        geom = build_geometry(m, boundary)
+    finally:
+        T_FUEL, T_GRAP, T_COOL = saved
 
     settings = openmc.Settings()
     settings.run_mode = "eigenvalue"

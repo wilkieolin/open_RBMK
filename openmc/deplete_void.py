@@ -55,8 +55,11 @@ def run_depletion(outdir=DEPLDIR):
             mat.volume = VOL[mat.id]
             mat.depletable = True
 
+    # RBMK_NORM=energy-deposition normalises on all energy deposited (capture
+    # gammas included), as DRAGON's H-FACTOR does; fission-q (the default, and
+    # every result before 2026-09-25) counts fission Q only (U235 193.4 MeV).
     op = openmc.deplete.CoupledOperator(
-        model, CHAIN, normalization_mode="fission-q",
+        model, CHAIN, normalization_mode=os.environ.get("RBMK_NORM", "fission-q"),
         reduce_chain_level=5)
     steps, marks = substeps()
     integ = openmc.deplete.CECMIntegrator(
