@@ -85,6 +85,9 @@ VARIANTS = {
               "RbmkLibRimS", "GEOSS GEOFL := RbmkGeoRim ;", SS_TRK, FL_TRK),
     "bestmoc": (30, "H5+H3+H7+H9", "best361 with MOC P1 flux (no transport correction)",
               "RbmkLibZN2", "GEOSS GEOFL := RbmkGeoFine :: 4 ;", SS_TRK, "TISO 30 120.0"),
+    # A4 on the MOC lineage: CP at 8x did not finish its first ASM: in 3 h.
+    "bestmoc8": (37, "H3", "bestmoc with flat-flux regions split 8x",
+              "RbmkLibZN2", "GEOSS GEOFL := RbmkGeoFine :: 8 ;", SS_TRK, "TISO 40 240.0"),
     "omc10moc": (31, "H10+H5", "omc10 with MOC P1 flux (is the H5 shift burnup-independent?)",
               "RbmkOMC10N2", GEO, SS_TRK, FL_TRK),
     "omc15moc": (32, "H10+H5", "omc15 with MOC P1 flux",
@@ -114,7 +117,7 @@ TEMPS = {"tgrid": (900.0, 800.0, 600.0)}
 
 # MOC order per variant (absent = collision probabilities).  Options follow
 # upstream RegtestCNG_mccg.x2m; the same string is in openmc/srp94_common.py.
-MOC = {"moc1": 1, "moc2": 2, "moc3": 3, "bestmoc": 2, "omc10moc": 2, "omc15moc": 2}
+MOC = {"moc1": 1, "moc2": 2, "moc3": 3, "bestmoc": 2, "bestmoc8": 2, "omc10moc": 2, "omc15moc": 2}
 # Self-shielding module per variant (absent = USS: with USS_OPT).
 SSMOD = {"shi361": ("SHI:", "LJ"), "tone361": ("TONE:", "")}
 MOC_OPTS = "EDIT 0 LCMD 3 MAXI 1 EPSI 1E-5 HDD 0. MCU 400000 KRYL 0 SCR 0 AAC 100 TMT"
@@ -253,7 +256,7 @@ ACCESS = {"shem281": "shem281.access", "shem295": "shem295.access",
 ACCESS["shem361"] = ACCESS["zr361"] = ACCESS["best361"] = "shem361.access"
 for k in (*MOC, "rim361", "rim361t2", "rim361t4", "best361k8", "zr361nonb", "tgrid",
           "omc10", "omc15", "rim361s", "omc10moc", "omc15moc", "oed10", "oed15",
-          "shi361", "tone361"):
+          "shi361", "tone361", "bestmoc8"):
     ACCESS[k] = "shem361.access"
 ACCESS["zr370"] = "shem370.access"
 USS_OPT = {k: "PASS 2" for k in ACCESS}
@@ -261,7 +264,8 @@ USS_OPT = {k: "PASS 2" for k in ACCESS}
 # relative 1e-4, USSIT1.f:413).  MAXS is the USS: keyword for the cap (USS.f:265).
 for k in ("shem295", "shem361", "zr361", "best361", *MOC, "rim361", "zr370", "best361k8",
           "zr361nonb", "tgrid", "rim361t2", "rim361t4", "omc10", "omc15", "rim361s",
-          "omc10moc", "omc15moc", "oed10", "oed15"):
+          "omc10moc", "omc15moc", "oed10", "oed15",
+          "bestmoc8"):
     USS_OPT[k] = "PASS 2 MAXST 300"
 
 for vid, (num, hyp, desc, lib, geo, ss, fl) in VARIANTS.items():
