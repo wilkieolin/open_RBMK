@@ -55,6 +55,18 @@
 > The DRAGON/OpenMC bracket has been read at the wrong burnup. See "Cell geometry closed" below
 > and `sources/README.md`.
 
+> **2026-09-25: the method gap is mostly DRAGON not being converged, and the prompt-critical
+> straddle is gone.** The four-factor split puts the whole DRAGON/OpenMC disagreement in
+> resonance absorption (U-238 and Zr); everything thermal agrees.
+> - Converging DRAGON against itself closes ~75 % of the fresh-fuel gap. The energy mesh
+>   (172 → SHEM-361) dominates, then Zr self-shielding, then the spatial mesh.
+> - On the converged library, full voiding at the Unit 4 average burnup is **≈ +1.96 $
+>   (DRAGON) vs ≈ +2.7 $ (OpenMC)**: both above prompt critical, reached without using the
+>   historical outcome.
+> - DRAGON's 5 MWd/kg dip was a 172-group artifact.
+> - See "Method gap: hypothesis register". The production COMPO is still on 172 groups and
+>   now known to be unconverged.
+
 > **2026-09-24 (4): re-baselined in both codes on the closed geometry. The bracket now
 > straddles prompt criticality at the accident state.**
 > - DRAGON: k∞ 1.304123, COMPO rebuilt (round trip 6.6 pcm, off-grid 26.5 pcm, now reproducible), β curve unchanged.
@@ -1466,6 +1478,131 @@ fresh full-void worth fell 912 → 799 pcm with the geometry. DRAGON's fell 222 
 3. **Performance note.** On this 6-core box the COMPO took 5 h 21 min while sharing a core
    with OpenMC, against 81 min on the GB10. Run the two on separate cores (`taskset`) or in
    sequence.
+
+---
+
+## Method gap: hypothesis register — 2026-09-25
+
+The question was put deliberately: DRAGON and OpenMC disagree about whether voiding at Unit 4's
+burnup is prompt critical. **We are not allowed to settle that by knowing the answer.**
+History's "it went prompt critical" is a whole-core statement, with the night's rod pattern,
+so it isn't comparable to a cell k∞ anyway. Each code has to be driven to its own converged
+limit, and the difference explained mechanism by mechanism.
+
+Everything below is fresh fuel, TF 900 K / TG 750 K / coolant 573 K, where both codes have
+identical compositions by construction. Tools:
+- `decks/scripts/gen_meth.py` generates every DRAGON variant (`rbmk_meth_*.x2m`), each changing
+  one thing relative to `ctrl`. `ctrl` reproduces `rbmk_h2otest` bit for bit.
+- `openmc/method_study.py` runs the seed-matched OpenMC variants.
+- `openmc/method_table.py` collects both into one table.
+- `openmc/fourfactor.py` does the exact four-factor split.
+
+### Where the disagreement lives: the four-factor split
+
+k = ε · p · f · η exactly, with the thermal cut at 0.625 eV. Production DRAGON against OpenMC
+(on DRAGON's own graphite table), void 0.72 → 0.02, change in ln (pcm):
+
+| | ε | **p** | f | η | k |
+|---|---|---|---|---|---|
+| DRAGON | +3129 | **−8083** | +5511 | −502 | +55 |
+| OpenMC | +3036 | **−6977** | +5587 | −565 | +1081 |
+| difference | −93 | **+1106** | +77 | −63 | +1026 |
+
+**Everything thermal agrees.** Thermal utilisation, η, and the thermal absorption shares match
+to statistics: U-235 72.61 vs 72.51 %, H 5.70 vs 5.72, C 3.97 vs 4.02, Zr-91 1.82 vs 1.83.
+That eliminates every hypothesis about the thermal flux: the voided channel as a streaming
+path, the graphite, the water, the boundary.
+
+**The whole disagreement is in p, resonance absorption above 0.625 eV**, and it is also where
+the *nominal* k gap lives (p 0.79561 vs 0.80295). By nuclide, production DRAGON over-absorbs,
+in % of all absorptions:
+
+| | nominal | voided | growth on voiding |
+|---|---|---|---|
+| U-238 | +0.50 | +1.02 | +0.52 |
+| Zr, mostly Zr-91 | +0.43 | +0.72 | +0.29 |
+
+U-235, H, Nb agree. The C and O rows differ only because `parse_dragon.py` counts capture +
+fission and leaves out (n,α).
+
+This retires the 2026-09-23 reading that the disagreement was "U-235 fission production". That
+decomposition normalised the rates per unit absorption, so extra resonance absorption showed
+up as a lower production share.
+
+### The register
+
+| ID | Hypothesis | Test | Result | Verdict |
+|---|---|---|---|---|
+| H1 | Graphite scattering table differs (DRAGON 10 %-porosity reactor graphite, OpenMC crystal) | OpenMC on `c_Graphite_10p` / `30p` | nominal +7, void +23 (30 %: −22 / +41) | **real, small.** Mismatch confirmed; ≤ 41 pcm |
+| H2 | Boundary: DRAGON `TISO` is white (`NXTTCG.f:464`), OpenMC mirror | OpenMC white; DRAGON `TSPC` | OpenMC −31 / −7; DRAGON −3 / +8 | **real, small** |
+| H3 | Flat-flux regions too coarse | `RbmkGeoFine` k = 2, 4 | void +62 → +127 → +151; nominal −60, −83 | **confirmed, moderate**, converging |
+| H4 | Flux tracking too sparse | 30/60, 60/120 | < 1 pcm | **ruled out** |
+| — | Self-shielding tracking too sparse | 20/40 | +16 / −7 | **ruled out** |
+| H7 | Zr at infinite dilution | `RbmkLibZ` (Nb-93 has no subgroup data) | 172 g: nominal +286, void +146; on SHEM-361: +137 / +56 | **confirmed, large on 172 groups** |
+| H8 | Depletion Pu isotopes unshielded | `RbmkLibP`, burnup deck | ≤ 3 pcm at every burnup | **ruled out** |
+| **H9** | **172 groups too coarse through the U-238 resonances** | SHEM-281 / 295 / 361 (295 and 361 need `USS: MAXST 300`) | nominal +206 / +441 / +438; void 62 → 292 → 482 → 503 | **confirmed, dominant**, converged by 295–361 groups |
+| H5 | Isotropic scattering + transport correction | MOC (`MCCG:`) with anisotropy | not run | **open** |
+| H6 | Single-region pellet for self-shielding (no rim effect) | pellet split into separate mixtures | not run | **open** |
+| H10 | Depletion trajectories differ | transfer isotopics | not run | open (burnup only) |
+| H11 | Temperature interpolation | library-grid temperatures | not run | open, expected small |
+
+### The best-converged DRAGON
+
+Everything that converges, together: SHEM-361 + Zr self-shielded + mesh 4× (`best361`).
+
+| fresh fuel | production DRAGON | best DRAGON | OpenMC (10 %-porosity graphite) | gap closed |
+|---|---|---|---|---|
+| k∞ | 1.304123 | 1.313050 | 1.316350 ± 0.000265 | 705 → **191 pcm** |
+| Δρ at 0.35 | +191 | +435 | +533 ± 21 | 342 → **98** |
+| Δρ at 0.02 | +62 | +633 | +821 ± 21 | 759 → **188** |
+
+**Three-quarters of the gap was DRAGON not being converged**, mainly in its energy mesh through
+the resonances. None of these steps used OpenMC's answer: each is DRAGON refined against
+itself until it stopped moving. That DRAGON converges *toward* OpenMC, from below, on the one
+quantity that disagrees is evidence about which code is right that doesn't depend on history.
+It isn't proof. That needs the remaining 190 pcm explained, and measured data (below).
+
+**Cost.** `best361` takes 83× the production CPU, almost all of it the 4× mesh (SHEM-361 alone
+is 2.2×). SHEM-361 + Zr is the affordable production upgrade. The mesh correction (~+75 pcm
+on void at fresh fuel) is better measured separately than paid at every branch.
+
+### The accident state, on the converged library
+
+`rbmk_meth_buzr361` is `rbmk_a5_void.x2m` on SHEM-361 with Zr self-shielded, production mesh.
+It took 31 min wall, against about 9 min for the production deck. Full-void (0.02 g/cm³) worth, pcm:
+
+| BU, MWd/kg | 172-group DRAGON | **SHEM-361 + Zr DRAGON** | OpenMC | OpenMC / DRAGON | DRAGON $ (β on 172 groups) |
+|---|---|---|---|---|---|
+| 0 | +62 | **+560** | +901 ± 71 | 1.61 | +0.82 |
+| 5 | −71 | **+532** | +862 ± 80 | 1.62 | +0.91 |
+| **10** | +203 | **+904** | +1202 ± 95 | **1.33** | **+1.69** |
+| **15** | +813 | **+1625** | +2288 ± 105 | **1.41** | **+3.27** |
+| 20 | +1666 | **+2617** | +3757 ± 121 | 1.44 | +5.60 |
+
+- **DRAGON's dip at 5 MWd/kg was a 172-group artifact.** It goes from −71 to +532, and OpenMC
+  never had it. The old log's "not yet understood in detail; worth confirming" is now answered.
+- **At the Unit 4 average of 10.9 MWd/kgU**, converged-library DRAGON gives about +1030 pcm,
+  **≈ +1.96 $**, against OpenMC's ≈ +2.7 $. The fine-mesh correction measured at fresh fuel
+  (~+75 pcm) would add to DRAGON's figure.
+- **The prompt-critical straddle is resolved.** Both codes, each converged against itself, put
+  complete voiding of average Unit 4 fuel above prompt critical in a single cell. This was
+  reached without using the historical outcome as an input. The earlier ~0.6 $ was the 172-group
+  library.
+- The leftover ratio at the accident burnups, 1.33–1.41, matches the ~190 pcm residual at fresh
+  fuel. That is H5/H6 territory, together with the depletion-trajectory difference (H10).
+
+### Still open
+1. **The remaining ~190 pcm** (nominal and void): H5 (MOC, anisotropic scattering) and H6
+   (radial self-shielding in the pellet) are the next tests.
+2. **The accident state** is now bracketed at +1.96 $ (DRAGON, converged library) to +2.7 $
+   (OpenMC). H10 (transfer OpenMC's depleted isotopics into DRAGON) would separate the depletion
+   difference from the transport difference at 10 MWd/kg.
+3. **Measured data.** Alexeev et al., *Nucl. Eng. Des.* 183 (1998) 287: seven Kurchatov RBMK
+   critical experiments, where MCNP and MCU matched measured k and void effect and WIMS-D4 did
+   not. Getting those specifications is the only way to validate rather than verify.
+4. **The production library.** The COMPO, the A5 deck and every downstream number are on the
+   172-group library, which this study shows is not converged for this cell. Rebuilding on
+   SHEM-361 + Zr is the obvious consequence, but it should wait for (2).
 
 ---
 

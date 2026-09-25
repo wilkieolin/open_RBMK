@@ -1,0 +1,43 @@
+@@ dca 0.72
+@@ kinf 1.316109 0.000241
+@@ totabs 1.00117863
+@@ nufis 1.31693990
+@@ kcheck 1.315390
+@@ fluxfrac thermal 0.528916
+@@ fluxfrac epitherm 0.329758
+@@ fluxfrac fast 0.141326
+@@ abs U235 thermal 0.58294144 58.2255
+@@ abs U235 epitherm 0.04231197 4.2262
+@@ abs U235 fast 0.00211617 0.2114
+@@ abs U238 thermal 0.11973460 11.9594
+@@ abs U238 epitherm 0.11525949 11.5124
+@@ abs U238 fast 0.02116393 2.1139
+@@ abs O16 thermal 0.00002711 0.0027
+@@ abs O16 epitherm 0.00000331 0.0003
+@@ abs O16 fast 0.00138714 0.1386
+@@ abs H1 thermal 0.04599197 4.5938
+@@ abs H1 epitherm 0.00203750 0.2035
+@@ abs H1 fast 0.00000708 0.0007
+@@ abs C12 thermal 0.03227726 3.2239
+@@ abs C12 epitherm 0.00123859 0.1237
+@@ abs C12 fast 0.00097221 0.0971
+@@ abs Zr90 thermal 0.00057358 0.0573
+@@ abs Zr90 epitherm 0.00059795 0.0597
+@@ abs Zr90 fast 0.00045135 0.0451
+@@ abs Zr91 thermal 0.01470996 1.4693
+@@ abs Zr91 epitherm 0.00454913 0.4544
+@@ abs Zr91 fast 0.00018259 0.0182
+@@ abs Zr92 thermal 0.00422360 0.4219
+@@ abs Zr92 epitherm 0.00084012 0.0839
+@@ abs Zr92 fast 0.00035797 0.0358
+@@ abs Zr94 thermal 0.00094452 0.0943
+@@ abs Zr94 epitherm 0.00041454 0.0414
+@@ abs Zr94 fast 0.00025823 0.0258
+@@ abs Zr96 thermal 0.00006197 0.0062
+@@ abs Zr96 epitherm 0.00110150 0.1100
+@@ abs Zr96 fast 0.00002653 0.0026
+@@ abs Nb93 thermal 0.00241194 0.2409
+@@ abs Nb93 epitherm 0.00191694 0.1915
+@@ abs Nb93 fast 0.00008643 0.0086
+@@ nufis_nuc U235 1.27655434 96.9334
+@@ nufis_nuc U238 0.04038555 3.0666

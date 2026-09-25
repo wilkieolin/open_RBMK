@@ -57,7 +57,7 @@ RING1_R, RING1_N, RING1_A = 1.60, 6,  0.0
 RING2_R, RING2_N, RING2_A = 3.10, 12, 0.261799   # 15 deg, as APIN in the deck
 
 
-def build_materials(dca=DCA_NOM):
+def build_materials(dca=DCA_NOM, graphite_tsl="c_Graphite"):
     """Atom densities copied from rbmk_proc/RbmkLib.c2m (atom/b-cm)."""
     # MIX 1 -- channel coolant, H2O.  RbmkLib scales linearly with density.
     coolant = openmc.Material(1, "coolant H2O")
@@ -85,7 +85,10 @@ def build_materials(dca=DCA_NOM):
     def graphite(mid, name):
         g = openmc.Material(mid, name)
         g.add_nuclide("C12", 8.27260E-2)
-        g.add_s_alpha_beta("c_Graphite")
+        # c_Graphite = perfect crystal.  DRAGON's C12_GR is reactor graphite
+        # 10 % porosity (libraries/pynjoy/endfb8r1_apolib99_v5p1.py:77); pass
+        # graphite_tsl="c_Graphite_10p" to compare on identical data (H1).
+        g.add_s_alpha_beta(graphite_tsl)
         g.temperature = T_GRAP
         return g
     gr_ring  = graphite(4, "graphite rings")
@@ -133,13 +136,16 @@ def rod_positions():
     return inner, outer
 
 
-def build_geometry(m):
+def build_geometry(m, boundary="reflective"):
     """CARCEL 5 + CLUSTER CARR/ROD1/ROD2, as a 2-D infinite lattice."""
     # Outer square, reflective on all four sides; z reflective => infinite axially
-    xmin = openmc.XPlane(-HALF_PITCH, boundary_type="reflective")
-    xmax = openmc.XPlane(+HALF_PITCH, boundary_type="reflective")
-    ymin = openmc.YPlane(-HALF_PITCH, boundary_type="reflective")
-    ymax = openmc.YPlane(+HALF_PITCH, boundary_type="reflective")
+    # Side faces only: "white" reproduces DRAGON's TISO tracking, which applies
+    # isotropic reflection (NXTTCG.f:464) -- hypothesis H2.  z stays specular so
+    # the model remains strictly 2-D, as DRAGON's is.
+    xmin = openmc.XPlane(-HALF_PITCH, boundary_type=boundary)
+    xmax = openmc.XPlane(+HALF_PITCH, boundary_type=boundary)
+    ymin = openmc.YPlane(-HALF_PITCH, boundary_type=boundary)
+    ymax = openmc.YPlane(+HALF_PITCH, boundary_type=boundary)
     zmin = openmc.ZPlane(-0.5, boundary_type="reflective")
     zmax = openmc.ZPlane(+0.5, boundary_type="reflective")
     box = +xmin & -xmax & +ymin & -ymax & +zmin & -zmax
@@ -212,9 +218,9 @@ def build_geometry(m):
 
 
 def make_model(dca=DCA_NOM, particles=50_000, batches=150, inactive=30,
-               seed=1):
-    mats, m = build_materials(dca)
-    geom = build_geometry(m)
+               seed=1, graphite_tsl="c_Graphite", boundary="reflective"):
+    mats, m = build_materials(dca, graphite_tsl)
+    geom = build_geometry(m, boundary)
 
     settings = openmc.Settings()
     settings.run_mode = "eigenvalue"

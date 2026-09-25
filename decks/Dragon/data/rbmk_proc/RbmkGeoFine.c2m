@@ -1,0 +1,51 @@
+*DECK RbmkGeoFine
+*----
+*  METHOD-STUDY VARIANT of RbmkGeo.c2m (hypothesis H3, PROGRESS.md "Method gap").
+*  Same cell, same dimensions, same GEOSS.  Only the flux geometry GEOFL is
+*  refined: every SPLITR count is multiplied by the integer k.  k = 1 gives
+*  exactly RbmkGeo's GEOFL (coolant 4, tube 1, gas 1, rings 2, block 6,
+*  pellet 3, all others 1).  For testing whether the flat-flux collision-
+*  probability solution has converged in space.  Not for production use.
+*
+*  Called as:  GEOSS GEOFL := RbmkGeoFine :: <<k>> ;
+*----
+PARAMETER GEOSS GEOFL ::
+   EDIT 0
+      ::: LINKED_LIST GEOSS GEOFL ;
+;
+MODULE GEO: END: ;
+
+INTEGER k ;
+:: >>k<< ;
+INTEGER sc := 4 k * ;
+INTEGER sr := 2 k * ;
+INTEGER sb := 6 k * ;
+INTEGER sp := 3 k * ;
+
+GEOSS := GEO: :: CARCEL 5
+  EDIT 0
+  X- REFL X+ REFL MESHX -12.5 12.5
+  Y- REFL Y+ REFL MESHY -12.5 12.5
+  RADIUS  0.00     4.00   4.40   4.55   5.70   11.00
+  MIX     1        2      3      4      5      5
+  CLUSTER CARR ROD1 ROD2
+  ::: CARR := GEO: TUBE 3
+    MIX  9 1 9   NPIN 1  RPIN 0.00  APIN 0.00
+    RADIUS 0.0000 0.6000 0.6250 0.7500 ;
+  ::: ROD1 := GEO: TUBE 4
+    MIX  3 6 3 8   NPIN 6  RPIN 1.60  APIN 0.00
+    RADIUS 0.0000 0.1000 0.5750 0.5850 0.6790 ;
+  ::: ROD2 := GEO: ROD1
+    MIX  3 7 3 8   NPIN 12  RPIN 3.10  APIN 0.261799 ;
+  ;
+
+*  refined for transport, every flat-flux region split k times more finely
+*  than RbmkGeo (k = 1 reproduces it exactly)
+GEOFL := GEO: GEOSS :: SPLITR <<sc>> <<k>> <<k>> <<sr>> <<sb>>
+  ::: CARR := GEO: CARR SPLITR <<k>> <<k>> <<k>> ;
+  ::: ROD1 := GEO: ROD1 SPLITR <<k>> <<sp>> <<k>> <<k>> ;
+  ::: ROD2 := GEO: ROD2 SPLITR <<k>> <<sp>> <<k>> <<k>> ;
+  ;
+
+END: ;
+QUIT .

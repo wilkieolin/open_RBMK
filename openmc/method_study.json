@@ -1,0 +1,86 @@
+[
+ {
+  "variant": "g10p",
+  "dca": 0.72,
+  "k": 1.3163496413176858,
+  "sd": 0.0002652217778831519,
+  "seed": 1,
+  "particles": 50000,
+  "batches": 300,
+  "inactive": 50,
+  "graphite_tsl": "c_Graphite_10p",
+  "boundary": "reflective"
+ },
+ {
+  "variant": "g10p",
+  "dca": 0.35,
+  "k": 1.3256511430397329,
+  "sd": 0.0002468355522169044,
+  "seed": 1,
+  "particles": 50000,
+  "batches": 300,
+  "inactive": 50,
+  "graphite_tsl": "c_Graphite_10p",
+  "boundary": "reflective"
+ },
+ {
+  "variant": "g10p",
+  "dca": 0.02,
+  "k": 1.330737909508222,
+  "sd": 0.00025138834488378214,
+  "seed": 1,
+  "particles": 50000,
+  "batches": 300,
+  "inactive": 50,
+  "graphite_tsl": "c_Graphite_10p",
+  "boundary": "reflective"
+ },
+ {
+  "variant": "g10p_white",
+  "dca": 0.72,
+  "k": 1.3159447067819108,
+  "sd": 0.00023025228116977888,
+  "seed": 1,
+  "particles": 50000,
+  "batches": 300,
+  "inactive": 50,
+  "graphite_tsl": "c_Graphite_10p",
+  "boundary": "white"
+ },
+ {
+  "variant": "g10p_white",
+  "dca": 0.02,
+  "k": 1.3301988294621903,
+  "sd": 0.00024716685021977365,
+  "seed": 1,
+  "particles": 50000,
+  "batches": 300,
+  "inactive": 50,
+  "graphite_tsl": "c_Graphite_10p",
+  "boundary": "white"
+ },
+ {
+  "variant": "g30p",
+  "dca": 0.72,
+  "k": 1.3158451812149936,
+  "sd": 0.0002446143434546813,
+  "seed": 1,
+  "particles": 50000,
+  "batches": 300,
+  "inactive": 50,
+  "graphite_tsl": "c_Graphite_30p",
+  "boundary": "reflective"
+ },
+ {
+  "variant": "g30p",
+  "dca": 0.02,
+  "k": 1.3305480248712835,
+  "sd": 0.0002511473361800012,
+  "seed": 1,
+  "particles": 50000,
+  "batches": 300,
+  "inactive": 50,
+  "graphite_tsl": "c_Graphite_30p",
+  "boundary": "reflective"
+ }
+]

@@ -1,0 +1,8 @@
+#!/bin/sh
+#
+# Same ENDF/B-VIII.1 evaluation as the default draglib, in the SHEM-281 group
+# structure, which resolves the low-lying U-238 resonances with explicit fine
+# groups.  Isotope names are identical, so a deck body needs no change; only
+# the library binding differs.  Used by the method study (hypothesis H9).
+#
+DRAGLIB=draglibendfb8r1SHEM281_v5p1 exec "$1"/../../decks/common/dlib99.access "$@"

@@ -25,8 +25,11 @@ RANGE = {0: "thermal", 1: "epitherm", 2: "fast"}
 
 
 def build(dca, particles, batches, inactive):
+    # RBMK_GRAPHITE_TSL=c_Graphite_10p puts OpenMC on DRAGON's own graphite
+    # scattering law (method-gap hypothesis H1); default is unchanged.
     model = make_model(dca=dca, particles=particles, batches=batches,
-                       inactive=inactive)
+                       inactive=inactive,
+                       graphite_tsl=os.environ.get("RBMK_GRAPHITE_TSL", "c_Graphite"))
     efilter = openmc.EnergyFilter([0.0, THERMAL, FAST, 2.0e7])
 
     t_nuc = openmc.Tally(name="by nuclide")
