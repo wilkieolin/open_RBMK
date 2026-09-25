@@ -39,6 +39,18 @@ echo "OpenMP: ${openmp}"
 echo "Jobs: ${NJOBS}"
 echo ""
 
+# The binaries and libraries land in <pkg>/{bin,lib}/<uname -s>_<uname -m>.
+DIRNAME="${DRAGON_ARCH:-$(uname -s)_$(uname -m)}"
+
+# Utilib's Makefile lists `all: $(lib_module)` but only has a rule for
+# `$(lib_module)/`.  Under -j with GNU Make < 4.3 the prerequisite is checked
+# before anything has created it and the build dies with "No rule to make
+# target ../lib/<arch>/modules".  Pre-create the directories so the race
+# can't happen, rather than patching the NEA submodule.
+for pkg in Ganlib Utilib Trivac Dragon Donjon; do
+    mkdir -p "${MONOREPO}/${pkg}/lib/${DIRNAME}/modules"
+done
+
 # The monorepo Makefiles build everything via sub-make from Donjon/src
 # We just need to run make in Donjon/src with the right environment
 cd "${MONOREPO}/Donjon/src"
@@ -50,7 +62,6 @@ echo ""
 echo "Build complete. Checking executables..."
 
 # Find the built executables (they're in bin/<DIRNAME>/)
-DIRNAME="Linux_aarch64"
 for pkg in Ganlib Utilib Trivac Dragon Donjon; do
     exe="${MONOREPO}/${pkg}/bin/${DIRNAME}/${pkg}"
     if [[ -x "${exe}" ]]; then
@@ -60,7 +71,7 @@ for pkg in Ganlib Utilib Trivac Dragon Donjon; do
     else
         echo "  ${pkg}: NOT FOUND at ${exe}"
         # Try to find it
-        find "${MONOREPO}/${pkg}/bin" -name "${pkg}" -executable 2>/dev/null | head -3
+        find "${MONOREPO}/${pkg}/bin" -name "${pkg}" -executable 2>/dev/null | head -3 || true
     fi
 done
 

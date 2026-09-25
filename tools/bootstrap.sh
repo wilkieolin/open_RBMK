@@ -25,9 +25,16 @@ done
 step() { echo; echo "=== $* ==="; }
 
 step "1/5  submodules"
-# 5.1 is the DRAGON5/DONJON5 monorepo and `libraries` is ~6 GB of draglibs;
-# both come from git.oecd-nea.org and need NEA Data Bank credentials.
-git submodule update --init --recursive
+# 5.1 is the DRAGON5/DONJON5 monorepo and `libraries` is ~6 GB of draglibs.
+# Both are public on git.oecd-nea.org over HTTPS -- no account or key.  Prompts
+# are disabled so a wrong (SSH or nonexistent) URL fails here instead of
+# waiting for credentials that do not exist.
+if ! GIT_TERMINAL_PROMPT=0 git submodule update --init --recursive; then
+    echo "ERROR: submodule fetch failed.  The NEA submodules need no credentials;" 1>&2
+    echo "       check that .gitmodules and .git/config use the https:// URLs:" 1>&2
+    git config --get-regexp '^submodule\..*\.url$' 1>&2 || true
+    exit 1
+fi
 
 step "2/5  decks -> submodule"
 ./tools/link_decks.sh
@@ -62,7 +69,7 @@ cat <<'DONE'
 Ready.  Smoke test the DRAGON side:
 
     cd 5.1/Dragon && ./rdragon -c custom -p 1 rbmk_cell_a3.x2m
-    grep -m1 'K-INFINITY' Linux_*/rbmk_cell_a3.result     # expect 1.310172
+    grep -m1 'FINAL KINF' Linux_*/rbmk_cell_a3.result      # expect 1.304123
 
 The 630-point cross-section database (decks/Dragon/data/rbmk_a5b_compo.x2m)
 is NOT in the repo -- it is a 114 MB derived artifact and takes hours to build.

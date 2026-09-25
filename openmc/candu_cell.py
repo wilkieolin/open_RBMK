@@ -10,6 +10,7 @@ a low-density fluid.  In OpenMC that is a cell with fill=None.
 
 Run:  python candu_cell.py <void 0|1> <outdir> [particles] [batches]
 """
+import os
 import sys
 import numpy as np
 import openmc
@@ -103,7 +104,7 @@ if __name__ == "__main__":
     void = bool(int(sys.argv[1])); out = sys.argv[2]
     p = int(sys.argv[3]) if len(sys.argv) > 3 else 20_000
     b = int(sys.argv[4]) if len(sys.argv) > 4 else 150
-    sp = make_model(void, p, b).run(cwd=out, threads=20, output=False)
+    sp = make_model(void, p, b).run(cwd=out, threads=int(os.environ.get("RBMK_THREADS", os.cpu_count())), output=False)
     with openmc.StatePoint(sp) as s:
         print(f"CANDURESULT void={int(void)} "
               f"k={s.keff.nominal_value:.6f} +/- {s.keff.std_dev:.6f}")

@@ -31,23 +31,30 @@ cd RBMK
 Prerequisites: `gfortran`, `gcc`, `g++`, `make`, `libhdf5-dev`, `python3-venv`,
 and for the OpenMC build `cmake` and `libpng-dev`.
 
-The two NEA submodules (`5.1`, `libraries`) live on `git.oecd-nea.org` and need
-**NEA Data Bank credentials**. Export `NEA_TOKEN` (a GitLab personal access
-token) before step 1, or configure a credential helper.
+The two NEA submodules (`5.1`, `libraries`) live on `git.oecd-nea.org` and are
+**public: no account, token or SSH key is needed**, provided they are cloned over
+HTTPS, which is what `.gitmodules` uses:
+
+- https://git.oecd-nea.org/dragon/5.1.git
+- https://git.oecd-nea.org/dragon/libraries.git
+
+Both, including the `libraries` LFS objects, were checked on 2026-09-24 from a machine
+with no NEA credentials configured. If git asks for a username, the URL is wrong:
+either an SSH remote (`git@git.oecd-nea.org:…`) or a path that doesn't exist. GitLab
+answers a missing path with a login prompt, not a 404. The old `fetch_source.sh` did
+exactly that; it is where the "needs credentials" note came from.
 
 Smoke test:
 
 ```sh
 cd 5.1/Dragon && ./rdragon -c custom -p 1 rbmk_cell_a3.x2m
-grep 'k-infinity' Linux_*/rbmk_cell_a3.result      # 1.308679
+grep -m1 'FINAL KINF' Linux_*/rbmk_cell_a3.result   # 1.304123
 ```
 
-> **The recorded results predate this number.** Every DRAGON figure in `PROGRESS.md`
-> and `docs/report.html` was produced against a decompressed draglib left over from an
-> earlier `libraries` revision, which the old `.access` hook silently preferred over the
-> one the submodule pins — 1.310172 instead of 1.308679, a systematic −87 pcm. The cache
-> is content-addressed now so it cannot recur, but the numbers have not been
-> re-baselined. See the 2026-09-24 entry in `PROGRESS.md`.
+That is the cell on the sourced geometry (2026-09-24 (3)) with the pinned draglib.
+Figures in `docs/report.html`, and PROGRESS.md entries older than 2026-09-24, predate
+both the geometry corrections and the pinned library. The re-baseline is recorded in
+`PROGRESS.md`.
 
 Nothing in this project touches the GPU. Every run is CPU-only; peak resident
 set is ~2 GB for a lattice cell and ~1.6 GB for a depleted OpenMC branch.
@@ -57,7 +64,7 @@ set is ~2 GB for a lattice cell and ~1.6 GB for a depleted OpenMC branch.
 ```
 decks/              OUR DRAGON/DONJON input.  Canonical copy.
   Dragon/data/        lattice decks (.x2m) and their .access hooks
-  Dragon/data/rbmk_proc/   RbmkLib* composition procedures (.c2m)
+  Dragon/data/rbmk_proc/   RbmkGeo (cell geometry) and RbmkLib* (compositions)
   Donjon/data/        core decks (.don), generators (.py), maps (.csv)
   common/             the three shared .access hooks every deck links to
   scripts/            one-off analysis helpers
@@ -153,11 +160,14 @@ Everything resolves from the repo location; nothing is hardcoded to one machine.
 | `ENDF_RELEASE` | `viii.1` |
 | `DRAGLIB_CACHE` | `$RBMK_ROOT/.cache/draglib` |
 | `DRAGON_ARCH` | `$(uname -s)_$(uname -m)` |
-| `PY` | `$RBMK_ROOT/.venv-openmc/bin/python` |
+| `PY` | `$RBMK_ROOT/.venv-openmc/bin/python`, else the active `python` if it can import `openmc` (e.g. a conda env) |
 
 ## Stage-0 scripts
 
 `fetch_source.sh`, `build_all.sh`, `test_all.sh`, `fetch_nuclear_data.sh`,
 `setup_armi.sh` and `stage0_build.sh` predate the submodule layout: they fetch
-and build the five DRAGON packages separately. They still work, but
-**`build_monorepo.sh` is the live build** and is what `bootstrap.sh` calls.
+and build the five DRAGON packages separately. **`fetch_source.sh` no longer works.**
+The per-package repositories it clones (`ganlib5/ganlib5.git`, …) are not publicly served,
+so it now stops with a pointer to `bootstrap.sh`, and `stage0_build.sh` stops with it.
+The source is the `5.1` submodule, and **`build_monorepo.sh` is the live build**, which
+is what `bootstrap.sh` calls.

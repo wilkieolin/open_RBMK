@@ -38,6 +38,32 @@
 > Zr +9.3 %; graphite and fuel untouched. **k∞, the A5 void curve and the A5b MULTICOMPO are
 > all superseded and must be re-run.** See the last section before "Standing rules".
 
+> **2026-09-24 (3): the cell geometry is closed.** Eight sources the project had not used
+> settle the remaining open items:
+> - **Ring radii 1.60 / 3.10 confirmed**: rod circles ⌀32 / ⌀62 mm, in two independent sources.
+> - **2 mm pellet hole confirmed**: three sources, plus a uranium-mass check against Unit 4's
+>   114.7 kg U per assembly.
+> - **Ring phase confirmed** off Dollezhal's own drawing.
+> - **Graphite gas gap confirmed** as a valid idealisation.
+> - **Burnup axis confirmed** as per tonne U.
+> - **Clad OD refined 13.5 → 13.58**, the drawing nominal. ID 11.7 is unchanged.
+>
+> `rbmk_cell_a3.x2m` on the pinned draglib: **k∞ = 1.304123**, guardrail passed, DRAGON
+> fractions equal the analytic ones.
+>
+> One finding reaches past geometry. **Unit 4 at the accident averaged 10.9 MWd/kgU, not 20.**
+> The DRAGON/OpenMC bracket has been read at the wrong burnup. See "Cell geometry closed" below
+> and `sources/README.md`.
+
+> **2026-09-24 (4): re-baselined in both codes on the closed geometry. The bracket now
+> straddles prompt criticality at the accident state.**
+> - DRAGON: k∞ 1.304123, COMPO rebuilt (round trip 6.6 pcm, off-grid 26.5 pcm, now reproducible), β curve unchanged.
+> - OpenMC: re-run on VIII.1.
+> - The geometry fixes cut DRAGON's void worth at every burnup and left OpenMC's nearly unchanged, so the method gap widened.
+> - At 10–15 MWd/kgU, where Unit 4 was, full voiding is +0.4–1.65 $ in DRAGON and +2.25–4.6 $ in OpenMC.
+> - The ~1.9 multiplier held only at 20 MWd/kg.
+> - Resolving the method gap moves ahead of A6. See "Re-baseline on the closed geometry" near the end.
+
 ## Objective
 
 3-D spatially-resolved coupled neutronics/TH RBMK-1000 model, driving a historically
@@ -68,7 +94,8 @@ It is the offline reference that makes Tier B trustworthy.
 | TRIVAC5 / GANLIB5 | 5.1.0 | `install/bin/` | Built |
 
 - Build: sequential `make` (parallel fails on Makefile target naming). Prefix `install/`.
-- Platform dir is `Linux_aarch64`; results land in `5.1/<code>/Linux_aarch64/*.result`.
+- Platform dir is `Linux_<arch>`: `Linux_aarch64` on the GB10, `Linux_x86_64` on the WSL
+  box. Results land in `5.1/<code>/Linux_<arch>/*.result`.
 - **Compiled at `-O` (i.e. `-O1`)** and there are **zero OpenMP directives in Trivac/Donjon**
   — `-fopenmp` only activates Dragon's MOC/S_N lattice solvers. Rebuilding with
   `-O3 -march=native` is free performance.
@@ -90,10 +117,10 @@ Access via the per-deck `<name>.access` script, which symlinks `DLIB_99`.
 | Item | Result | Status |
 |---|---|---|
 | IAEA-3D benchmark, `Donjon/data/iaea3d_fuelmap.x2m` | k_eff = 1.028980 (ref 1.029069, **−8.9 pcm**) | ✅ Genuine. Standing regression test and the structural template for the core workflow. |
-| RBMK lattice cell, `Dragon/data/rbmk_cell_a3.x2m` | ~~k∞ = 1.310172~~ **SUPERSEDED 2026-09-24**, not yet re-run | ⚠️ Geometry corrected against Dollezhal (1980): carrier and clad were both wrong. Coolant −3.2 %, Zr +9.3 %. Expect a small k∞ decrease. Previously: correct RBMK geometry, verified in-deck against design volume fractions. Value is post-hydrogen-fix (2026-09-23) and matches what `rbmk_h2otest.x2m` measured independently; the old free-gas value was 1.312816. |
-| Void coefficient vs burnup, `Dragon/data/rbmk_a5_void.x2m` | ~~+1957 pcm (~4 β) at 20 MWd/kg~~ **SUPERSEDED 2026-09-24**, not yet re-run | ⚠️ Geometry corrected; there is now 3.2 % less coolant to void, so this should fall — **widening**, not closing, the gap below. **Sign and trend confirmed by OpenMC; magnitude is not.** OpenMC gives +4007 pcm (~8 β) at the same burnup and +1030 vs +82 pcm at fresh fuel. Treat the DRAGON value as a lower bound of unknown tightness. |
+| RBMK lattice cell, `Dragon/data/rbmk_cell_a3.x2m` | **k∞ = 1.304123** (2026-09-24 (3), pinned draglib `cb1395ffbb65`, x86_64) | ✅ Geometry closed against sources, guardrail passed, fractions match analytic. Steps from the last recorded value: 1.310172 → 1.308679 is the library (−87 pcm), → 1.304717 is the Dollezhal carrier and clad (−232 pcm), → 1.304123 is clad OD 13.58 (−35 pcm). Not independently checked: the OpenMC side has not been re-run on this geometry. Earlier: correct RBMK geometry, verified in-deck against design volume fractions. Value is post-hydrogen-fix (2026-09-23) and matches what `rbmk_h2otest.x2m` measured independently; the old free-gas value was 1.312816. |
+| Void coefficient vs burnup, `Dragon/data/rbmk_a5_void.x2m` + A5b COMPO | full void at 10 / 15 MWd/kg: **+207 / +819 pcm** (+0.39 / +1.65 $); OpenMC **+1202 / +2288** (+2.25 / +4.60 $). 2026-09-24 (4) | ⚠️ Re-baselined on the sourced geometry. **Sign and trend confirmed by OpenMC; magnitude is not, and the gap widened** (DRAGON fell 150–520 pcm, OpenMC barely moved). At the Unit 4 average burnup, 10.9, the two codes put full voiding either side of prompt critical: ~0.6 $ vs ~2.7 $. See "Re-baseline on the closed geometry". |
 | CANDU-6 control, `Dragon/data/rbmk_candu.x2m` + `openmc/candu_cell.py` | DRAGON +1624 pcm vs OpenMC +1603 pcm full-void | ✅ Same geometry, library and compositions in both codes; **agree to 22 pcm (1.3 %)**. This is what validates the OpenMC model and localises the RBMK disagreement. |
-| Cell volume fractions, analytic vs DRAGON tracking | graphite 89.5938 % vs 89.594 %, coolant 3.7721 % vs 3.772 %, fuel 2.9009 % vs 2.901 % | ✅ Method sound and independent of DRAGON (`openmc/volcheck.py`). **Numbers superseded 2026-09-24**: new analytic targets are graphite 89.5938, coolant 3.6527, fuel 2.9009, Zr 2.9823, gas 0.8702. Graphite and fuel unchanged; the DRAGON column is stale until re-run. |
+| Cell volume fractions, analytic vs DRAGON tracking | graphite 89.5938 % vs 89.594 %, coolant 3.7721 % vs 3.772 %, fuel 2.9009 % vs 2.901 % | ✅ Method sound and independent of DRAGON (`openmc/volcheck.py`). **Current geometry (2026-09-24 (3))**: analytic graphite 89.5938, coolant 3.6037, fuel 2.9009, Zr 3.0313, gas 0.8702; DRAGON 89.594 / 3.604 / 2.901 / 3.031 / 0.870. Match to every printed digit again. |
 
 **Retracted claims.** The first three were retracted by the audit; the fourth is a
 retraction of the audit's own finding; the fifth is a retraction of the A5 result recorded
@@ -270,6 +297,7 @@ Checks now in place:
 | Cell geometry, analytic vs DRAGON tracking volumes | ✅ match to every printed digit — but see below, the DRAGON side is now stale |
 | Method validated on a non-RBMK lattice (CANDU-6, both codes) | ✅ agree to 22 pcm on the void coefficient |
 | Cell dimensions against a primary design source | ✅ 2026-09-24, Dollezhal & Emelyanov (1980) — two corrections found, one confirmation |
+| Every cell dimension sourced, with published clearances and mass as checks | ✅ 2026-09-24 (3) — see `sources/README.md`. Clad-to-wall gap 2.21 mm vs published 2.2; U per assembly 115.3 vs 114.7 kg |
 
 **OpenMC status: WORKING.** The earlier note that conda-forge has no linux-aarch64 build was
 correct, but a source build already existed at `~/code/openmc` (v0.16.1-dev46) with the
@@ -285,24 +313,24 @@ binary installed and only the Python bindings and data missing. Both are now in 
 
 Open geometry questions that an MC cross-check would not settle either — these need a
 primary source. **Items 1 and 3 were resolved 2026-09-24 against Dollezhal & Emelyanov
-(1980); see "Cell geometry pinned to a primary source" below.**
+(1980); see "Cell geometry pinned to a primary source" below. Items 2 and 3b were resolved
+2026-09-24 (3); see "Cell geometry closed" below. Item 4 was never geometry and was measured
+on 2026-09-23 (A5b). No geometry question remains open.**
 
 1. ~~**Pressure tube 88 × 4 mm vs 92 × 4 mm.**~~ **RESOLVED: 88 × 4 is correct**, stated
    explicitly as *outer* diameter 88 with a 4 mm wall [D p.54]. The deck already had it.
    The Wikipedia "8.4 cm ID" reading is wrong. Guardrail tightened to reject 92 × 4.
-2. **Fuel rod ring radii 1.60 / 3.10 cm** — inferred from fit constraints, not sourced.
-   **Still open.** Not stated in [D]; fig 5.1 Б-Б confirms the 6+12 topology but is
-   dimensioned only with the ⌀79 grid envelope. Measured off it: inner 17–18, outer
-   31–32 mm ±1.5. Left unchanged rather than substituting a measured value. Needs the
-   NIKIET 2006 monograph.
+2. ~~**Fuel rod ring radii 1.60 / 3.10 cm**~~ **RESOLVED 2026-09-24 (3): correct as they
+   were.** Rod circles ⌀32 / ⌀62 mm in [RU-A] and [LEI05]. The earlier measurement off
+   fig 5.1 (inner 17–18 mm) was wrong. Refusing to substitute it was the right call.
 3. ~~**Carrier rod wall** — only the 13 mm OD is sourced.~~ **RESOLVED, and the deck was
    wrong**: a 15 × 1.25 mm central tube with a solid 12 mm carrier rod inside [D p.11],
    not a 13 mm hollow tube. Corrected. The fuel clad was wrong too (13.5 × 0.9, not
    13.6 × 0.825).
-3b. **Pellet central hole (2 mm)** — NEW. Not mentioned anywhere in [D], which gives only
-   "tablets of diameter 11.5 mm". A solid pellet would raise fuel volume ~3.1 %. Left in
-   place, flagged.
-4. **β_eff** — assumed 0.0048 for the β-equivalent column. The library carries `NDEL 6`
+3b. ~~**Pellet central hole (2 mm)**~~ **RESOLVED 2026-09-24 (3): the hole is real.**
+   [RU-A], [LEI05], [BIB], plus the Unit 4 uranium-mass check.
+4. ~~**β_eff**~~ **MEASURED 2026-09-23** as a burnup curve (A5b, below). It needs re-running
+   on the current geometry, like everything downstream. Original note: assumed 0.0048 for the β-equivalent column. The library carries `NDEL 6`
    delayed data and it has never been extracted. It must come out as a **burnup curve**,
    not a scalar: β_eff falls as Pu-239 (β ≈ 0.0021) displaces U-235 (β ≈ 0.0065), so the
    void worth in dollars grows twice over with burnup — numerator up, denominator down.
@@ -908,6 +936,36 @@ The low-burnup rows carry no information and must not be used: at 5 MWd/t DRAGON
 worth dips to +155 pcm, so the ratio is a small number over a smaller one; at fresh fuel the
 two curves disagree in *shape*, not just scale. Neither is the state the reactor was in.
 
+> **REVISED 2026-09-24 (3): 20 MWd/kg was not the accident condition.** [PAV] Table 1 gives
+> the Unit 4 core on 26 April 1986 as still mostly the first core:
+>
+> | assemblies | average burnup, MWd/kgU |
+> |---|---|
+> | 721 | 13.7 |
+> | 392 | 12.3 |
+> | 154 | 10.5 |
+> | 101 | 8.8 |
+> | 35 | 7.0 |
+> | 43 | 5.4 |
+> | 41 | 3.5 |
+> | 172 | 1.2 |
+> | **1659, whole core** | **10.9** |
+>
+> Nothing was near 20. The rows that matter are 10000 and 15000, where r is 2.0–3.5 and not
+> constant. The single ~1.9 multiplier above describes a core Unit 4 never was. The
+> paragraph above claiming "neither is the state the reactor was in" is wrong for 10 MWd/kg.
+> Consequences, not yet acted on:
+>
+> - The bracket for A8 must be evaluated over roughly 5–15 MWd/kgU and weighted by that
+>   distribution, not quoted at 20.
+> - The OpenMC density axis there needs the same four-point resolution it has at 20.
+> - The dollars table above should be read at 10–14 MWd/kgU: +0.9 to +2.4 $ (DRAGON) and
+>   +2.8 to +5.3 $ (OpenMC). Those are pre-geometry-fix numbers.
+>
+> The design discharge burnup is also not 20. [D] p.95 gives 19.5–24.4 GWd/t UO₂, i.e.
+> 22–28 GWd/tU, and [BIB] gives ~26. The burnup axis itself is per tonne U (`EVO: POWR` is
+> MW per t initial HM), matching [PAV], so there is no unit trap.
+
 Ratios are of **branch** reactivities at the same burnup, never of absolute k — the two codes'
 depletion trajectories diverge (+268 pcm at 5 MWd/t, −2084 at 20), so an absolute-k correction
 would fold a depletion difference into a void correction.
@@ -1083,6 +1141,9 @@ so the wrong tube is now actively rejected rather than tolerated).
 
 ### 2. Ring radii 1.60 / 3.10 — STILL OPEN, deliberately unchanged
 
+> **Resolved 2026-09-24 (3): 1.60 / 3.10 are correct** (⌀32 / ⌀62 mm, [RU-A], [LEI05]). The
+> measurement below was wrong by ~1.5 mm, and declining to use it was the right call.
+
 [D] does not state them. Fig 5.1 section Б-Б shows the 6+12 arrangement, confirming the
 topology, but carries a single dimension: the grid envelope ⌀79. Measured off that figure
 against that scale: **inner 17–18 mm, outer 31–32 mm, ±1.5 mm**. 3.10 sits comfortably
@@ -1123,6 +1184,8 @@ right.
 `RADIUS 0.0000 0.1000 0.5750 0.5975 0.6800` → `0.0000 0.1000 0.5750 0.5850 0.6750`.
 
 ### 5. Pellet central hole — NEWLY SUSPECT
+
+> **Resolved 2026-09-24 (3): the hole is real.** See "Cell geometry closed" below.
 
 The 2 mm central hole is a `[W]` value. [D p.11] describes the pellets only as «таблетками
 диаметром 11,5 мм», and no central hole appears anywhere in the book. A solid pellet would
@@ -1184,7 +1247,8 @@ geometry is precisely the class of change this log exists to prevent.
 
 ### Also recovered from the same source, not yet used
 
-**A possible unit trap in the burnup axis.** [D p.95] gives the burnup plateau as
+**A possible unit trap in the burnup axis.** *(Ruled out 2026-09-24 (3): both codes and [PAV]
+use per tonne U. The real finding was different: see the A5b.1d revision.)* [D p.95] gives the burnup plateau as
 `19,5—24,4 ГВт·сут/т **UO₂**` and the maximum as `24—28`, i.e. **per tonne UO₂, not per
 tonne U** — a 13 % offset (÷0.8815 → ~27.7–31.8 GWd/tU). This log quotes the void
 coefficient "at 20 MWd/kg" without stating the basis. If DRAGON and OpenMC disagree on that
@@ -1204,6 +1268,204 @@ Zr alloy grade 125. Needed for `DEVINI:` when control rods are modelled.
 all four already match the deck. Note [D] also says graphite **rings** are shrunk onto the
 channel tube for thermal contact; the deck models a gas clearance at r 4.40–4.55, which is
 an idealisation worth revisiting.
+
+---
+
+## Cell geometry closed — 2026-09-24 (3)
+
+The four items Dollezhal left open are settled against eight sources the project had not
+used. Full citations, file names and verbatim quotes are in `sources/README.md`. One was
+already on disk: the IAEA-TECDOC-722/R PDF had been downloaded and never cited.
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| Ring radii 1.60 / 3.10 | **correct, unchanged** | rod circles ⌀32 / ⌀62 in [RU-A] and [LEI05] |
+| Ring phase (outer offset π/12) | **correct, unchanged** | [D] p.96 fig 5.1 Б-Б. Inner rods sit on the axes; outer rods straddle them in pairs. This is a topology read, not a measurement. |
+| Pellet hole 2 mm | **real, unchanged** | [RU-A] «осевое отверстие диаметром 2 мм»; [LEI05] Table 1; [BIB] lists it among RBMK-1000 rod design features |
+| Clad OD | **13.5 → 13.58** (r 0.6750 → 0.6790) | [RU-A] drawing «13,58 +0,05/−0,07, внутренний 11,7 +0,1»; [LEI05] 13.6 / 11.7; [D] 13.5 × 0.9 |
+| Graphite gas gap | **valid idealisation, unchanged** | [CAST] p.11; [TD722] p.76; [USP] |
+| Burnup basis | **per t U in both codes; no trap** | `EVO: POWR` is MW per t HM; [PAV] uses per kg U |
+
+**Clad OD refined, and why the Dollezhal fix mostly stands.** Every source agrees on ID
+11.7 mm, so the pellet–clad gap correction in fee38ff is right. Only the OD moves. The 13.58
+comes with drawing tolerances, which is why it's preferred over [D]'s rounded 13.5. The
+published nominal clad-to-wall gap, 2.2 mm [TD722] p.107, doesn't discriminate: this cell
+gives 2.21, and 2.25 at OD 13.5.
+
+Coolant 3.6527 → 3.6037 % and Zr 2.9823 → 3.0313 %. Graphite, fuel and gas are unchanged.
+
+**The pellet-hole mass check.** [PAV] gives 114.7 kg U per assembly at Unit 4, and [D] p.97
+gives an active length of 6920–6954 mm. Over 6937 mm at the deck's 9.167 g HM/cm³, this cell
+holds 115.3 kg with the hole (+0.5 %) and 118.9 kg solid (+3.7 %). The same numbers as UO₂,
+130.8 vs 134.9 kg, both sit inside [D]'s 125–135 kg, so that range alone would not decide it.
+The per-assembly uranium mass does.
+
+**A caution, earned.** On 09-24 (2) the inner ring radius was measured off fig 5.1 at
+17–18 mm, "±1.5". The real value is 16.0. The log declined to use the measurement, and that
+restraint is the only reason it didn't become a geometry change. Reading *topology* off the
+same figure (which rods sit on the axes) is reliable. Reading *dimensions* off it is not.
+
+**Re-run.** `rbmk_cell_a3.x2m` from a deleted `.result`, pinned draglib `cb1395ffbb65`,
+x86_64: **k∞ = 1.304123**. The guardrail passed, and DRAGON MIXTURESVOL fractions are
+89.594 / 3.604 / 2.901 / 3.031 / 0.870, equal to `volcheck.py`'s analytic values. A second run
+after comment-only edits reproduced it bit for bit.
+
+k∞ steps since the last recorded value:
+- 1.310172 → 1.308679: library, −87 pcm
+- → 1.304717: Dollezhal carrier and clad, −232 pcm
+- → 1.304123: clad OD 13.58, −35 pcm
+
+**What remains owed** (unchanged in kind from 09-24 (2), now on a closed geometry):
+- `rbmk_a5_void.x2m`, `rbmk_a5b_compo.x2m` (81 min), the β curve, the OpenMC runs and the
+  bracket all need re-running.
+- The nine diagnostic probes still carry the pre-Dollezhal geometry. The shared
+  `rbmk_proc/RbmkGeo.c2m` extraction is still the recommended fix.
+- **Re-frame the bracket at 10–14 MWd/kgU, not 20.** See the revision in the A5b.1d section.
+
+**Also found, for later.** [TD722] p.64 gives the one *measured* void coefficient in the
+project so far: at Leningrad, 1.8 % enrichment, approaching equilibrium burnup, the steam void
+coefficient was **4–5 β**. That is a core value with additional absorbers loaded, so it cannot
+be compared with a k∞ branch. It is the first thing A6/A7 can be checked against.
+
+---
+
+## Re-baseline on the closed geometry — 2026-09-24 (4)
+
+Everything downstream of the cell, re-run in both codes on the sourced geometry and the pinned
+draglib (`cb1395ffbb65`). The machine was the x86_64 box (Ryzen 5 3600, 6 cores / 12 threads),
+with OpenMC 0.16.0 from the `openmc-env` conda env and ENDF/B-VIII.1 HDF5 in `~/nucdata`.
+**This supersedes every DRAGON and OpenMC RBMK number recorded earlier in this file.** Those
+tables are kept for provenance and are not repeated.
+
+### One geometry, thirteen decks
+
+The cell geometry now lives in `rbmk_proc/RbmkGeo.c2m` (`GEOSS GEOFL := RbmkGeo ;`). All 13
+lattice decks call it, including the nine diagnostic probes, which were still on the
+pre-Dollezhal carrier and clad. Gate: `rbmk_cell_a3` through the procedure reproduces
+k∞ 1.304123 bit for bit.
+
+### DRAGON
+
+| | result |
+|---|---|
+| `rbmk_cell_a3` k∞ | **1.304123**, guardrail passed |
+| `rbmk_h2otest` | bound H: 1.304123 nominal (matches a3); free gas 1.306794. Full void, fresh: bound **+62**, free gas −82 pcm |
+| `rbmk_a5b_compo` | 630 points, 5 h 21 min wall (CPU-contended with OpenMC), 211 MB peak, 108 MB `_ACompo`, no aborts |
+| Round trip, grid nodes | worst **6.6 pcm** over 8 nodes spanning every axis (was 6.4) |
+| Off-grid, `LINEAR` | worst **26.5 pcm** over 8 midpoints (was 27) |
+| β(BU) | 0.006825, 0.006359, 0.005872, 0.005350, 0.004975, 0.004671 at 0/2/5/10/15/20 MWd/kg. Essentially unchanged (was 0.006824 → 0.004680), as expected: β is a property of the fuel, which didn't change. |
+
+**The off-grid test is reproducible for the first time.** The DONJON side of it had never been
+saved. The eight points are now in `rbmk_a5b_sweep.don`, and `openmc/a5b_interp_check.py`
+compares both tests against the DRAGON `.result` files with no expected values in either.
+`dragon_a5b_void.json` is now generated by `openmc/extract_a5btab.py` rather than typed.
+
+### The void curve, both codes
+
+Branch reactivity relative to 0.72 g/cm³ at the same burnup, pcm, at TF 900 K / TG 750 K.
+DRAGON is from the COMPO; OpenMC is from `branch_results81*.json`.
+
+| BU | code | 0.6 | 0.45 | 0.35 | 0.3 | 0.15 | 0.05 | 0.02 |
+|---|---|---|---|---|---|---|---|---|
+| 0 | DRAGON | +113 | +185 | -- | +181 | +121 | +72 | +62 |
+| 0 | OpenMC | -- | -- | +497 | -- | +789 | -- | +901 |
+| 2000 | DRAGON | +104 | +165 | -- | +155 | +96 | +62 | +59 |
+| 2000 | OpenMC | -- | -- | +638 | -- | +792 | -- | +1012 |
+| 5000 | DRAGON | +82 | +112 | -- | +67 | −21 | −64 | −67 |
+| 5000 | OpenMC | -- | -- | +489 | -- | +771 | -- | +862 |
+| **10000** | DRAGON | +99 | +153 | -- | +145 | +128 | +172 | **+207** |
+| **10000** | OpenMC | -- | -- | +633 | -- | +846 | -- | **+1202** |
+| **15000** | DRAGON | +162 | +303 | -- | +403 | +536 | +728 | **+819** |
+| **15000** | OpenMC | -- | -- | +999 | -- | +1743 | -- | **+2288** |
+| 20000 | DRAGON | +257 | +527 | -- | +782 | +1123 | +1509 | +1672 |
+| 20000 | OpenMC | -- | -- | +1555 | -- | +2751 | -- | +3757 |
+
+OpenMC's statistical error on these is ±70–120 pcm.
+
+**What the geometry correction did.** DRAGON's full-void worth fell at every burnup, by
+150–520 pcm (+222 → +62 fresh, +499 → +207 at 10 MWd/kg, +2190 → +1672 at 20). OpenMC barely
+moved: +1030 → +901 fresh and +1473 → +1202 at 10, both within 2–3σ, and 4007 → 3757 at 20. As
+predicted on 09-24 (2), the corrections **widened** the method gap. DRAGON's dip at 5 MWd/kg is
+negative again and OpenMC still shows no trace of it.
+
+### In dollars, at the burnups Unit 4 actually had
+
+| BU, MWd/kg | β | DRAGON full void | OpenMC full void |
+|---|---|---|---|
+| 0 | 0.006825 | +0.09 $ | +1.32 $ |
+| 5 | 0.005872 | −0.11 $ | +1.47 $ |
+| **10** | 0.005350 | **+0.39 $** | **+2.25 $** |
+| **15** | 0.004975 | **+1.65 $** | **+4.60 $** |
+| 20 | 0.004671 | +3.58 $ | +8.04 $ |
+
+At the Unit 4 core average of 10.9 MWd/kgU, interpolating gives **~+0.6 $ (DRAGON) against
+~+2.7 $ (OpenMC)**.
+
+**The bracket now straddles prompt criticality at the accident state.** Quoted at 20 MWd/kg,
+both ends were far above 1 $ and the choice of code looked like a question of degree. At the
+burnups the core actually had, DRAGON says completely voiding average fuel stays below prompt
+critical; OpenMC says it goes well past it. This is a single-cell k∞ statement, with no
+absorbers, no leakage and no spatial weighting, so neither number is the core's. But it means
+the DRAGON/OpenMC disagreement is no longer something A8 can be expected to wash out. It sits
+on the threshold that governs the transient.
+
+### The bracket as a multiplier is badly conditioned where it matters
+
+`void_bracket.py`, r = Δρ_OpenMC / Δρ_DRAGON:
+
+| BU | v = 0.514 | v = 0.792 | v = 0.972 |
+|---|---|---|---|
+| 0 | 2.72 ± 0.38 | 6.55 ± 0.62 | 14.63 ± 1.16 |
+| 2000 | 4.03 ± 0.48 | 8.23 ± 0.81 | 17.07 ± 1.37 |
+| 5000 | 5.97 ± 1.03 | −36.6 ± 4.0 | −13.0 ± 1.2 |
+| **10000** | **4.28 ± 0.64** | **6.61 ± 0.71** | **5.81 ± 0.46** |
+| **15000** | **2.71 ± 0.29** | **3.25 ± 0.20** | **2.79 ± 0.13** |
+| 20000 | 2.23 ± 0.19 | 2.45 ± 0.11 | 2.25 ± 0.07 |
+
+The "collapses to ~1.9" finding was a property of 20 MWd/kg, where DRAGON's denominator is
+large. At 10–15 MWd/kg r runs 2.7–6.6 and depends on void fraction. At 5 MWd/kg DRAGON crosses
+zero, so r is negative and meaningless. Scaling DRAGON's void-induced Δρ by r would divide by a
+small, method-sensitive number exactly where the reactor was.
+
+**Recommendation, replacing the A5b.1d design:** variant B should *replace* DRAGON's
+void-induced Δρ(BU, v) with OpenMC's, interpolated on OpenMC's own grid, rather than *scale*
+it. Both are additive corrections at the same `MAC: ADD` application point. Replacing avoids
+the division and stays finite through DRAGON's zero crossing. Not built; this is a design
+change for A7.
+
+### Fresh-fuel reference and β_eff, OpenMC
+
+Fresh fuel, nominal temperatures, 50k × 250 active batches (the GB10 used 100k × 400; this
+box is 3× slower, and fresh fuel isn't the accident state):
+
+| | OpenMC | DRAGON | difference |
+|---|---|---|---|
+| k∞, 0.72 g/cm³ | 1.316220 ± 0.000225 | 1.304123 | +705 pcm (was +551) |
+| Δρ at 0.35 | +527 ± 19 pcm | +191 | 2.8× |
+| Δρ at 0.02 | +799 ± 19 pcm | +62 | 12.9× |
+| β_eff | **0.006739 ± 0.000166** (1 − k_prompt/k_total: 1.307519 / 1.316391) | 0.006825 | **−1.3 %, 0.5σ** |
+
+The β check holds on the new geometry, just as it did before (−0.5 % then). The DRAGON β curve is
+confirmed at its fresh-fuel end by a different code with a different definition. OpenMC's
+fresh full-void worth fell 912 → 799 pcm with the geometry. DRAGON's fell 222 → 62.
+
+### What this changes in the plan
+
+1. **The method gap is now the top physics priority, ahead of A6.** The trigger recorded on
+   09-23 for the deferred diagnosis was "A8 showing that the two bracketed cross-section sets
+   give materially different transients". A bracket that straddles 1 $ at the accident
+   burnup already establishes that, without waiting for A8. The highest-information next step
+   is unchanged: a 172-group flux spectrum and per-nuclide reaction-rate comparison against
+   OpenMC at 10 MWd/kg, nominal and voided, and not the 2-group view, which cannot see the
+   cause. The four untested DRAGON knobs listed under "Qualified 2026-09-23" (split-pellet
+   self-shielding, coarse tracking, unshielded Zr, P1) are the first candidates, and all are
+   cheap single-cell runs.
+2. **The COMPO burnup axis is too coarse around the accident state.** Nodes at 10 and 15
+   bracket 12.3–13.7, where 1113 of the 1659 assemblies sat. Adding 7.5 and 12.5 costs
+   ~1.3× the build. Do it the next time the COMPO is rebuilt, rather than as a rebuild of its own.
+3. **Performance note.** On this 6-core box the COMPO took 5 h 21 min while sharing a core
+   with OpenMC, against 81 min on the GB10. Run the two on separate cores (`taskset`) or in
+   sequence.
 
 ---
 
@@ -1249,7 +1511,11 @@ an idealisation worth revisiting.
 
 ---
 
-*Last updated: 2026-09-24 (repo restructured for a clean clone; found that every DRAGON
+*Last updated: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the
+bracket straddles prompt criticality at the accident burnup, ~0.6 $ DRAGON vs ~2.7 $ OpenMC;
+OpenMC β_eff 0.006739 confirms DRAGON to −1.3 %). Previously: 2026-09-24 (3) (cell geometry closed against eight new sources; clad OD 13.58;
+k∞ 1.304123 on the pinned library; Unit 4 accident burnup 10.9 MWd/kgU, not 20 — the bracket
+needs re-framing). Previously: 2026-09-24 (repo restructured for a clean clone; found that every DRAGON
 number below was produced against a draglib the repo does not ship — −87 pcm on the A3 cell,
 re-baseline pending — see the 2026-09-24 entry). Previously: 2026-09-23 (3) (A5b full 630-point COMPO built and verified: round trip
 6.4 pcm worst, off-grid interpolation 27 pcm worst, β curve 0.006824 → 0.004680 measured and

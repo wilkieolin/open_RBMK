@@ -29,17 +29,18 @@ DRAGON = {
 # Delayed-neutron fraction, MEASURED from DLIB_99 NDEL 6 via the A5b COMPO
 # (5.1/Donjon/data/rbmk_a5b_beta.don), not assumed.  It falls 31 % over life as
 # Pu-239 (beta 0.002254) displaces U-235 (beta 0.006524).  Cross-checked at BU=0
-# against OpenMC prompt-vs-total, 0.006856 +/- 0.000162 -- agreement to -0.5 %.
+# against OpenMC prompt-vs-total, 0.006739 +/- 0.000166 -- agreement to -1.3 %.
+# Re-measured 2026-09-24 (4) on the sourced cell geometry and pinned draglib.
 # The 0.0048 this project assumed until 2026-09-23 is a DISCHARGE number: right
-# to 2 % at 20 MWd/t, wrong by +42 % at fresh fuel.  Using it flat understated
+# to 3 % at 20 MWd/t, wrong by +42 % at fresh fuel.  Using it flat understated
 # the growth of the void worth in dollars over life.
 BETA_BU = {
-    0:     0.006824,
-    2000:  0.006361,
-    5000:  0.005877,
-    10000: 0.005358,
-    15000: 0.004985,
-    20000: 0.004680,
+    0:     0.006825,
+    2000:  0.006359,
+    5000:  0.005872,
+    10000: 0.005350,
+    15000: 0.004975,
+    20000: 0.004671,
 }
 
 
