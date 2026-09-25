@@ -19,6 +19,7 @@ copyrighted. Each entry says where to get it again.
 | **[RU-B]** | «Конструкция реактора РБМК-1000». Reference text mirrored on wdcb.ru and reactors.narod.ru. Its burnup figures match [D] p.95, so it is probably derived from [D]. Treat it as secondary. | `RU-B_wdcb_ru_rbmk4.html` | http://www.wdcb.ru/mining/sprav/document/rbmk/rbmk4.html (cp1251), https://reactors.narod.ru/rbmk/03_rbmk.htm |
 | **[ALX98]** | Alexeev N., Behrens D., Davydova G., Donderer R., von Ehrenstein D., Krayushkin A., Meyer S., Schumacher O., *The Monte Carlo codes MCNP and MCU for RBMK criticality calculations*. Nucl. Eng. Des. **183** (1998) 287–302. | `ALX98_Alexeev_1998_NED183_MCNP_MCU_RBMK_criticality.pdf` | doi:10.1016/S0029-5493(98)00163-0 (paywalled; user-supplied) |
 | **[PAR07]** | Parisi C., D'Auria F., *RBMK fuel channel blockage analysis by MCNP5, DRAGON and RELAP5-3D codes*. Proc. Int. Conf. Nuclear Energy for New Europe 2007, Portorož, paper 105. | `PAR07_Parisi_DAuria_2007_RBMK_FC_blockage_MCNP5_DRAGON.pdf` | user-supplied |
+| **[BEH96]** | Behrens D., Meyer S., von Ehrenstein D., Donderer R., Schumacher O., Davydova G., Krayushkin A., *Validation of MCNP for RBMK criticality calculations*. Nucl. Technol. **114**(1) (1996) 1–11. | `BEH96_Behrens_1996_NuclTechnol114_Validation_MCNP_RBMK.pdf` | doi:10.13182/NT96-A35219 (user-supplied) |
 | [W] | Wikipedia, *RBMK*, fetched 2026-09-22. Superseded for every cell dimension. | — | — |
 
 ## What each source was used for
@@ -82,4 +83,27 @@ copyrighted. Each entry says where to get it again.
 DRAGON is the collision-probability solver (EXCELL) on the IAEA WLUP 172-group library; the
 69-group library gives −32 %. It uses a different library from ours, but shows the same
 deficit, and the same dependence on group structure.
+
+**[BEH96] — the critical-facility measurements, tabulated.** This is the source [ALX98] defers to.
+- **Table I, measured k_eff and void effects for 11 RRC-KI critical assemblies** (1, 1a, 2, 3,
+  3a, 4–9). Examples:
+  - assembly 1: 18 fuel channels, 2 %, watered, k_eff 1.0026, void effect −3.1 % (fuel
+    channels voided);
+  - 5: +0.001; 6: −0.5 (fuel) / −1.1 (additional absorbers); 7: −1.5; 8: −0.28 (control rod
+    simulators); 9 (1.8 %): −1.4.
+  - The maximum experimental error on k_eff is 0.3 % (their ref. 7).
+- **Facility** (p.3): 18 × 18 graphite blocks of 25 × 25 × 410 cm; aluminium-alloy channel
+  tubes, 8.8 / 8.0 cm diameter; pellets ⌀1.152 cm in a 346 cm column with 32 cm axial graphite
+  reflector each end; 0.5 mm Cd side layer; graphite taken as 1700 kg/m³. Loading maps are
+  figures only (Fig. 1).
+- **Impurities** (p.6): only B-10 and Cd-113 matter. B-10 atom fraction 8.79e-8 to 6.54e-7;
+  Cd-113 < 3.86e-8. Diffusion-length measurements narrow this to 20–60 % of maximum. Four
+  impurity sets are defined (maximum / medium / minimum / pure). The void effect is reported to
+  be less impurity-sensitive than k_eff.
+- **Smolensk-3, cold zero-power start-up** (p.6): four measured core states (two critical, two
+  subcritical at 1.25 % and 2.84 %), with a full initial-loading description. That's a
+  whole-core reference for later.
+- **Caveat for the method gap:** these are small, leakage-dominated, cold assemblies with
+  *negative* measured void effects. Comparing against them needs a full 3-D model of the
+  facility in each code, not a cell k∞.
 
