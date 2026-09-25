@@ -50,7 +50,7 @@ def report(title, don, dra):
     return worst
 
 
-sweep = os.path.join(DON, "rbmk_a5b_sweep.result")
+sweep = os.path.join(DON, "rbmk_a5b_sweep.don.result")
 node = report("GRID NODES (round trip)", rows(sweep, "A5BSWEEP"),
               rows(os.path.join(DRA, "rbmk_a5b_compo.result"), "A5BTAB"))
 off = report("OFF-GRID (LINEAR interpolation)", rows(sweep, "A5BSWEEPOFF"),
