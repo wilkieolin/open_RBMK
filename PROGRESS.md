@@ -1592,6 +1592,10 @@ It took 31 min wall, against about 9 min for the production deck. Full-void (0.0
   fuel. That is H5/H6 territory, together with the depletion-trajectory difference (H10).
 
 ### Still open
+The work order to close these is **`METHOD_CONVERGENCE_PLAN.md`**: gated phases A (fresh-fuel
+residual), B (accident state), C (production upgrade), D (validation against the Kurchatov
+critical experiments).
+
 1. **The remaining ~190 pcm** (nominal and void): H5 (MOC, anisotropic scattering) and H6
    (radial self-shielding in the pellet) are the next tests.
 2. **The accident state** is now bracketed at +1.96 $ (DRAGON, converged library) to +2.7 $
