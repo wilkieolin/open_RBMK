@@ -134,6 +134,10 @@ Only after Gates A and B. Standing rule 6 applies: fix the file everything calls
 | C4 | Rebuild the COMPO on the new settings (~3.5× the current CPU: about 4.5–5 h on the GB10, run alone). Round-trip ≤ 10 pcm, off-grid ≤ 30 pcm, β monotone. **Add burnup nodes at 7.5 and 12.5 MWd/kg** (1113 of Unit 4's 1659 assemblies sat at 12.3–13.7). | `openmc/a5b_interp_check.py` |
 | C5 | Recompute the bracket (`extract_a5btab.py` → `void_bracket.py`) and the dollars table. **Variant B replaces DRAGON's void Δρ with OpenMC's** rather than scaling it (PROGRESS.md, 09-24 (4)). | the new table is recorded in PROGRESS.md |
 
+**Status 2026-09-26: done.** C1 and C2 gates pass bit for bit. C3 is carried as the measured
+additive correction A′. C4: 840 points, round trip 6.7 pcm, off-grid 21.2 pcm, β monotone. C5 is
+tabulated in PROGRESS.md, "Phase C".
+
 **GATE C:** every production number regenerated, and every superseded one marked as superseded.
 
 ## Phase D — independent references

@@ -86,6 +86,17 @@
 > - Local runs were stopped to move to the GB10; see the hand-off at the end of "Third-party
 >   benchmark".
 
+> **2026-09-26: Phase C done: production is on the converged library.**
+> - **Library.** SHEM-361 with Zr self-shielded in `RbmkLib`; k∞ 1.313968.
+> - **COMPO.** Rebuilt at 840 points with burnup nodes at 7.5 and 12.5. Round trip 6.7 pcm, off-grid
+>   21 pcm, β monotone.
+> - **Full-void worth at 10.9 MWd/kgU:** +1.95 $ (production COMPO), +2.42 $ (plus the measured
+>   mesh/MOC correction), +2.72 $ (OpenMC matched).
+> - **Depletion step size.** 5 MWd/kg steps overstated nominal k∞ by ~200–530 pcm; the void worth
+>   was converged.
+> - **What's next.** The method-convergence segment is closed. Next is A6 (CPS channel cells),
+>   after a check-in. See "Phase C".
+
 > **2026-09-25 (3): the void gap closes to within its criterion.**
 > - **Hot cell, fresh fuel.** DRAGON on SHEM-361 + Zr self-shielding + 4× mesh + MOC with P1
 >   scattering gives full-void Δρ **+763 vs OpenMC +821 ± 21** (inside 2σ + 5 %). At 0.35 g/cm³
@@ -115,7 +126,7 @@ in-core detector readings). Accident scenario runs to **fuel failure** and stops
 
 | Tier | What | Status |
 |---|---|---|
-| **A — offline physics** | DRAGON5 lattice → MULTICOMPO → DONJON5 3-D steady + reference AZ-5 transient. Source of truth. | **In progress.** A3/A4/A5a done; A5b (MULTICOMPO export) next, then A6–A9. |
+| **A — offline physics** | DRAGON5 lattice → MULTICOMPO → DONJON5 3-D steady + reference AZ-5 transient. Source of truth. | **In progress.** A3–A5b done and method-converged (2026-09-26: SHEM-361 + Zr SS, 840-point COMPO, void bracket). A6–A9 next. |
 | **B — online engine** | Standalone 2-group nodal/FD diffusion + 6 precursor groups + 1-D per-channel TH on the GB10 GPU, reading Tier A cross sections, validated against Tier A. | Not started |
 | **C — mnemonic panel** | Driven by Tier B. | Not started |
 
@@ -1877,6 +1888,46 @@ which reproduces this machine bit for bit.
   nominal k over the accident range, and < 1 % in void worth. 2.5 MWd/kg with `EXTR 1` is the
   candidate for the next rebuild (untested).
 
+## Phase C: production on the converged library — 2026-09-26
+
+`METHOD_CONVERGENCE_PLAN.md` C1–C5. Gate C (every production number regenerated) is met for
+the lattice level. **Superseded:** every production number before this section was computed on
+the 172-group library with Zr unshielded. That covers k∞ 1.304123, the 630-point COMPO, the
+"~1.9 multiplier", and the 09-24 (4) dollars table. For the record only.
+
+| Step | What changed | Gate |
+|---|---|---|
+| C1 | `RbmkLib.c2m` gives the Zr of MIX 2 / 8 / 9 self-shielding sets 3 / 4 / 5. The old composition is kept only as `RbmkLibU.c2m` (do-not-use banner) for the 172-group method-study controls. `RbmkLibZ` and `RbmkLibP` are in `quarantine/method_study/`. | `rbmk_cell_a3` **k∞ 1.313968** (was 1.304123), guardrail passed |
+| C2 | `decks/common/rbmk.access` binds the seven production decks to SHEM-361, with `USS: PASS 2 MAXST 300`. Control decks keep their own hooks. | `h2otest` = `zr361` and `a5_void` = `buzr361`, both bit for bit |
+| C3 | Mesh and MOC are **not** in production: MOC at 4× costs ~2 h per state, which is impossible at 840 points. They are carried as a measured additive correction, variant A′ in `openmc/void_bracket.py`: +204 / +244 / +266 pcm on full void at 0 / 10 / 15 MWd/kg. | measured, never fitted |
+| C4 | COMPO rebuilt with burnup nodes at 7.5 and 12.5: 8 × 7 × 5 × 3 = **840 points**, `_ACompo` 152 MB, 14.7 h on the GB10. The off-grid deck's burnup indices were remapped (10 → 5, 20 → 8). | round trip **6.7 pcm** worst (≤ 10); off-grid **21.2 pcm** worst (≤ 30); β monotone 0.006822 → 0.004677 |
+| C5 | `void_bracket.py` rewritten: additive variants instead of the r multiplier (below). | table below |
+
+**The void bracket at nominal temperatures** (`python openmc/void_bracket.py`; β from
+`rbmk_a5b_beta.don` on the new COMPO):
+
+| BU, MWd/kg | A: DRAGON COMPO | A′: + mesh/MOC | B: OpenMC matched | β |
+|---|---|---|---|---|
+| 0 | +560 = +0.82 $ | +764 = +1.12 $ | +821 = +1.20 $ | 0.006822 |
+| 5 | +537 = +0.91 $ | +761 = +1.29 $ | +849 = +1.44 $ | 0.005877 |
+| 10 | +913 = +1.71 $ | +1157 = +2.16 $ | +1276 = +2.38 $ | 0.005355 |
+| **10.9 (Unit 4 average)** | **+1034 = +1.95 $** | **+1282 = +2.42 $** | **+1438 = +2.72 $** | 0.005288 |
+| 12.5 | +1248 = +2.41 $ | +1503 = +2.91 $ | +1725 = +3.34 $ | 0.005169 |
+| 15 | +1661 = +3.33 $ | +1927 = +3.87 $ | +2254 = +4.52 $ | 0.004983 |
+| 20 | +2645 = +5.66 $ | +2911 = +6.22 $ ‡ | +3238 = +6.92 $ ‡ | 0.004677 |
+
+‡ Corrections above 15 MWd/kg are held at their 15 MWd/kg values: there is no matched point at
+20. OpenMC's unmatched energy-deposition branch at 20 gives +3671 ± 127 (crystal graphite), so
+B is likely low there. Unit 4 had nothing near 20.
+
+- **A′ is the converged-DRAGON answer, and it is the one Tier A should carry**, with B as the
+  bracket's upper end.
+- **A is the production COMPO as it stands.** It is now above 1 $ at the Unit 4 average, where the
+  172-group COMPO gave ~0.6 $.
+- **Every variant puts full voiding of average Unit 4 fuel above prompt critical.**
+- For A7/A8: the corrections are additive in Δρ, as functions of (BU, void fraction), applied on
+  top of the COMPO's void branch. `void_bracket.corrections(bu, dca)` returns all three.
+
 ---
 
 ## Standing rules
@@ -1921,7 +1972,7 @@ which reproduces this machine bit for bit.
 
 ---
 
-*Last updated: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the
+*Last updated: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the
 bracket straddles prompt criticality at the accident burnup, ~0.6 $ DRAGON vs ~2.7 $ OpenMC;
 OpenMC β_eff 0.006739 confirms DRAGON to −1.3 %). Previously: 2026-09-24 (3) (cell geometry closed against eight new sources; clad OD 13.58;
 k∞ 1.304123 on the pinned library; Unit 4 accident burnup 10.9 MWd/kgU, not 20 — the bracket
