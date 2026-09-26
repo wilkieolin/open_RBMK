@@ -59,16 +59,21 @@ and a smaller TH state. Well under 100 MB — no memory risk on the ~110 GB budg
 | A0 | Environment + regression baseline | `iaea3d_fuelmap.x2m` → 1.028980 |
 | A1 | Quarantine fabricated artifacts | tree contains no tuned-`MAC:` or invented-syntax decks |
 | A2 | Run the corrected core | ✅ **done 2026-09-23** — 49×49×32, 1225 × 1225 × 800 cm, 76 832 regions, converged, **k_eff = 1.123062** on IAEA 2-group constants (geometry/solver check only). `FLUD:` **1 s** at `MCFD 1` vs 729 s at `DUAL 3 3`. Three other generators still carry PITCH in metres |
-| A3 | Lattice cell on **RBMK** dimensions + `USS:` + volume-fraction guardrail | ✅ done — **k∞ = 1.310172** (post bound-hydrogen fix, 2026-09-23; 1.3128 before it); graphite 89.6 %, coolant 3.77 % asserted in-deck |
+| A3 | Lattice cell on **RBMK** dimensions + `USS:` + volume-fraction guardrail | ✅ done — **k∞ = 1.313968** on the production SHEM-361 + Zr-SS library (2026-09-26); history: **k∞ = 1.310172** (post bound-hydrogen fix, 2026-09-23; 1.3128 before it); graphite 89.6 %, coolant 3.77 % asserted in-deck |
 | A4 | SPH homogenization | ✅ resolved — **not applicable at cell level** (`SPHDRV: INVALID NUMBER OF MACRO-REGIONS`); moved to the core reflector and rod cells |
-| A5a | Depletion (`EVO:`) + void branches vs burnup | ⚠️ **half-passed.** Sign and burnup trend confirmed independently by OpenMC; **magnitude is not** — OpenMC gives ~2× DRAGON at discharge and ~12× at fresh fuel. The +1957 pcm / ~4 β figure is **retracted** (`PROGRESS.md`). Carried forward as a 2× bracket, by decision |
+| A5a | Depletion (`EVO:`) + void branches vs burnup | ✅ **closed 2026-09-26** by the method-convergence segment (`METHOD_CONVERGENCE_PLAN.md`): converged DRAGON and matched OpenMC agree within the plan's criteria; full voiding at 10.9 MWd/kgU is +2.4 to +2.75 $ in every variant. *History:* ⚠️ **half-passed.** Sign and burnup trend confirmed independently by OpenMC; **magnitude is not** — OpenMC gives ~2× DRAGON at discharge and ~12× at fresh fuel. The +1957 pcm / ~4 β figure is **retracted** (`PROGRESS.md`). Carried forward as a 2× bracket, by decision |
 | A5b | MULTICOMPO export from the corrected cell — **was the biggest structural gap** | ✅ **done 2026-09-23.** `Dragon/compo/_ACompo`, 113.9 MB, 630 points, axes burnup × DCA × TF × TG (Xe deferred). Round trip to DONJON 6.4 pcm worst over 8 nodes spanning every axis; off-grid `LINEAR` interpolation 27 pcm worst. β **measured** from `NDEL 6`: 0.006824 → 0.004680 over 0–20 MWd/t, confirmed against OpenMC prompt-vs-total to −0.5 %. The second COMPO was **replaced by a correction table** (`openmc/void_bracket.py`) — DRAGON has no cross-section scaling facility anywhere in the write path, so it cannot produce one; see PROGRESS.md "A5b.1d". At discharge burnup the bracket collapses to a single multiplier ≈ 1.9. Applying it is the first item of A7. **Superseded 2026-09-26:** rebuilt on SHEM-361 + Zr self-shielding, 840 points (nodes 7.5 / 12.5 added), 152 MB, round trip 6.7 pcm, off-grid 21.2 pcm; the multiplier is replaced by additive variants A / A′ / B (full void at 10.9 MWd/kgU: +1.95 / +2.42 / +2.72 $); see PROGRESS.md "Phase C". |
-| A6 | CPS channel cells: B₄C, graphite displacer, water column | displacer-only insertion gives **positive** reactivity |
+| A6 | CPS channel cells: B₄C, graphite displacer, water column, on the A′ basis (`A6_CPS_PLAN.md`) | displacer-only insertion gives **positive** reactivity |
+| A6b | **Xenon axis + fuel COMPO rebuild** (new, 2026-09-26). Add a Xe branch axis, and deplete with `EXTR 1` (the step study showed 5 MWd/kg `NOEX` overstates k∞ by 200–530 pcm). Unit 4 was heavily Xe-poisoned at 01:23 after ~12 h at half power and a drop to near zero. | round trip ≤ 10 pcm, off-grid ≤ 30 pcm; Xe worth at equilibrium confirmed against OpenMC |
+| A6c | **Smolensk-3 cold zero-power start-up** ([BEH96]; promoted from the deferred Phase D, 2026-09-26). The first core-level measured reference: two critical and two subcritical states with the initial loading described. Tests the 3-D DONJON core with rods, before thermal hydraulics are added. | measured critical states reproduced within the graphite-impurity band; subcriticals ordered correctly; result reported, not tuned |
+| A6d | **Unit 4 initial state at 01:22:30** as a sourced deliverable (new, 2026-09-26): channel map, burnup distribution consistent with [PAV]'s assembly counts, rod pattern (INSAG-7 Fig. II-6, digitised), power, flow, inlet subcooling, axial and radial shape (INSAG-7 Figs. II-7, II-8). Its uncertainty probably dominates the transient's. | every input traceable to a page; DONJON steady state reproduces INSAG-7's reconstructed shape; input ranges recorded for A8 sensitivity |
 | A7 | Couple: 3-D steady state with `NCR:` + `THM:` | converged critical core at 3200 MWth |
-| A8 | Reference AZ-5 transient: `INIKIN:`/`KINSOL:` + `DSET:` | prompt power rise before absorber takes over |
+| A8 | Reference AZ-5 transient: `INIKIN:`/`KINSOL:` + `DSET:`, from the A6d state, under bracket variants A′ and B; stops at a defined **fuel-failure criterion** (to be sourced, e.g. a fuel-enthalpy threshold) | prompt power rise before absorber takes over; compared (not tuned) with INSAG-7 Appendix II's three independent reconstructions |
 | A9 | Detectors: `DETINI:`/`DETECT:` + SPND lag | traces respond to local rod motion, not just global power |
 
 A0–A5 are largely mechanical. A6–A9 require physics judgement — check in before starting them.
+
+**Order from 2026-09-26:** A6 → A6b → A6c → A6d → A7 → A8 → A9, then Tier B. A6b and A6c come first because xenon and a measured core-level reference both bear on every later step; A6d comes before A7 because the reconstructed initial state is what A7 has to converge to and what A8 starts from.
 
 **Update 2026-09-22:** A3 has been rebuilt on RBMK dimensions (the previous cell was a
 CANDU-6 bundle) with `USS:` self-shielding and an in-deck volume-fraction guardrail, and A5
@@ -87,6 +92,17 @@ an order of magnitude, and the 09-22 correction to "+1 to +3 % Δk/k" is also ex
 OpenMC gives +4.0 %. State the gate qualitatively: **positive, and rising steeply with
 burnup, at operating burnup**. A fresh unpoisoned cell can legitimately read near zero. The
 magnitude is carried as a bracket between the two codes until A8 shows whether it matters.
+
+**Update 2026-09-26 (method convergence closed; the plan reordered).** The lattice-level void gap between DRAGON and OpenMC is closed (PROGRESS.md, "Phase A–B", "Phase C"). Where confidence now stands:
+
+| Level | Confidence |
+|---|---|
+| Fuel-cell void worth | **good, ±10 %**: two methods plus a third-party benchmark agree |
+| Fuel-cell absolute k∞ | **moderate**: DRAGON 240–430 pcm below OpenMC (attributed, not closed), plus ~75–130 pcm depletion step error |
+| Anything whole-core (rods, map, TH, transient) | **none yet**: not built or not verified |
+| Against measurement | **none at any level**: A6c is the first |
+
+The single-channel full-void figure is not the core void reactivity. That also depends on leakage, rods and the axial shape, which is why A6–A6d come next.
 
 ### Tier B — online engine
 Standalone GPU solver reading the A5 MULTICOMPO, validated against the A8 transient and A9

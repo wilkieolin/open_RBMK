@@ -86,6 +86,11 @@
 > - Local runs were stopped to move to the GB10; see the hand-off at the end of "Third-party
 >   benchmark".
 
+> **2026-09-26 (2): the plan is reordered.** The lattice gap is closed, but nothing whole-core is
+> built or validated yet. New order: A6 (CPS cells) → A6b (Xe axis + COMPO rebuild) → A6c
+> (Smolensk-3 start-up, the first measured core-level reference) → A6d (Unit 4 state at 01:22:30)
+> → A7 → A8 → A9. See "Where the project stands".
+
 > **2026-09-26: Phase C done: production is on the converged library.**
 > - **Library.** SHEM-361 with Zr self-shielded in `RbmkLib`; k∞ 1.313968.
 > - **COMPO.** Rebuilt at 840 points with burnup nodes at 7.5 and 12.5. Round trip 6.7 pcm, off-grid
@@ -1928,6 +1933,49 @@ B is likely low there. Unit 4 had nothing near 20.
 - For A7/A8: the corrections are additive in Δρ, as functions of (BU, void fraction), applied on
   top of the COMPO's void branch. `void_bracket.corrections(bu, dca)` returns all three.
 
+## Where the project stands, and the reordered plan — 2026-09-26 (2)
+
+**What the method-convergence segment bought.**
+- **Before:** DRAGON and OpenMC disagreed on whether voiding average Unit 4 fuel is prompt critical
+  (+0.6 $ vs +2.7 $).
+- **Now:** every converged variant of both codes gives +2.4 to +2.75 $. The spread fell from
+  38 % to 13 %, and the historical outcome was never an input.
+- **Checked against a third party.** Our OpenMC reproduces the 1990s MCNP / MCU results on the
+  SRP-1994 cell.
+- **In production.** The fixes are in `RbmkLib` and the 840-point COMPO.
+
+**What caused the gap, largest first:**
+1. The 172-group energy mesh through the U-238 resonances.
+2. Zr left at infinite dilution.
+3. The flat-flux mesh.
+4. Isotropic scattering with a transport correction.
+5. The two codes' different burnup scales (fission-Q vs H-factor).
+6. DRAGON's 5 MWd/kg depletion steps. These affect nominal k only.
+
+**Confidence now:**
+
+| Level | Confidence | Basis |
+|---|---|---|
+| Fuel-cell void worth | **good, about ±10 %** | two methods plus a third-party benchmark |
+| Fuel-cell absolute k∞ | **moderate, a few hundred pcm** | 240–430 pcm DRAGON/OpenMC residual (attributed); 75–130 pcm step error in the COMPO |
+| Whole core: rods, map, TH, transient | **none yet** | not built, or not verified |
+| Against measurement | **none at any level** | everything so far is verification |
+
+The single-channel full-void worth is not the core void reactivity. That also depends on leakage,
+the rod pattern and the axial power shape: exactly the parts still to build.
+
+**Reordered Tier A** (PROJECT_PLAN.md roadmap; TIER_A_WORKPLAN.md):
+- **A6** — CPS channel cells, on the A′ basis (`A6_CPS_PLAN.md`).
+- **A6b** — Xe axis + fuel COMPO rebuild with `EXTR` depletion. Unit 4 was heavily
+  Xe-poisoned at 01:23.
+- **A6c** — Smolensk-3 cold start-up ([BEH96]), promoted from the deferred Phase D: the first
+  measured core-level reference.
+- **A6d** — Unit 4 initial state at 01:22:30 as a sourced deliverable. It is likely the dominant
+  uncertainty in A8.
+- **A7, A8, A9** — then Tier B. A8 now runs under bracket variants A′ and B, stops at a sourced
+  fuel-failure criterion, and is compared (not tuned) with INSAG-7 Appendix II's three
+  reconstructions.
+
 ---
 
 ## Standing rules
@@ -1972,7 +2020,7 @@ B is likely low there. Unit 4 had nothing near 20.
 
 ---
 
-*Last updated: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the
+*Last updated: 2026-09-26 (2) (project assessment; Tier A reordered: A6 → A6b Xe → A6c Smolensk-3 → A6d initial state → A7–A9). Previously: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the
 bracket straddles prompt criticality at the accident burnup, ~0.6 $ DRAGON vs ~2.7 $ OpenMC;
 OpenMC β_eff 0.006739 confirms DRAGON to −1.3 %). Previously: 2026-09-24 (3) (cell geometry closed against eight new sources; clad OD 13.58;
 k∞ 1.304123 on the pinned library; Unit 4 accident burnup 10.9 MWd/kgU, not 20 — the bracket

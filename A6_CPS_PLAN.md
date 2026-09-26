@@ -117,6 +117,11 @@ parked displacer must be a base-map mixture (TIER_A_WORKPLAN "Known traps").
   flux;
 - all-rods-in gives the expected large negative worth, reported and not tuned.
 
+## After A6
+A6b (Xe axis + fuel COMPO rebuild), A6c (Smolensk-3 start-up benchmark: the first use of these
+rods in a measured core), A6d (Unit 4 initial state at 01:22:30, including the full digitisation
+of Fig. II-6). See PROJECT_PLAN.md, roadmap.
+
 ## Not in A6
 - The 01:22:30 rod pattern, beyond digitising it: that's A8's initial state.
 - Additional absorbers (ДП) in fuel channels at start-up: none are listed for Unit 4 in 1986;

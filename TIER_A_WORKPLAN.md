@@ -378,14 +378,35 @@ without checking in.** Report:
 
 ---
 
-## A6–A9 — outline only (do not start yet)
+## A6–A9 — outline
+
+*Order from 2026-09-26: A6 → A6b → A6c → A6d → A7 → A8 → A9 (PROJECT_PLAN.md, roadmap).*
 
 - **A6 CPS channel cells.** B₄C absorber, graphite displacer, water column. The core mix map
   currently has **no rod sites** — every live cell is fuel or graphite, so there is nowhere
   for a rod to go. Gate: displacer-only insertion from below gives **positive** reactivity.
+  **Work order: `A6_CPS_PLAN.md`** (started 2026-09-26, on the A′ basis).
+- **A6b Xenon axis and fuel COMPO rebuild.** Add a Xe branch axis (equilibrium Xe at the branch
+  power, plus a zero-Xe and a peak-Xe point) and switch depletion to `EVO: EXTR 1` with
+  ≤ 2.5 MWd/kg steps; test that combination against `rbmk_meth_dstep125` first. Gates as A5b
+  (≤ 10 / ≤ 30 pcm), plus an OpenMC check of the Xe worth at 10.9 MWd/kgU.
+- **A6c Smolensk-3 cold zero-power start-up ([BEH96]).** Build the first-core loading in the
+  3-D DONJON model with the A6 rods and reproduce the two measured critical states and the
+  ordering of the two subcritical ones. Cold, zero power, no TH: a test of the core model
+  alone. Report the graphite-impurity sensitivity; do not tune it.
+- **A6d Unit 4 initial state at 01:22:30.** A sourced deliverable, not a step inside A8:
+  - channel map;
+  - burnup distribution consistent with [PAV];
+  - rod pattern digitised from INSAG-7 Fig. II-6;
+  - power, flow, inlet subcooling and xenon state;
+  - the radial and axial shapes of INSAG-7 Figs. II-7 / II-8.
+
+  Record a range for every uncertain input; A8 runs its sensitivity over them.
 - **A7 Steady-state coupling.** `NCR:` + `THM:` Picard loop to a critical 3200 MWth core.
   Reference: `Donjon/data/channel_mphy.x2m` steady section.
-- **A8 Reference AZ-5 transient.** `INIKIN:` → time loop → `DSET:` → `MACINI:` → `NEWMAC:` →
+- **A8 Reference AZ-5 transient.** Starts from the A6d state; runs under bracket variants A′
+  and B (`openmc/void_bracket.corrections`); stops at a sourced fuel-failure criterion;
+  compared, not tuned, with INSAG-7 Appendix II's three reconstructions. `INIKIN:` → time loop → `DSET:` → `MACINI:` → `NEWMAC:` →
   `TRIVAA: UNIT` → `KINSOL:` → `FLPOW:` → `THM: TIME`. Reference: `AFMtest.x2m` fused with
   `channel_mphy.x2m`. Drive rods with `DSET:` and a computed level — **`MOVDEV:` is broken for
   multi-part rods** (`MOVPOS.f:159` stores 6 positions where `DEVGET.f:246` stored `6*NPART`).

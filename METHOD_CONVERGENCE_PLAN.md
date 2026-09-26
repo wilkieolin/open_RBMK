@@ -160,8 +160,9 @@ So the reference ladder is:
   VIII.1 agree to 0.05 %Δk, and MCNP moves 0.56 between B-IV and B-VI.
 - **D0 for DRAGON: closed.** `bestmoc8` gives 4.80 / 5.27 against MCNP/MCU 4.80–4.85 / 5.28–5.47.
 - **D2 deferred until after Tier A (A6–A9), by decision.** The candidate pair is [BEH96]
-  assembly 1 (18 channels, void effect −3.1 %). The Smolensk-3 cold start-up states are a later
-  whole-core reference.
+  assembly 1 (18 channels, void effect −3.1 %).
+- **The Smolensk-3 cold start-up states are promoted to Tier A step A6c** (2026-09-26), as the
+  first measured core-level reference.
 
 **GATE D:** D0 closed for the code Tier A relies on; D2 attempted if D1 yields specifications.
 
