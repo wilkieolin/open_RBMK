@@ -141,6 +141,37 @@ deficit, and the same dependence on group structure.
 B₄C per section" is the redesigned post-1986 Smolensk-3 rod. On the 1980 geometry that mass would
 imply > 5 g/cm³, twice B₄C's theoretical density, so it does **not** set the 1986 density.
 
-**Still open:** the B₄C density and boron isotopics; the composition of the Al alloy (САВ-1 is the
-alloy [D] p. 59 names for in-core sleeves); the displacer graphite density (take [D] p. 11's
-1.65 g/cm³, with p. 47's 1.73 as the upper case).
+**A6.1 search, 2026-09-26** (transcribed into `openmc/cps_common.py`):
+- **Al alloy — closed.** An RBMK operator training text ([SF] below, p. 10) says each absorber link is
+  "internal (50×2 mm) and external (70×2 mm) tubes of aluminium alloy **САВ-1**". [OST] gives САВ-1:
+  Si 0.7–1.2, Mg 0.45–0.9 (the page prints "0.045–0.9"; either reading moves Mg by < 0.5 wt%, σₐ
+  0.06 b), Fe ≤ 0.2, B ≤ 1.2 ppm, Cd ≤ 1 ppm, Al the rest. Modelled at the range midpoints, 2.70 g/cm³;
+  the trace B and Cd are ≤ 1 % of the tubes' own absorption and are omitted. [SF] describes the
+  post-1986 rod (6772 mm absorber), so it is taken for the tube material only.
+- **Rod count and lattice — closed.** [INSAG7] Fig. II-6, digitised by `tools/digitise_fig_II6.py`
+  into `sources/derived/insag7_fig_II6_012230.csv`: 211 rods on a 45°-rotated lattice (2-cell rows,
+  4-cell spacing in a row; nearest sites 707 mm apart, [D]'s "700 mm"), plus 12 empty lattice sites in a
+  symmetric pattern (consistent with [D] p. 12's 12 in-core monitoring channels; the figure does not
+  label them). 47 rods are partly inserted, 43.5 m in total. A reactor-kinetics textbook
+  ([LEG] below) gives the fuel : CPS channel ratio as 7 : 1, which the rotated lattice reproduces.
+- **Rod types — still open.** Fig. II-6 gives depths, not types. [LEG] Fig. 6.7 is a type cartogram
+  (RR, AZ, USP, AR1–3, LAR) of a generic RBMK, of unstated unit and date, and at a resolution
+  that doesn't separate every symbol. The Karpan cartograms (accidont.ru) are blocked by this
+  network's DNS policy. Needed by A6.5 / A6c / A6d, not by the supercells.
+- **B₄C density — still open**, no source found. Bracket 1.7–2.3 g/cm³ (nominal 2.0), natural B.
+- **Displacer graphite — bracketed.** 1.65 nominal ([D] p. 11), 1.73 upper ([D] p. 47), 1.50 lower
+  (a 90 % fill of "bushings and blocks"). [CAST] names the grade GR-93. Temperature: the CPS water's,
+  with [CAST]'s "≤ 500 °C" as the upper case.
+- **Additional absorbers (ДП) in Unit 4 — closed: one.** [INSAG7] p. 67 ("the total lack of black
+  absorbers (only one additional absorber) in the core") and p. 107 (the reference state "10.3 MW·d/kg,
+  one additional absorber, and one empty fuel channel").
+- **Qualitative checks from [D] p. 20 (critical-assembly experiments):** water inside a
+  B₄C rod raises its worth by ~5 %; an outer water layer of 2 / 4 / 6 mm lowers it by ~5 / 9 / 13 %;
+  the epithermal share of the rod's absorption with water inside is 18–20 %. Used as sanity checks
+  on the A6.3 section worths, not as targets.
+
+| Tag | Source | Used for |
+|---|---|---|
+| [OST] | ОСТ 1 90048-90, САВ-1 composition, as reproduced at evek.org/materials/splav-sav1.html (fetched 2026-09-26) | CPS tube alloy |
+| [SF] | RBMK operator training text, studfile.net/preview/16424193/page:10 (fetched 2026-09-26) | absorber tubes are САВ-1 |
+| [LEG] | *Кинетика и регулирование ядерных реакторов*, ch. "Органы управления и защиты канальных реакторов", leg.co.ua (fetched 2026-09-26), Fig. 6.7 | fuel : CPS = 7 : 1; generic type cartogram |

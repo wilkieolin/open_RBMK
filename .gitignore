@@ -67,4 +67,7 @@ regress/
 # Third-party source documents (see sources/README.md for where to get each)
 sources/*
 !sources/README.md
+# our own digitisations of those documents (tools/digitise_*.py) are tracked
+!sources/derived/
 *:Zone.Identifier
+openmc/cps_runs/

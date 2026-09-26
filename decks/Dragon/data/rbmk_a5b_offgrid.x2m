@@ -70,13 +70,17 @@ REAL tcool :=  573.0 ;  ! K, coolant and structure (saturation at 6.9 MPa)
 REAL dnom  :=   0.72 ;  ! g/cm3, nominal coolant density
 REAL fpwr  :=   16.7 ;  ! MW per tonne initial heavy metal (3200 MWth / 192 t)
 
-INTEGER nbu := 8 ;
+INTEGER nbu := 10 ;
 INTEGER ndc := 7 ;
 INTEGER ntf := 5 ;
 INTEGER ntg := 3 ;
 
+*  2026-09-26 (A6b): the depletion grid of rbmk_a5b_compo ('dburn', <= 2.5
+*  MWd/kg, EVO: EXTR 1), so the reference depletes exactly as the COMPO did.
+*  Node indices below were remapped: 10 MWd/kg is step 6, 20 MWd/kg step 10.
 DONNEES := UTL: :: CREA 'burn' <<nbu>> =
-   0.0  2000.0  5000.0  7500.0  10000.0  12500.0  15000.0  20000.0 ;
+   0.0  2000.0  3500.0  5000.0  7500.0  10000.0  12500.0  15000.0
+   17500.0  20000.0 ;
 DONNEES := UTL: DONNEES :: CREA 'dca' <<ndc>> =
    0.72  0.60  0.45  0.30  0.15  0.05  0.02 ;
 DONNEES := UTL: DONNEES :: CREA 'tf' <<ntf>> =
@@ -141,7 +145,7 @@ WHILE istep nbu < DO
   EVALUATE tend := buend fpwr / ;
 
   BURNUP LIBSS := EVO: BURNUP LIBSS FLUX TRK ::
-    EDIT 0 NOEX DEPL <<tbeg>> <<tend>> DAY POWR <<fpwr>> ;
+    EDIT 0 EXTR 1 DEPL <<tbeg>> <<tend>> DAY POWR <<fpwr>> ;
 
   SYS  := DELETE: SYS ;
   SYS  := ASM: LIBSS TRK FTRK :: EDIT 0 ;
@@ -191,7 +195,7 @@ FLUX  := FLU: LIBSS TRK SYS :: TYPE K B1 SIGS BUCK 0.0 EXTE 1.0E-6 ;
 GREP: FLUX :: GETVAL 'K-INFINITY' 1 >>kinf<< ;
 ECHO "A5BOFF" buend dbr tfbr tgbr kinf ;
 
-EVALUATE istep := 5 ;
+EVALUATE istep := 6 ;
 GREP: DONNEES :: GETVAL 'burn' <<istep>> >>buend<< ;
 EVALUATE dbr tfbr tgbr := 0.375 1050.0 625.0 ;
 LIBRARY := DELETE: LIBRARY ;
@@ -206,7 +210,7 @@ FLUX  := FLU: LIBSS TRK SYS :: TYPE K B1 SIGS BUCK 0.0 EXTE 1.0E-6 ;
 GREP: FLUX :: GETVAL 'K-INFINITY' 1 >>kinf<< ;
 ECHO "A5BOFF" buend dbr tfbr tgbr kinf ;
 
-EVALUATE istep := 5 ;
+EVALUATE istep := 6 ;
 GREP: DONNEES :: GETVAL 'burn' <<istep>> >>buend<< ;
 EVALUATE dbr tfbr tgbr := 0.225 1350.0 825.0 ;
 LIBRARY := DELETE: LIBRARY ;
@@ -221,7 +225,7 @@ FLUX  := FLU: LIBSS TRK SYS :: TYPE K B1 SIGS BUCK 0.0 EXTE 1.0E-6 ;
 GREP: FLUX :: GETVAL 'K-INFINITY' 1 >>kinf<< ;
 ECHO "A5BOFF" buend dbr tfbr tgbr kinf ;
 
-EVALUATE istep := 8 ;
+EVALUATE istep := 10 ;
 GREP: DONNEES :: GETVAL 'burn' <<istep>> >>buend<< ;
 EVALUATE dbr tfbr tgbr := 0.66 750.0 625.0 ;
 LIBRARY := DELETE: LIBRARY ;
@@ -236,7 +240,7 @@ FLUX  := FLU: LIBSS TRK SYS :: TYPE K B1 SIGS BUCK 0.0 EXTE 1.0E-6 ;
 GREP: FLUX :: GETVAL 'K-INFINITY' 1 >>kinf<< ;
 ECHO "A5BOFF" buend dbr tfbr tgbr kinf ;
 
-EVALUATE istep := 8 ;
+EVALUATE istep := 10 ;
 GREP: DONNEES :: GETVAL 'burn' <<istep>> >>buend<< ;
 EVALUATE dbr tfbr tgbr := 0.375 1050.0 625.0 ;
 LIBRARY := DELETE: LIBRARY ;
@@ -251,7 +255,7 @@ FLUX  := FLU: LIBSS TRK SYS :: TYPE K B1 SIGS BUCK 0.0 EXTE 1.0E-6 ;
 GREP: FLUX :: GETVAL 'K-INFINITY' 1 >>kinf<< ;
 ECHO "A5BOFF" buend dbr tfbr tgbr kinf ;
 
-EVALUATE istep := 8 ;
+EVALUATE istep := 10 ;
 GREP: DONNEES :: GETVAL 'burn' <<istep>> >>buend<< ;
 EVALUATE dbr tfbr tgbr := 0.085 1750.0 825.0 ;
 LIBRARY := DELETE: LIBRARY ;
@@ -266,7 +270,7 @@ FLUX  := FLU: LIBSS TRK SYS :: TYPE K B1 SIGS BUCK 0.0 EXTE 1.0E-6 ;
 GREP: FLUX :: GETVAL 'K-INFINITY' 1 >>kinf<< ;
 ECHO "A5BOFF" buend dbr tfbr tgbr kinf ;
 
-EVALUATE istep := 8 ;
+EVALUATE istep := 10 ;
 GREP: DONNEES :: GETVAL 'burn' <<istep>> >>buend<< ;
 EVALUATE dbr tfbr tgbr := 0.225 1350.0 825.0 ;
 LIBRARY := DELETE: LIBRARY ;

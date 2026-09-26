@@ -335,6 +335,8 @@ DSTEP = {
     "dstep125": ("steps <= 1.25 MWd/kg (NOEX)", _grid(1250.0), "NOEX"),
     "dstep50x": ("a5_void's 5 MWd/kg steps, linear rate extrapolation (EXTR 1)",
                  [0.0, 500.0, 2000.0, 5000.0, 10000.0, 15000.0, 20000.0], "EXTR 1"),
+    # A6b prerequisite: is EXTR 1 on 2.5 MWd/kg steps as good as NOEX on 1.25?
+    "dstep25x": ("steps <= 2.5 MWd/kg, linear rate extrapolation (EXTR 1)", _grid(2500.0), "EXTR 1"),
 }
 for vid, (desc, grid, extr) in DSTEP.items():
     body = A5.replace(A5_GRID, f"INTEGER nbu := {len(grid)} ;")

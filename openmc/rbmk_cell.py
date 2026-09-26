@@ -136,20 +136,11 @@ def rod_positions():
     return inner, outer
 
 
-def build_geometry(m, boundary="reflective"):
-    """CARCEL 5 + CLUSTER CARR/ROD1/ROD2, as a 2-D infinite lattice."""
-    # Outer square, reflective on all four sides; z reflective => infinite axially
-    # Side faces only: "white" reproduces DRAGON's TISO tracking, which applies
-    # isotropic reflection (NXTTCG.f:464) -- hypothesis H2.  z stays specular so
-    # the model remains strictly 2-D, as DRAGON's is.
-    xmin = openmc.XPlane(-HALF_PITCH, boundary_type=boundary)
-    xmax = openmc.XPlane(+HALF_PITCH, boundary_type=boundary)
-    ymin = openmc.YPlane(-HALF_PITCH, boundary_type=boundary)
-    ymax = openmc.YPlane(+HALF_PITCH, boundary_type=boundary)
-    zmin = openmc.ZPlane(-0.5, boundary_type="reflective")
-    zmax = openmc.ZPlane(+0.5, boundary_type="reflective")
-    box = +xmin & -xmax & +ymin & -ymax & +zmin & -zmax
-
+def fuel_cells(m):
+    """The cell's contents, unbounded: the graphite block is everything outside
+    the rings.  build_geometry() closes it with the reflective box; the CPS
+    supercell (cps_common.py) places it in a lattice.  One definition, so the
+    single cell and the supercell's fuel cannot differ."""
     s_chan  = openmc.ZCylinder(r=R_CHANNEL)
     s_pt    = openmc.ZCylinder(r=R_PT_OUT)
     s_gas   = openmc.ZCylinder(r=R_GAS_OUT)
@@ -208,8 +199,26 @@ def build_geometry(m, boundary="reflective"):
     # r=11.0 surface separates two identical graphite regions, so it is
     # omitted here -- it cannot affect the transport solution).
     cells.append(openmc.Cell(name="graphite block", fill=m["gr_block"],
-                             region=+s_rings & box))
+                             region=+s_rings))
+    return cells
 
+
+def build_geometry(m, boundary="reflective"):
+    """CARCEL 5 + CLUSTER CARR/ROD1/ROD2, as a 2-D infinite lattice."""
+    # Outer square, reflective on all four sides; z reflective => infinite axially
+    # Side faces only: "white" reproduces DRAGON's TISO tracking, which applies
+    # isotropic reflection (NXTTCG.f:464) -- hypothesis H2.  z stays specular so
+    # the model remains strictly 2-D, as DRAGON's is.
+    xmin = openmc.XPlane(-HALF_PITCH, boundary_type=boundary)
+    xmax = openmc.XPlane(+HALF_PITCH, boundary_type=boundary)
+    ymin = openmc.YPlane(-HALF_PITCH, boundary_type=boundary)
+    ymax = openmc.YPlane(+HALF_PITCH, boundary_type=boundary)
+    zmin = openmc.ZPlane(-0.5, boundary_type="reflective")
+    zmax = openmc.ZPlane(+0.5, boundary_type="reflective")
+    box = +xmin & -xmax & +ymin & -ymax & +zmin & -zmax
+
+    cells = fuel_cells(m)
+    cells[-1].region = cells[-1].region & box
     # Bound the inner cells axially and laterally
     for c in cells[:-1]:
         c.region = c.region & +zmin & -zmax

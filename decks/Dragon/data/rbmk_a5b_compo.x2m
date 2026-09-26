@@ -19,17 +19,24 @@
 *    TG       TEMP MIX 5    graphite temperature -- RBMK-specific and large
 *                           (graphite is 89.6 % of the cell)
 *
-*  Xe is NOT an axis here.  XENON: in DONJON gives equilibrium xenon only, so
-*  an explicit Xe axis is needed eventually for the ORM story, but it
-*  multiplies the grid by ~4 and should not delay the first working COMPO.
-*  That is A5b.2, after this file is proven to load in DONJON.
+*  Xe is NOT an axis.  The MICR list carries Xe135 and I135 (and Sm149,
+*  Pm149), so DONJON sets their densities explicitly with NCR: MICRO and a
+*  small chain, as upstream rep900_sim_recopy does -- xenon follows the core
+*  state instead of a branch grid.  A6b checks that route against a DRAGON
+*  branch with the xenon removed (TIER_A_WORKPLAN A6b).
+*
+*  DEPLETION (2026-09-26, A6b): EVO: EXTR 1 on a grid no coarser than 2.5 MWd/kg
+*  ('dburn'), branching only at the COMPO nodes ('burn'; 'isnode' flags them).
+*  rbmk_meth_dstep25x measured this within 27-36 pcm of the step-converged
+*  k-inf at 10 / 15 / 20 MWd/kg; the NOEX steps used before were up to 137 pcm
+*  off.  Void worths were already step-converged (0.5-3 %).
 *
 *  ON THE VOID AXIS AND ITS UNCERTAINTY.  DRAGON and OpenMC agree on the sign
 *  and the burnup trend of the void coefficient and disagree on its magnitude
 *  by ~2x at discharge burnup and ~12x at fresh fuel (PROGRESS.md, "OpenMC
-*  cross-check").  This deck produces the DRAGON side.  A second COMPO, whose
-*  void branches are scaled to OpenMC's branch RATIO k_void/k_nom, is built
-*  downstream; A8 runs under both.  Nothing here is tuned toward either.
+*  cross-check").  This deck produces the DRAGON side.  The OpenMC side and
+*  the method correction are carried as additive tables (openmc/void_bracket.py,
+*  variants A' and B); A8 runs under both.  Nothing here is tuned toward either.
 *
 *  LEAKAGE MODEL AT ZERO BUCKLING -- why FLU: is not plain TYPE K.
 *  COMPO: copies diffusion coefficients into the MULTICOMPO only when the
@@ -71,12 +78,19 @@ REAL dnom  :=   0.72 ;  ! g/cm3, nominal coolant density
 REAL fpwr  :=   16.7 ;  ! MW per tonne initial heavy metal (3200 MWth / 192 t)
 
 INTEGER nbu := 8 ;
+INTEGER ndep := 10 ;
 INTEGER ndc := 7 ;
 INTEGER ntf := 5 ;
 INTEGER ntg := 3 ;
 
 DONNEES := UTL: :: CREA 'burn' <<nbu>> =
    0.0  2000.0  5000.0  7500.0  10000.0  12500.0  15000.0  20000.0 ;
+*  depletion grid (<= 2.5 MWd/kg) and which of its points are COMPO nodes
+DONNEES := UTL: DONNEES :: CREA 'dburn' <<ndep>> =
+   0.0  2000.0  3500.0  5000.0  7500.0  10000.0  12500.0  15000.0
+   17500.0  20000.0 ;
+DONNEES := UTL: DONNEES :: CREA 'isnode' <<ndep>> =
+   1.0  1.0  0.0  1.0  1.0  1.0  1.0  1.0  0.0  1.0 ;
 DONNEES := UTL: DONNEES :: CREA 'dca' <<ndc>> =
    0.72  0.60  0.45  0.30  0.15  0.05  0.02 ;
 DONNEES := UTL: DONNEES :: CREA 'tf' <<ntf>> =
@@ -85,7 +99,7 @@ DONNEES := UTL: DONNEES :: CREA 'tg' <<ntg>> =
    500.0  750.0  900.0 ;
 
 INTEGER istep iv itf itg ;
-REAL bubeg buend tbeg tend dbr tfbr tgbr kinf ;
+REAL bubeg buend tbeg tend dbr tfbr tgbr kinf flag ;
 
 *--------------------------------------------------------------
 *  GEOMETRY AND TRACKING  (identical to rbmk_cell_a3.x2m)
@@ -134,14 +148,14 @@ BURNUP LIBSS := EVO: LIBSS FLUX TRK ::
   EDIT 0 SAVE <<tend>> DAY POWR <<fpwr>> ;
 
 EVALUATE istep := 1 ;
-WHILE istep nbu < DO
+WHILE istep ndep < DO
   EVALUATE istep := istep 1 + ;
   EVALUATE bubeg tbeg := buend tend ;
-  GREP: DONNEES :: GETVAL 'burn' <<istep>> >>buend<< ;
+  GREP: DONNEES :: GETVAL 'dburn' <<istep>> >>buend<< ;
   EVALUATE tend := buend fpwr / ;
 
   BURNUP LIBSS := EVO: BURNUP LIBSS FLUX TRK ::
-    EDIT 0 NOEX DEPL <<tbeg>> <<tend>> DAY POWR <<fpwr>> ;
+    EDIT 0 EXTR 1 DEPL <<tbeg>> <<tend>> DAY POWR <<fpwr>> ;
 
   SYS  := DELETE: SYS ;
   SYS  := ASM: LIBSS TRK FTRK :: EDIT 0 ;
@@ -166,10 +180,12 @@ ECHO "" ;
 ECHO "=== A5b: branch tensor, DCA x TF x TG at each burnup ===" ;
 
 EVALUATE istep := 0 ;
-WHILE istep nbu < DO
+WHILE istep ndep < DO
   EVALUATE istep := istep 1 + ;
-  GREP: DONNEES :: GETVAL 'burn' <<istep>> >>buend<< ;
+  GREP: DONNEES :: GETVAL 'dburn' <<istep>> >>buend<< ;
+  GREP: DONNEES :: GETVAL 'isnode' <<istep>> >>flag<< ;
   EVALUATE tend := buend fpwr / ;
+  IF flag 0.5 > THEN
 
   EVALUATE itg := 0 ;
   WHILE itg ntg < DO
@@ -247,6 +263,7 @@ WHILE istep nbu < DO
       ENDWHILE ;
     ENDWHILE ;
   ENDWHILE ;
+  ENDIF ;
 ENDWHILE ;
 
 *--------------------------------------------------------------

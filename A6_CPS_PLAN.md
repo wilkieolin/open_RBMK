@@ -61,6 +61,22 @@ generating both the OpenMC models and the DRAGON decks, as `srp94_common.py` doe
 
 **GATE A6.1:** every sourced value is traceable to a page; every open value has its bracket.
 
+> **Status 2026-09-26: PASSED**, with the rod types carried forward as open.
+> - `openmc/cps_common.py` is the single transcription. It writes `RbmkCpsLib.c2m` (MIX 10–15
+>   added to the fuel cell's library), `RbmkSc{FUEL,WAT,ABS,DSP,VOID}.c2m` (the supercells) and the
+>   `rbmk_cps_*` decks, and builds the OpenMC supercells. The CPS tube's Zr-2.5Nb is read from
+>   RbmkLib MIX 2, not copied.
+> - Al alloy: САВ-1, closed ([SF], [OST]). Additional absorbers in Unit 4: one, closed
+>   (INSAG-7 pp. 67, 107).
+> - B₄C density: no source found. Carried as 2.0 g/cm³ (1.7–2.3). Displacer graphite: 1.65 g/cm³
+>   (1.50–1.73) at the CPS water temperature (773 K upper case).
+> - Rod-site map: `tools/digitise_fig_II6.py` → `sources/derived/insag7_fig_II6_012230.csv`. It has
+>   211 rods, 12 empty lattice sites and the depth of every rod at 01:22:30, and it is checked
+>   against the page glyph by glyph. Rod **types** are not in the figure and are still open (see
+>   sources/README.md). They are needed from A6.5 on.
+> - The real CPS lattice is 45°-rotated with 7 fuel cells per CPS cell. The 3 × 3 supercell has 8.
+>   OpenMC measures the difference with a 4 × 4 periodic "r45" cell; it is reported and not applied.
+
 ### A6.2 — Supercells
 A CPS cell cannot be homogenised alone: it has no fuel. Model a **3 × 3 supercell** of 25 cm cells,
 the CPS channel at the centre and 8 fuel channels around it, with reflective boundaries. At a 700 mm
@@ -103,11 +119,24 @@ the supercell).
 worths within 1 % (the SPH test).
 
 ### A6.5 — Rod sites in the core
-Add the 211 CPS sites to the core generator (`decks/scripts/gen_rbmk_donjon.py`) from the digitised
+Add the 211 CPS sites to the core generator (`decks/Donjon/data/gen_rbmk_realistic.py`) from the digitised
 map. Each rod is an axial stack (absorber / telescope water / displacer / water) that moves as one:
 - RR and AZ: 5 m absorber + 1.25 m water + 4.5 m displacer;
 - AR: absorber only;
 - USP: 3.5 m absorber, from below.
+
+> **Found 2026-09-26, blocks this step until A6d's channel map exists.** The generator's core is
+> the 1661 cells nearest the centre of a 590 cm circle, which holds only 1749 cells. Unit 4 needs
+> 1884 channel positions: 1661 fuel, 211 rods and the 12 empty lattice sites of Fig. II-6. That
+> is 117.8 m², an equivalent diameter of 12.2 m. The rods are also interspersed with the fuel, not
+> set outside it. Placing the digitised lattice on the current grid puts 209–221 sites inside the
+> circle, whatever the offset. So the channel map is rebuilt from a sourced cartogram in A6d, with
+> Fig. II-6's lattice as its skeleton. It is not patched here.
+> The counts close exactly: 1661 fuel + 211 rods + 12 empty sites = 1884 = 1661 + the 223
+> digitised sites. A centred circle can't reproduce that, because circle cell counts step by 8.
+> The nearest is R² ≤ 596 cells², giving 1885 cells with all 223 sites inside and 1662 fuel,
+> one too many. So A6d traces the real outline from a cartogram ([LEG] Fig. 6.7's staircase
+> boundary is legible). The circle is the fallback, and it is one channel off.
 
 Drive positions with `DSET:` and a computed level. `MOVDEV:` is broken for multi-part rods, and a
 parked displacer must be a base-map mixture (TIER_A_WORKPLAN "Known traps").
