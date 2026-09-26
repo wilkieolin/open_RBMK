@@ -1849,6 +1849,34 @@ DRAGON on `zr361` settings:
     DRAGON / +2.7 $ OpenMC on 09-25) has narrowed from a 38 % spread to 13 %, and every point in
     it is above prompt critical.
 
+
+### Depletion step size — 2026-09-26
+
+The rebuilt COMPO deck (2.5 MWd/kg steps through 5–15) gave k∞ 1.097439 at 10 MWd/kg, against
+`rbmk_a5_void`'s 1.099025 on identical settings. `rbmk_meth_dstep*` are `rbmk_a5_void` with
+only the burnup list, or `EVO:` extrapolation, changed. They ran on `spark` (the partner GB10),
+which reproduces this machine bit for bit.
+
+| k∞ / full-void Δρ (pcm) | 10 MWd/kg | 15 | 20 |
+|---|---|---|---|
+| 5 MWd/kg steps, `NOEX` (production to date) | 1.09903 / +904 | 1.01234 / +1625 | 0.92900 / +2617 |
+| 2.5, `NOEX` (`dstep25`) | 1.09791 / +907 | 1.00939 / +1652 | 0.92462 / +2680 |
+| 1.25, `NOEX` (`dstep125`) | 1.09746 / +908 | 1.00819 / +1663 | 0.92290 / +2705 |
+| 5, `EXTR 1` (`dstep50x`) | 1.09839 / +887 | 1.00735 / +1650 | 0.92135 / +2701 |
+
+- **Void worth is nearly step-converged:** within 0.5 % at 10 MWd/kg and 3 % at 15.
+- **Nominal k∞ is not.** 5 MWd/kg `NOEX` steps overstate it by ~200 pcm (10 MWd/kg) and ~530 pcm
+  (15). The error is first order; the limit is ≈ 1.0970 / 1.0070.
+- **Consequence for B1.** Step-converged DRAGON sits ~190–200 pcm below OpenMC's matched
+  depletion at both burnups, a steady offset. The fuel-composition residual is ~100 / 160 pcm of
+  nominal ρ, not 264 / 680; much of the earlier number was DRAGON's step error. On void worth
+  the chain/yield residual is 44 / 111 pcm (was 48 / 156). DRAGON's own-depletion full-void worth
+  becomes 1152 / 1936 pcm, −9.7 % / −14.1 % from OpenMC. The transport-only Gate B verdict is
+  unaffected.
+- **The rebuilt COMPO** (`NOEX`, 2.5 MWd/kg steps in 5–15) carries ~75–130 pcm of step error in
+  nominal k over the accident range, and < 1 % in void worth. 2.5 MWd/kg with `EXTR 1` is the
+  candidate for the next rebuild (untested).
+
 ---
 
 ## Standing rules
