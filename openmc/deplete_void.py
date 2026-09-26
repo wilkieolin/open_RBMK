@@ -55,8 +55,11 @@ def run_depletion(outdir=DEPLDIR):
             mat.volume = VOL[mat.id]
             mat.depletable = True
 
+    # RBMK_NORM=energy-deposition normalises on all energy deposited (capture
+    # gammas included), as DRAGON's H-FACTOR does; fission-q (the default, and
+    # every result before 2026-09-25) counts fission Q only (U235 193.4 MeV).
     op = openmc.deplete.CoupledOperator(
-        model, CHAIN, normalization_mode="fission-q",
+        model, CHAIN, normalization_mode=os.environ.get("RBMK_NORM", "fission-q"),
         reduce_chain_level=5)
     steps, marks = substeps()
     integ = openmc.deplete.CECMIntegrator(
@@ -71,20 +74,24 @@ def run_depletion(outdir=DEPLDIR):
 
 
 def branch_runs(marks, outdir=DEPLDIR, particles=10_000, batches=130,
-                inactive=20):
-    """Re-run each saved burnup point at each coolant density."""
+                inactive=20, graphite_tsl="c_Graphite", bus=None, brdir=None,
+                resjson=None):
+    """Re-run each saved burnup point (or only those in bus) at each coolant density."""
+    brdir, resjson = brdir or BRDIR, resjson or RESJSON
     res = openmc.deplete.Results(os.path.join(outdir, "depletion_results.h5"))
     out = []
     for bu, idx in zip(BU_GRID, marks):
+        if bus is not None and bu not in bus:
+            continue
         # depleted fuel compositions at this burnup point
         depleted = {m.id: m for m in res.export_to_materials(
             idx, path=os.path.join(outdir, "materials.xml"))}
         for dca in DENSITIES:
             tag = f"bu{bu:g}_d{dca:g}"
-            d = os.path.join(BRDIR, tag)
+            d = os.path.join(brdir, tag)
             os.makedirs(d, exist_ok=True)
-            model = make_model(dca=dca, particles=particles,
-                               batches=batches, inactive=inactive)
+            model = make_model(dca=dca, particles=particles, batches=batches,
+                               inactive=inactive, graphite_tsl=graphite_tsl)
             # swap in the depleted isotopics for MIX 6 and MIX 7
             newmats = []
             for mat in model.materials:
@@ -102,7 +109,7 @@ def branch_runs(marks, outdir=DEPLDIR, particles=10_000, batches=130,
             out.append(dict(bu=bu, dca=dca, k=k, sd=sd))
             print(f"  BU={bu:6.1f} MWd/kg  dca={dca:4.2f}  "
                   f"k={k:.5f} +/- {sd:.5f}", flush=True)
-    with open(RESJSON, "w") as f:
+    with open(resjson, "w") as f:
         json.dump(out, f, indent=1)
     return out
 

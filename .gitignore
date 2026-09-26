@@ -33,6 +33,8 @@ __pycache__/
 openmc/run*/
 openmc/depl*/
 openmc/branch81*/
+openmc/branch_gb10*/
+openmc/branch_accref/
 openmc/beta81*/
 openmc/rates_d*/
 openmc/rates10p_d*/

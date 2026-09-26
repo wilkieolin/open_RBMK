@@ -43,7 +43,7 @@ WHILE iv ndc < DO
   EVALUATE iv := iv 1 + ;
   GREP: DONNEES :: GETVAL 'dca' <<iv>> >>dca<< ;
   LIBRARY := RbmkLib  :: <<dca>> <<tfuel>> <<tgrap>> <<tcool>> ;
-  LIBSS := USS: LIBRARY TRKSS FTRKSS :: EDIT 0 PASS 2 GRMIN 18 ;
+  LIBSS := USS: LIBRARY TRKSS FTRKSS :: EDIT 0 PASS 2 MAXST 300 ;
   SYS   := ASM: LIBSS TRK FTRK :: EDIT 0 ;
   FLUX  := FLU: LIBSS TRK SYS :: TYPE K EXTE 1.0E-6 ;
   GREP: FLUX :: GETVAL 'K-INFINITY' 1 >>kinf<< ;

@@ -70,13 +70,13 @@ REAL tcool :=  573.0 ;  ! K, coolant and structure (saturation at 6.9 MPa)
 REAL dnom  :=   0.72 ;  ! g/cm3, nominal coolant density
 REAL fpwr  :=   16.7 ;  ! MW per tonne initial heavy metal (3200 MWth / 192 t)
 
-INTEGER nbu := 6 ;
+INTEGER nbu := 8 ;
 INTEGER ndc := 7 ;
 INTEGER ntf := 5 ;
 INTEGER ntg := 3 ;
 
 DONNEES := UTL: :: CREA 'burn' <<nbu>> =
-   0.0  2000.0  5000.0  10000.0  15000.0  20000.0 ;
+   0.0  2000.0  5000.0  7500.0  10000.0  12500.0  15000.0  20000.0 ;
 DONNEES := UTL: DONNEES :: CREA 'dca' <<ndc>> =
    0.72  0.60  0.45  0.30  0.15  0.05  0.02 ;
 DONNEES := UTL: DONNEES :: CREA 'tf' <<ntf>> =
@@ -109,7 +109,7 @@ COMPO := COMPO: ::
   EDIT 1
   STEP UP 'EDIRBMK'
   MAXCAL 5
-  COMM 'RBMK-1000 channel cell, 2 wt% U-235, DLIB_99 (ENDF/B-VIII.1)' ENDC
+  COMM 'RBMK-1000 cell, 2 wt% U-235, ENDF/B-VIII.1 SHEM-361, Zr SS' ENDC
   PARA 'burnup' IRRA
   PARA 'TF'  TEMP LIBRARY 6
   PARA 'TG'  TEMP LIBRARY 5
@@ -123,7 +123,7 @@ COMPO := COMPO: ::
 ECHO "=== A5b: reference depletion at dca" dnom "TF" tfnom "TG" tgnom "===" ;
 
 LIBRARY := RbmkLib :: <<dnom>> <<tfnom>> <<tgnom>> <<tcool>> ;
-LIBSS   := USS: LIBRARY TRKSS FTRKSS :: EDIT 0 PASS 2 GRMIN 18 ;
+LIBSS   := USS: LIBRARY TRKSS FTRKSS :: EDIT 0 PASS 2 MAXST 300 ;
 SYS     := ASM: LIBSS TRK FTRK :: EDIT 0 ;
 FLUX    := FLU: LIBSS TRK SYS :: TYPE K B1 SIGS BUCK 0.0 EXTE 1.0E-6 ;
 GREP: FLUX :: GETVAL 'K-INFINITY' 1 >>kinf<< ;
@@ -192,7 +192,7 @@ WHILE istep nbu < DO
           EDIT 0 BURN <<istep>> MIX 6 MIX 7 ;
 
         LIBSS := DELETE: LIBSS ;
-        LIBSS := USS: LIBRARY TRKSS FTRKSS :: EDIT 0 PASS 2 GRMIN 18 ;
+        LIBSS := USS: LIBRARY TRKSS FTRKSS :: EDIT 0 PASS 2 MAXST 300 ;
         SYS   := DELETE: SYS ;
         SYS   := ASM: LIBSS TRK FTRK :: EDIT 0 ;
         FLUX  := DELETE: FLUX ;

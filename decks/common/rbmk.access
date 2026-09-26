@@ -1,0 +1,14 @@
+#!/bin/sh
+#
+# PRODUCTION library binding for the RBMK decks (METHOD_CONVERGENCE_PLAN C2,
+# 2026-09-25 (3)).  ENDF/B-VIII.1 in the SHEM-361 group structure: the method
+# study showed the 172-group library is not converged through the U-238
+# resonances (hypothesis H9; SHEM-370 moves nothing further).  Decks bound here
+# must use  USS: ... PASS 2 MAXST 300  (SHEM-361 hits USS's default 50-iteration
+# cap; GRMIN 18 is a 172-group index and does not apply).
+#
+# Method-study and SRP decks keep their own explicit hooks (dlib99.access for the
+# 172-group controls, shem361.access for the SHEM-361 variants), so repointing
+# production never moves a control.
+#
+DRAGLIB=draglibendfb8r1SHEM361_v5p1 exec "$1"/../../decks/common/dlib99.access "$@"

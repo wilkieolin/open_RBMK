@@ -52,7 +52,7 @@ TRK   FTRK   := NXT: GEOFL ::
 ECHO "=== reference depletion, dca =" dnom "g/cm3 ===" ;
 
 LIBRARY := RbmkLib :: <<dnom>> <<tfuel>> <<tgrap>> <<tcool>> ;
-LIBSS   := USS: LIBRARY TRKSS FTRKSS :: EDIT 0 PASS 2 GRMIN 18 ;
+LIBSS   := USS: LIBRARY TRKSS FTRKSS :: EDIT 0 PASS 2 MAXST 300 ;
 SYS     := ASM: LIBSS TRK FTRK :: EDIT 0 ;
 FLUX    := FLU: LIBSS TRK SYS :: TYPE K EXTE 1.0E-6 ;
 GREP: FLUX :: GETVAL 'K-INFINITY' 1 >>kref<< ;
@@ -107,7 +107,7 @@ WHILE istep nbu < DO
   LIBRARY := RbmkLib :: <<dnom>> <<tfuel>> <<tgrap>> <<tcool>> ;
   LIBRARY := LIB: LIBRARY BURNUP :: EDIT 0 BURN <<istep>> MIX 6 MIX 7 ;
   LIBSS   := DELETE: LIBSS ;
-  LIBSS   := USS: LIBRARY TRKSS FTRKSS :: EDIT 0 PASS 2 GRMIN 18 ;
+  LIBSS   := USS: LIBRARY TRKSS FTRKSS :: EDIT 0 PASS 2 MAXST 300 ;
   SYS     := DELETE: SYS ;
   SYS     := ASM: LIBSS TRK FTRK :: EDIT 0 ;
   FLUX    := DELETE: FLUX ;
@@ -123,7 +123,7 @@ WHILE istep nbu < DO
     LIBRARY := RbmkLib :: <<dbr>> <<tfuel>> <<tgrap>> <<tcool>> ;
     LIBRARY := LIB: LIBRARY BURNUP :: EDIT 0 BURN <<istep>> MIX 6 MIX 7 ;
     LIBSS   := DELETE: LIBSS ;
-    LIBSS   := USS: LIBRARY TRKSS FTRKSS :: EDIT 0 PASS 2 GRMIN 18 ;
+    LIBSS   := USS: LIBRARY TRKSS FTRKSS :: EDIT 0 PASS 2 MAXST 300 ;
     SYS     := DELETE: SYS ;
     SYS     := ASM: LIBSS TRK FTRK :: EDIT 0 ;
     FLUX    := DELETE: FLUX ;

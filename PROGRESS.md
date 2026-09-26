@@ -55,15 +55,14 @@
 > The DRAGON/OpenMC bracket has been read at the wrong burnup. See "Cell geometry closed" below
 > and `sources/README.md`.
 
-> **2026-09-25 (2): third-party check.** On the RBMK Safety Review Project cell from Alexeev
-> et al. (1998):
-> - Our OpenMC reproduces MCNP and MCU (watered k∞ within 0.1–0.4 %).
-> - Production DRAGON gives half their void effect (Δk 2.46 vs 4.80–4.85 %); SHEM-361 + Zr
->   self-shielding gives 3.45.
-> - Parisi & D'Auria (2007) independently found DRAGON 21 % low against MCNP.
-> - The Kurchatov critical experiments aren't specified in that paper, and are impurity-limited.
-> - Local runs were stopped to move to the GB10; see the hand-off at the end of "Third-party
->   benchmark".
+> **2026-09-24 (4): re-baselined in both codes on the closed geometry. The bracket now
+> straddles prompt criticality at the accident state.**
+> - DRAGON: k∞ 1.304123, COMPO rebuilt (round trip 6.6 pcm, off-grid 26.5 pcm, now reproducible), β curve unchanged.
+> - OpenMC: re-run on VIII.1.
+> - The geometry fixes cut DRAGON's void worth at every burnup and left OpenMC's nearly unchanged, so the method gap widened.
+> - At 10–15 MWd/kgU, where Unit 4 was, full voiding is +0.4–1.65 $ in DRAGON and +2.25–4.6 $ in OpenMC.
+> - The ~1.9 multiplier held only at 20 MWd/kg.
+> - Resolving the method gap moves ahead of A6. See "Re-baseline on the closed geometry" near the end.
 
 > **2026-09-25: the method gap is mostly DRAGON not being converged, and the prompt-critical
 > straddle is gone.** The four-factor split puts the whole DRAGON/OpenMC disagreement in
@@ -77,14 +76,43 @@
 > - See "Method gap: hypothesis register". The production COMPO is still on 172 groups and
 >   now known to be unconverged.
 
-> **2026-09-24 (4): re-baselined in both codes on the closed geometry. The bracket now
-> straddles prompt criticality at the accident state.**
-> - DRAGON: k∞ 1.304123, COMPO rebuilt (round trip 6.6 pcm, off-grid 26.5 pcm, now reproducible), β curve unchanged.
-> - OpenMC: re-run on VIII.1.
-> - The geometry fixes cut DRAGON's void worth at every burnup and left OpenMC's nearly unchanged, so the method gap widened.
-> - At 10–15 MWd/kgU, where Unit 4 was, full voiding is +0.4–1.65 $ in DRAGON and +2.25–4.6 $ in OpenMC.
-> - The ~1.9 multiplier held only at 20 MWd/kg.
-> - Resolving the method gap moves ahead of A6. See "Re-baseline on the closed geometry" near the end.
+> **2026-09-25 (2): third-party check.** On the RBMK Safety Review Project cell from Alexeev
+> et al. (1998):
+> - Our OpenMC reproduces MCNP and MCU (watered k∞ within 0.1–0.4 %).
+> - Production DRAGON gives half their void effect (Δk 2.46 vs 4.80–4.85 %); SHEM-361 + Zr
+>   self-shielding gives 3.45.
+> - Parisi & D'Auria (2007) independently found DRAGON 21 % low against MCNP.
+> - The Kurchatov critical experiments aren't specified in that paper, and are impurity-limited.
+> - Local runs were stopped to move to the GB10; see the hand-off at the end of "Third-party
+>   benchmark".
+
+> **2026-09-26: Phase C done: production is on the converged library.**
+> - **Library.** SHEM-361 with Zr self-shielded in `RbmkLib`; k∞ 1.313968.
+> - **COMPO.** Rebuilt at 840 points with burnup nodes at 7.5 and 12.5. Round trip 6.7 pcm, off-grid
+>   21 pcm, β monotone.
+> - **Full-void worth at 10.9 MWd/kgU:** +1.95 $ (production COMPO), +2.42 $ (plus the measured
+>   mesh/MOC correction), +2.72 $ (OpenMC matched).
+> - **Depletion step size.** 5 MWd/kg steps overstated nominal k∞ by ~200–530 pcm; the void worth
+>   was converged.
+> - **What's next.** The method-convergence segment is closed. Next is A6 (CPS channel cells),
+>   after a check-in. See "Phase C".
+
+> **2026-09-25 (3): the void gap closes to within its criterion.**
+> - **Hot cell, fresh fuel.** DRAGON on SHEM-361 + Zr self-shielding + 4× mesh + MOC with P1
+>   scattering gives full-void Δρ **+763 vs OpenMC +821 ± 21** (inside 2σ + 5 %). At 0.35 g/cm³
+>   it is +553 vs +533.
+> - **SRP-1994 cell.** DRAGON is within 4 % of OpenMC (4.59 / 5.04 vs 4.77 / 5.24 %Δk); it was
+>   42–48 % low in production.
+> - **What's left.** Nominal k∞ is still 240 pcm apart (resonance escape); that residual is
+>   attributed, not closed.
+> - **Pellet-rim self-shielding.** The per-ring treatment is a USS artefact (−890 pcm, the wrong
+>   direction), not missing physics.
+> - **Depletion.** 60–70 % of the DRAGON/OpenMC depletion difference is a burnup-normalisation
+>   convention: OpenMC's fission-Q mode books ~5 % more fissions per MWd than DRAGON.
+> - **SRP cell, 8× mesh.** DRAGON gives 4.80 / 5.27 %Δk, matching OpenMC (4.77 / 5.24) and MCNP.
+> - **Accident state (Gate B).** On matched burnup scales and identical fuel, DRAGON is within 6–9 %
+>   of OpenMC. Full voiding at 10.9 MWd/kgU is **+2.4 to +2.75 $** across both codes. See "Phase A–B
+>   on the GB10".
 
 ## Objective
 
@@ -98,7 +126,7 @@ in-core detector readings). Accident scenario runs to **fuel failure** and stops
 
 | Tier | What | Status |
 |---|---|---|
-| **A — offline physics** | DRAGON5 lattice → MULTICOMPO → DONJON5 3-D steady + reference AZ-5 transient. Source of truth. | **In progress.** A3/A4/A5a done; A5b (MULTICOMPO export) next, then A6–A9. |
+| **A — offline physics** | DRAGON5 lattice → MULTICOMPO → DONJON5 3-D steady + reference AZ-5 transient. Source of truth. | **In progress.** A3–A5b done and method-converged (2026-09-26: SHEM-361 + Zr SS, 840-point COMPO, void bracket). A6–A9 next. |
 | **B — online engine** | Standalone 2-group nodal/FD diffusion + 6 precursor groups + 1-D per-channel TH on the GB10 GPU, reading Tier A cross sections, validated against Tier A. | Not started |
 | **C — mnemonic panel** | Driven by Tier B. | Not started |
 
@@ -1686,6 +1714,220 @@ What this shows:
 - Don't co-schedule DRAGON with a multi-threaded OpenMC on the same physical cores. On the x86
   box that made the COMPO 4× slower.
 
+*Done on the GB10, 2026-09-25 (3); see the next section. The GB10 reproduces the x86 DRAGON
+numbers to every printed digit (`ctrl` 1.304123, `buzr361`'s void row, the SRP `d172` / `d361`
+decks).*
+
+## Phase A–B on the GB10: the void gap closes to within its criterion — 2026-09-25 (3)
+
+The work order is `METHOD_CONVERGENCE_PLAN.md`. Every number below regenerates from a script:
+- `openmc/method_table.py`: the hot cell, fresh fuel, `rbmk_meth_*`, plus OpenMC's `method_study.json`;
+- `openmc/srp94_run.py table`: the SRP-1994 cell;
+- the `VOIDTAB` rows of `rbmk_meth_buzr361`, for burnup.
+
+The machine is the GB10 (20 cores). DRAGON runs one job per core on cores 0–7, and OpenMC runs
+12 threads on cores 8–19.
+
+### The register, closed out
+
+Every row is one change against `zr361`: SHEM-361, Zr self-shielded, production mesh and
+solver. Δ is the change in pcm of ρ.
+
+| ID | Hypothesis | Variant | Δ nominal | Δ full void | Verdict |
+|---|---|---|---|---|---|
+| A3 | groups converged at 361 | `zr370` (SHEM-370) | +15 | +2 | **converged** (< 20 pcm) |
+| H5 | isotropic scattering + transport correction | `moc1` (MOC, same physics) | −1 | +5 | MOC reproduces CP |
+| | | `moc2` (MOC, P1, `CTRA NONE`) | +1 | **+79** | **confirmed** |
+| | | `moc3` (P2) | 0 | +80 | P1 is enough |
+| H6 | single-region pellet self-shielding | `rim361` (4 rings, own sets) | **−891** | −361 | **artefact, rejected** (below) |
+| | | `rim361s` (4 rings, shared sets) | +21 | −4 | geometry alone is neutral |
+| | | `rim361t2` (SS tracking 20/60) | −892 | — | not a tracking effect |
+| H11 | temperature interpolation | `tgrid` (900 / 800 / 600 K, both codes) | DRAGON +16, OpenMC +12 | DRAGON −41, OpenMC −23 ± ~10 | **ruled out** (18 pcm) |
+| A6a | Nb-93 unshielded | `zr361nonb` (Nb removed) | +361 | +59 | bound: ≤ 59 pcm on void |
+| A6b | graphite table | SRP cell, OpenMC 10P vs crystal | — | Zr +0.06, Al +0.08 %Δk | small (as H1) |
+| H12 | the subgroup method itself | `shi361`, `tone361` | — | — | **untested**: `SHI:`/`TONE:` stop without a message on this `SUBG` library; not pursued |
+
+**H6 is rejected as an artefact, not as physics.** Resolving the pellet rim moves k *away* from
+OpenMC by 890 pcm, and continuous-energy Monte Carlo has no pellet self-shielding approximation to
+refine. The same rings with one shared self-shielding set per rod (`rim361s`) reproduce `zr361`.
+So the whole shift comes from USS giving each ring its own set, which is less accurate in this
+cell than the single region production uses.
+
+**Mesh and anisotropy are not additive.** On the fine mesh, MOC's anisotropy correction is bigger
+than on the production mesh. The combined variant has to be run, not assembled from the parts.
+
+### The best-converged DRAGON, fresh fuel
+
+`bestmoc` is SHEM-361, Zr self-shielded, flat-flux regions split 4×, and MOC with P1
+scattering.
+
+| hot cell | production | `best361` (09-25) | **`bestmoc`** | OpenMC, 10P graphite | criterion |
+|---|---|---|---|---|---|
+| k∞ | 1.304123 | 1.313050 | **1.312198** | 1.316350 ± 0.000265 | gap 240 pcm: **fails** 100 |
+| Δρ, 0.35 g/cm³ | +191 | +435 | **+553** | +533 ± 21 | gap −20: **passes** |
+| Δρ, 0.02 g/cm³ | +62 | +633 | **+763** | +821 ± 21 | gap 58 < 2σ + 5 % = 83: **passes** |
+
+| SRP-1994 cell, void Δk (%) | Zr tube | Al tube |
+|---|---|---|
+| DRAGON production (172 groups) | 2.46 | 3.03 |
+| DRAGON SHEM-361 (+ Zr self-shielded, Zr tube) | 3.45 | 3.77 |
+| DRAGON + 4× mesh | 4.03 | 4.42 |
+| DRAGON + MOC P1 | 3.76 | 4.11 |
+| **DRAGON `bestmoc` (all of the above)** | **4.59** | **5.04** |
+| OpenMC VIII.1, crystal / 10P graphite | 4.71 / 4.77 ± 0.04 | 5.16 / 5.24 ± 0.04 |
+| OpenMC VIII.0, crystal | 4.71 | 5.11 |
+| MCNP4A (ENDF/B-VI) / MCU-3, [ALX98] | 4.81–4.85 / 4.80 | 5.28–5.33 / 5.43–5.47 |
+| MCNP4A (ENDF/B-IV), [ALX98] | 4.29 | — |
+
+- **D0 passes for OpenMC.** Its void Δk is 2–6 % below MCNP/MCU on ENDF/B-VI. VIII.0 and VIII.1
+  agree to 0.05, but [ALX98]'s own MCNP moves 0.56 %Δk between ENDF/B-IV and B-VI, so a 0.1–0.2
+  offset from B-VI is inside the data effect.
+- **The earlier x86 watered k∞ of 1.27655 was a transcription error.** The GB10 run, same seed,
+  gives 1.2756503, which is the same digits with two of them transposed.
+- **DRAGON's residual on the SRP cell is now 4 %** (0.18–0.20 %Δk against OpenMC on the same
+  graphite), down from 48 % / 42 % in production. The 4× mesh alone was worth +0.6 %Δk here,
+  against +75 pcm on the hot cell: the cold cell with full-density water is much more
+  mesh-sensitive.
+- **The 8× mesh (A4), on the MOC lineage, closes the SRP gap.** CP at 8× didn't finish its first
+  `ASM:` in 3 h, so it was stopped.
+
+  | SRP void Δk (%) | 1× | 4× | **8×** | OpenMC 10P | MCNP/MCU |
+  |---|---|---|---|---|---|
+  | Zr tube (MOC P1) | 3.76 | 4.59 | **4.80** | 4.77 ± 0.04 | 4.80–4.85 |
+  | Al tube (MOC P1) | 4.11 | 5.04 | **5.27** | 5.24 ± 0.04 | 5.28–5.47 |
+
+  DRAGON now meets the "referenced" criterion on the third-party cell. The mesh is *not*
+  converged by the plan's 20 pcm test, though: 4→8 still moved void by +0.21 / +0.23 %Δk
+  (1→4: +0.58 / +0.62). A geometric extrapolation puts the limit near 4.92 / 5.41, about 3 %
+  above OpenMC. So the exact 8× match is partly where the sequence happens to sit. Watered k∞
+  at 8× is 1.2712 / 1.2625, against OpenMC's 1.2753 / 1.2673: the same ~250–300 pcm nominal
+  residual as the hot cell. The hot-cell `bestmoc8` is still running (> 7 h).
+
+**The nominal-k residual (~240 pcm) is attributed, not closed.** It sits in resonance escape,
+from U-238 and Zr, as the 09-25 four-factor split showed. None of H1–H11 closes it. The rim
+refinement went the wrong way. The only hypothesis left is the subgroup method itself (H12), and
+that couldn't be tested on this library. The void effect is the quantity Tier A needs, and it
+passes, so per the Gate A decision the residual is reported and bounded rather than chased.
+
+### The accident state: depletion vs transport (B1, H10)
+
+`openmc/isotopics_to_dragon.py` writes OpenMC's depleted fuel into `RbmkLibOMC<bu>.c2m`, and
+DRAGON runs it at fixed composition (`omc10`, `omc15`). Nominal k∞ and full-void Δρ, with
+DRAGON on `zr361` settings:
+
+| | 10 MWd/kg: k∞ | Δρ | 15 MWd/kg: k∞ | Δρ |
+|---|---|---|---|---|
+| DRAGON, own depletion (`buzr361`) | 1.09903 | +904 | 1.01234 | +1625 |
+| DRAGON, OpenMC fuel, OpenMC normalised on deposited energy (`oed`) | 1.09585 | +952 | 1.00541 | +1781 |
+| DRAGON, OpenMC fuel, OpenMC normalised on fission Q (`omc`) | 1.08903 | +1000 | 0.99504 | +1901 |
+| OpenMC, fission Q, crystal graphite (x86 and GB10 runs) | 1.0932 / 1.0916 | +1202 / +1336 ± 100 | 0.9985 / 0.9976 | +2288 / +2554 ± 105 |
+| DRAGON, OpenMC fuel (fission Q), MOC P1 (`omc*moc`) | 1.08937 | +1097 | 0.99539 | +2013 |
+
+- **Transport, on identical fuel.** DRAGON sits ~350 pcm below OpenMC in nominal k at 10 and 15
+  MWd/kg, the same as fresh (330 pcm with crystal graphite). The transport difference doesn't
+  grow with burnup.
+- **Depletion: most of it is a burnup-scale convention.** OpenMC's default normalisation
+  (`fission-q`) counts 193.4 MeV per U-235 fission and no capture energy. DRAGON normalises on its
+  library's H-factor. Re-depleting OpenMC on deposited energy (`RBMK_NORM=energy-deposition`)
+  cuts the fuel-composition difference from 835 → 264 pcm (10 MWd/kg) and 1718 → 680 pcm (15).
+  So **60–70 % of the depletion-trajectory effect is how many fissions each code books per
+  MWd**, not physics. For comparing against Unit 4's 10.9 MWd/kgU, which is thermal energy, the
+  deposited-energy scale is the right one. Every OpenMC burnup result before today is on the
+  fission-Q scale, and so sits at slightly higher effective burnup than its label.
+- What remains of the depletion difference (+48 pcm on void at 10 MWd/kg, +156 at 15) is
+  chains and yields, and is left attributed at that size.
+- **H5 at burnup:** MOC P1 adds +97 (10) and +112 (15), against +79 fresh.
+- **Gate B: the matched comparison.** `openmc/accident_ref.py` (→ `accident_ref.json`) gives
+  OpenMC on deposited-energy depletion and 10P graphite, 50k × 250 active. `oedbest<bu>` is
+  DRAGON's `bestmoc` settings (SHEM-361, Zr SS, 4× mesh, MOC P1) on *the same fuel*.
+
+  | full-void Δρ (pcm) | 10 MWd/kg | 15 MWd/kg | 10.9 MWd/kgU (Unit 4) |
+  |---|---|---|---|
+  | OpenMC, matched | +1275 ± 29 (k 1.09929) | +2253 ± 33 (k 1.00902) | +1451 = **2.75 $** |
+  | DRAGON `oedbest`, same fuel | +1196 (k 1.09485), **−6.2 %** | +2047 (k 1.00463), **−9.1 %** | +1349 = **2.55 $** |
+  | DRAGON best, own depletion (`oedbest` − (`oed` − `buzr361`)) | +1148, −10.0 % | +1891, −16.1 % | +1282 = **2.43 $** |
+
+  The 10.9 MWd/kgU column interpolates linearly, with β 528 pcm from the 172-group β curve.
+  - **Transport meets Gate B:** within 10 % at both burnups.
+  - **With each code's own depletion it misses at 15 MWd/kg** (−16 %). The excess is the
+    depletion difference left after the burnup scales are matched: 48 / 156 pcm of void, from
+    chains and yields. Per the Gate B decision, that residual is attributed and bounded, not
+    chased.
+  - **Nominal k on identical depleted fuel:** DRAGON is 370 / 430 pcm below OpenMC, against
+    240 fresh. The resonance-escape residual grows a little with Pu.
+  - **The headline.** At Unit 4's average burnup, complete voiding of one channel is **+2.4 to
+    +2.75 $** across every converged variant of both codes. The accident-state bracket (+1.96 $
+    DRAGON / +2.7 $ OpenMC on 09-25) has narrowed from a 38 % spread to 13 %, and every point in
+    it is above prompt critical.
+
+
+### Depletion step size — 2026-09-26
+
+The rebuilt COMPO deck (2.5 MWd/kg steps through 5–15) gave k∞ 1.097439 at 10 MWd/kg, against
+`rbmk_a5_void`'s 1.099025 on identical settings. `rbmk_meth_dstep*` are `rbmk_a5_void` with
+only the burnup list, or `EVO:` extrapolation, changed. They ran on `spark` (the partner GB10),
+which reproduces this machine bit for bit.
+
+| k∞ / full-void Δρ (pcm) | 10 MWd/kg | 15 | 20 |
+|---|---|---|---|
+| 5 MWd/kg steps, `NOEX` (production to date) | 1.09903 / +904 | 1.01234 / +1625 | 0.92900 / +2617 |
+| 2.5, `NOEX` (`dstep25`) | 1.09791 / +907 | 1.00939 / +1652 | 0.92462 / +2680 |
+| 1.25, `NOEX` (`dstep125`) | 1.09746 / +908 | 1.00819 / +1663 | 0.92290 / +2705 |
+| 5, `EXTR 1` (`dstep50x`) | 1.09839 / +887 | 1.00735 / +1650 | 0.92135 / +2701 |
+
+- **Void worth is nearly step-converged:** within 0.5 % at 10 MWd/kg and 3 % at 15.
+- **Nominal k∞ is not.** 5 MWd/kg `NOEX` steps overstate it by ~200 pcm (10 MWd/kg) and ~530 pcm
+  (15). The error is first order; the limit is ≈ 1.0970 / 1.0070.
+- **Consequence for B1.** Step-converged DRAGON sits ~190–200 pcm below OpenMC's matched
+  depletion at both burnups, a steady offset. The fuel-composition residual is ~100 / 160 pcm of
+  nominal ρ, not 264 / 680; much of the earlier number was DRAGON's step error. On void worth
+  the chain/yield residual is 44 / 111 pcm (was 48 / 156). DRAGON's own-depletion full-void worth
+  becomes 1152 / 1936 pcm, −9.7 % / −14.1 % from OpenMC. The transport-only Gate B verdict is
+  unaffected.
+- **The rebuilt COMPO** (`NOEX`, 2.5 MWd/kg steps in 5–15) carries ~75–130 pcm of step error in
+  nominal k over the accident range, and < 1 % in void worth. 2.5 MWd/kg with `EXTR 1` is the
+  candidate for the next rebuild (untested).
+
+## Phase C: production on the converged library — 2026-09-26
+
+`METHOD_CONVERGENCE_PLAN.md` C1–C5. Gate C (every production number regenerated) is met for
+the lattice level. **Superseded:** every production number before this section was computed on
+the 172-group library with Zr unshielded. That covers k∞ 1.304123, the 630-point COMPO, the
+"~1.9 multiplier", and the 09-24 (4) dollars table. For the record only.
+
+| Step | What changed | Gate |
+|---|---|---|
+| C1 | `RbmkLib.c2m` gives the Zr of MIX 2 / 8 / 9 self-shielding sets 3 / 4 / 5. The old composition is kept only as `RbmkLibU.c2m` (do-not-use banner) for the 172-group method-study controls. `RbmkLibZ` and `RbmkLibP` are in `quarantine/method_study/`. | `rbmk_cell_a3` **k∞ 1.313968** (was 1.304123), guardrail passed |
+| C2 | `decks/common/rbmk.access` binds the seven production decks to SHEM-361, with `USS: PASS 2 MAXST 300`. Control decks keep their own hooks. | `h2otest` = `zr361` and `a5_void` = `buzr361`, both bit for bit |
+| C3 | Mesh and MOC are **not** in production: MOC at 4× costs ~2 h per state, which is impossible at 840 points. They are carried as a measured additive correction, variant A′ in `openmc/void_bracket.py`: +204 / +244 / +266 pcm on full void at 0 / 10 / 15 MWd/kg. | measured, never fitted |
+| C4 | COMPO rebuilt with burnup nodes at 7.5 and 12.5: 8 × 7 × 5 × 3 = **840 points**, `_ACompo` 152 MB, 14.7 h on the GB10. The off-grid deck's burnup indices were remapped (10 → 5, 20 → 8). | round trip **6.7 pcm** worst (≤ 10); off-grid **21.2 pcm** worst (≤ 30); β monotone 0.006822 → 0.004677 |
+| C5 | `void_bracket.py` rewritten: additive variants instead of the r multiplier (below). | table below |
+
+**The void bracket at nominal temperatures** (`python openmc/void_bracket.py`; β from
+`rbmk_a5b_beta.don` on the new COMPO):
+
+| BU, MWd/kg | A: DRAGON COMPO | A′: + mesh/MOC | B: OpenMC matched | β |
+|---|---|---|---|---|
+| 0 | +560 = +0.82 $ | +764 = +1.12 $ | +821 = +1.20 $ | 0.006822 |
+| 5 | +537 = +0.91 $ | +761 = +1.29 $ | +849 = +1.44 $ | 0.005877 |
+| 10 | +913 = +1.71 $ | +1157 = +2.16 $ | +1276 = +2.38 $ | 0.005355 |
+| **10.9 (Unit 4 average)** | **+1034 = +1.95 $** | **+1282 = +2.42 $** | **+1438 = +2.72 $** | 0.005288 |
+| 12.5 | +1248 = +2.41 $ | +1503 = +2.91 $ | +1725 = +3.34 $ | 0.005169 |
+| 15 | +1661 = +3.33 $ | +1927 = +3.87 $ | +2254 = +4.52 $ | 0.004983 |
+| 20 | +2645 = +5.66 $ | +2911 = +6.22 $ ‡ | +3238 = +6.92 $ ‡ | 0.004677 |
+
+‡ Corrections above 15 MWd/kg are held at their 15 MWd/kg values: there is no matched point at
+20. OpenMC's unmatched energy-deposition branch at 20 gives +3671 ± 127 (crystal graphite), so
+B is likely low there. Unit 4 had nothing near 20.
+
+- **A′ is the converged-DRAGON answer, and it is the one Tier A should carry**, with B as the
+  bracket's upper end.
+- **A is the production COMPO as it stands.** It is now above 1 $ at the Unit 4 average, where the
+  172-group COMPO gave ~0.6 $.
+- **Every variant puts full voiding of average Unit 4 fuel above prompt critical.**
+- For A7/A8: the corrections are additive in Δρ, as functions of (BU, void fraction), applied on
+  top of the COMPO's void branch. `void_bracket.corrections(bu, dca)` returns all three.
+
 ---
 
 ## Standing rules
@@ -1730,7 +1972,7 @@ What this shows:
 
 ---
 
-*Last updated: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the
+*Last updated: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the
 bracket straddles prompt criticality at the accident burnup, ~0.6 $ DRAGON vs ~2.7 $ OpenMC;
 OpenMC β_eff 0.006739 confirms DRAGON to −1.3 %). Previously: 2026-09-24 (3) (cell geometry closed against eight new sources; clad OD 13.58;
 k∞ 1.304123 on the pinned library; Unit 4 accident burnup 10.9 MWd/kgU, not 20 — the bracket

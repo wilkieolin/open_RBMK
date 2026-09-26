@@ -136,7 +136,7 @@ GEOSS GEOFL := RbmkGeo ;
 TRKSS FTRKSS := NXT: GEOSS ::
   EDIT 0 TITLE 'RBMK-A3-SS' ALLG BATCH 100 TISO 8 15.0 ;
 
-LIBSS := USS: LIBRARY TRKSS FTRKSS :: EDIT 1 PASS 2 GRMIN 18 ;
+LIBSS := USS: LIBRARY TRKSS FTRKSS :: EDIT 1 PASS 2 MAXST 300 ;
 
 *==============================================================
 *  TRANSPORT

@@ -8,6 +8,7 @@ common to the pair and cancels in the difference.
   g10p        c_Graphite_10p: DRAGON's own graphite TSL      (H1: identical data)
   g30p        c_Graphite_30p: closest to RBMK porosity       (H1: sensitivity)
   g10p_white  10p + white side boundaries, as DRAGON's TISO  (H2)
+  g10p_tgrid  10p at library-grid temperatures 900/800/600 K (H11)
 
 Run:  python method_study.py <variant> <dca> [<dca> ...]
 Appends one record per run to method_study.json.
@@ -25,6 +26,10 @@ VARIANTS = {
     "g10p":       dict(graphite_tsl="c_Graphite_10p", boundary="reflective"),
     "g30p":       dict(graphite_tsl="c_Graphite_30p", boundary="reflective"),
     "g10p_white": dict(graphite_tsl="c_Graphite_10p", boundary="white"),
+    # H11: every temperature on a point both libraries tabulate (fuel 900,
+    # graphite 800, coolant 600 K), against g10p; DRAGON's twin is rbmk_meth_tgrid.
+    "g10p_tgrid": dict(graphite_tsl="c_Graphite_10p", boundary="reflective",
+                       temps=(900.0, 800.0, 600.0)),
 }
 # Same statistics and seed as the rebaseline fresh sweep (run_one.py 50000 300 50),
 # so "control" is directly comparable with run81_d*/log.txt.

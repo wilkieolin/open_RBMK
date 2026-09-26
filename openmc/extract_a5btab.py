@@ -37,8 +37,15 @@ with open(RESULT, errors="ignore") as f:
 # each ECHO appears once in the output; guard against the listing echoing it
 rows = sorted(set(rows))
 print(f"{RESULT}: {len(rows)} A5BTAB rows")
-if len(rows) != 630:
-    sys.exit(f"ERROR: expected 630 branch points, found {len(rows)}")
+# The full tensor: every burnup x dca x TF x TG the deck loops over.  Derived
+# from the rows themselves, then checked to be complete (630 before
+# 2026-09-25 (3), 840 since the 7.5 / 12.5 MWd/kg nodes were added).
+axes = [sorted({r[i] for r in rows}) for i in range(4)]
+full = len(axes[0]) * len(axes[1]) * len(axes[2]) * len(axes[3])
+print(f"  axes: {len(axes[0])} burnups x {len(axes[1])} dca x {len(axes[2])} TF x "
+      f"{len(axes[3])} TG = {full}")
+if len(rows) != full:
+    sys.exit(f"ERROR: incomplete tensor, {len(rows)} of {full} branch points")
 
 nominal = {}
 for bu, dca, tf, tg, k in rows:
