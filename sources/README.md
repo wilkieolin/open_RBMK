@@ -20,6 +20,7 @@ copyrighted. Each entry says where to get it again.
 | **[ALX98]** | Alexeev N., Behrens D., Davydova G., Donderer R., von Ehrenstein D., Krayushkin A., Meyer S., Schumacher O., *The Monte Carlo codes MCNP and MCU for RBMK criticality calculations*. Nucl. Eng. Des. **183** (1998) 287–302. | `ALX98_Alexeev_1998_NED183_MCNP_MCU_RBMK_criticality.pdf` | doi:10.1016/S0029-5493(98)00163-0 (paywalled; user-supplied) |
 | **[PAR07]** | Parisi C., D'Auria F., *RBMK fuel channel blockage analysis by MCNP5, DRAGON and RELAP5-3D codes*. Proc. Int. Conf. Nuclear Energy for New Europe 2007, Portorož, paper 105. | `PAR07_Parisi_DAuria_2007_RBMK_FC_blockage_MCNP5_DRAGON.pdf` | user-supplied |
 | **[BEH96]** | Behrens D., Meyer S., von Ehrenstein D., Donderer R., Schumacher O., Davydova G., Krayushkin A., *Validation of MCNP for RBMK criticality calculations*. Nucl. Technol. **114**(1) (1996) 1–11. | `BEH96_Behrens_1996_NuclTechnol114_Validation_MCNP_RBMK.pdf` | doi:10.13182/NT96-A35219 (user-supplied) |
+| **[INSAG7]** | INSAG, *The Chernobyl Accident: Updating of INSAG-1*. Safety Series No. 75-INSAG-7, IAEA, Vienna, 1992. | `INSAG7_IAEA_1992_Chernobyl_update.pdf` | https://www-pub.iaea.org/MTCD/publications/PDF/Pub913e_web.pdf |
 | [W] | Wikipedia, *RBMK*, fetched 2026-09-22. Superseded for every cell dimension. | — | — |
 
 ## What each source was used for
@@ -107,3 +108,39 @@ deficit, and the same dependence on group structure.
   *negative* measured void effects. Comparing against them needs a full 3-D model of the
   facility in each code, not a cell k∞.
 
+
+## Control and protection system (CPS / СУЗ) rods — for A6 (`A6_CPS_PLAN.md`)
+
+**[D] p. 12, the 1980 design description:**
+- 179 CPS channels on a 700 mm square lattice, rotated 45° to the fuel lattice.
+- CPS channel: same Zr alloy as the fuel channels, ⌀88 mm, 3 mm wall, graphite rings outside.
+- Absorber link: B₄C bushings 65 × 7.5 mm, 984 mm per link, sealed in the annulus between
+  Al-alloy tubes 70 × 2 and 50 × 2.
+- RR / AZ rods: 5 links; the total length is OCR-garbled as "…120 mm", most likely 5120.
+  USP: 3 links, 3050 mm.
+- Displacer: 5 hinged links, 5000 mm in total. Each link is an Al-alloy tube 74 × 2.5 mm, sealed;
+  one is hollow, the rest are graphite-filled. AR rods have no displacer.
+- Coolant: a separate circuit, water top-down at 40–60 °C. The channel is water-filled whatever
+  the rod position.
+
+**[INSAG7]:**
+- §2.2 (pdf p. 14): control and safety rods enter from above, except 24 shortened rods from
+  below. Every rod except the 12 AR has a graphite displacer on a 1.25 m water-filled "telescope".
+  Fully withdrawn, the displacer sits centrally in the core with 1.25 m of water at either end.
+  So the graphite is 4.5 m, which resolves [D]'s "5 links, one hollow".
+- p. 43: history of the design. Draft 212 rods at 7 m; technical design 179 rods; final design
+  179 rods with 5 m absorbers, except 21 shortened rods at 3.5 m. EPS rods: 21 in first-stage
+  units, 24 in second-stage. Second-stage units have **211 rods** with no design change.
+- p. 103: the RCPS has 211 movable solid absorber rods in channels cooled by an independent
+  water circuit; EPS insertion speed 0.4 m/s; 24 shortened rods from below.
+- Fig. II-6 (p. 119): plan of the core with the **insertion depth (cm) of every RCPS rod at
+  01:22:30**. The text layer is OCR-noisy, so digitise from the image. It is A8's initial rod
+  state and A6's site map.
+
+**[TD722] §3.1 item 12:** B₄C runs at ≈ 350 °C; the Al cladding is held at 40–80 °C. Its "7 kg of
+B₄C per section" is the redesigned post-1986 Smolensk-3 rod. On the 1980 geometry that mass would
+imply > 5 g/cm³, twice B₄C's theoretical density, so it does **not** set the 1986 density.
+
+**Still open:** the B₄C density and boron isotopics; the composition of the Al alloy (САВ-1 is the
+alloy [D] p. 59 names for in-core sleeves); the displacer graphite density (take [D] p. 11's
+1.65 g/cm³, with p. 47's 1.73 as the upper case).
