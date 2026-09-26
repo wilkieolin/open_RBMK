@@ -98,8 +98,10 @@
 >   direction), not missing physics.
 > - **Depletion.** 60–70 % of the DRAGON/OpenMC depletion difference is a burnup-normalisation
 >   convention: OpenMC's fission-Q mode books ~5 % more fissions per MWd than DRAGON.
-> - **Pending.** The 8× mesh and a matched OpenMC accident-state reference are still running. See
->   "Phase A–B on the GB10".
+> - **SRP cell, 8× mesh.** DRAGON gives 4.80 / 5.27 %Δk, matching OpenMC (4.77 / 5.24) and MCNP.
+> - **Accident state (Gate B).** On matched burnup scales and identical fuel, DRAGON is within 6–9 %
+>   of OpenMC. Full voiding at 10.9 MWd/kgU is **+2.4 to +2.75 $** across both codes. See "Phase A–B
+>   on the GB10".
 
 ## Objective
 
@@ -1775,8 +1777,20 @@ scattering.
   graphite), down from 48 % / 42 % in production. The 4× mesh alone was worth +0.6 %Δk here,
   against +75 pcm on the hot cell: the cold cell with full-density water is much more
   mesh-sensitive.
-- **The 8× mesh is still running on both cells** (`rbmk_meth_best361k8`,
-  `rbmk_srp94_best8_*`, `rbmk_srp94_bestmoc8_*`). A4 isn't closed until it reports.
+- **The 8× mesh (A4), on the MOC lineage, closes the SRP gap.** CP at 8× didn't finish its first
+  `ASM:` in 3 h, so it was stopped.
+
+  | SRP void Δk (%) | 1× | 4× | **8×** | OpenMC 10P | MCNP/MCU |
+  |---|---|---|---|---|---|
+  | Zr tube (MOC P1) | 3.76 | 4.59 | **4.80** | 4.77 ± 0.04 | 4.80–4.85 |
+  | Al tube (MOC P1) | 4.11 | 5.04 | **5.27** | 5.24 ± 0.04 | 5.28–5.47 |
+
+  DRAGON now meets the "referenced" criterion on the third-party cell. The mesh is *not*
+  converged by the plan's 20 pcm test, though: 4→8 still moved void by +0.21 / +0.23 %Δk
+  (1→4: +0.58 / +0.62). A geometric extrapolation puts the limit near 4.92 / 5.41, about 3 %
+  above OpenMC. So the exact 8× match is partly where the sequence happens to sit. Watered k∞
+  at 8× is 1.2712 / 1.2625, against OpenMC's 1.2753 / 1.2673: the same ~250–300 pcm nominal
+  residual as the hot cell. The hot-cell `bestmoc8` is still running (> 7 h).
 
 **The nominal-k residual (~240 pcm) is attributed, not closed.** It sits in resonance escape,
 from U-238 and Zr, as the 09-25 four-factor split showed. None of H1–H11 closes it. The rim
@@ -1812,9 +1826,28 @@ DRAGON on `zr361` settings:
 - What remains of the depletion difference (+48 pcm on void at 10 MWd/kg, +156 at 15) is
   chains and yields, and is left attributed at that size.
 - **H5 at burnup:** MOC P1 adds +97 (10) and +112 (15), against +79 fresh.
-- **Gate B needs a matched OpenMC reference.** That means deposited-energy depletion,
-  10P graphite, and σ ≈ 20 pcm per value. `openmc/accident_ref.py` (→ `accident_ref.json`)
-  is running.
+- **Gate B: the matched comparison.** `openmc/accident_ref.py` (→ `accident_ref.json`) gives
+  OpenMC on deposited-energy depletion and 10P graphite, 50k × 250 active. `oedbest<bu>` is
+  DRAGON's `bestmoc` settings (SHEM-361, Zr SS, 4× mesh, MOC P1) on *the same fuel*.
+
+  | full-void Δρ (pcm) | 10 MWd/kg | 15 MWd/kg | 10.9 MWd/kgU (Unit 4) |
+  |---|---|---|---|
+  | OpenMC, matched | +1275 ± 29 (k 1.09929) | +2253 ± 33 (k 1.00902) | +1451 = **2.75 $** |
+  | DRAGON `oedbest`, same fuel | +1196 (k 1.09485), **−6.2 %** | +2047 (k 1.00463), **−9.1 %** | +1349 = **2.55 $** |
+  | DRAGON best, own depletion (`oedbest` − (`oed` − `buzr361`)) | +1148, −10.0 % | +1891, −16.1 % | +1282 = **2.43 $** |
+
+  The 10.9 MWd/kgU column interpolates linearly, with β 528 pcm from the 172-group β curve.
+  - **Transport meets Gate B:** within 10 % at both burnups.
+  - **With each code's own depletion it misses at 15 MWd/kg** (−16 %). The excess is the
+    depletion difference left after the burnup scales are matched: 48 / 156 pcm of void, from
+    chains and yields. Per the Gate B decision, that residual is attributed and bounded, not
+    chased.
+  - **Nominal k on identical depleted fuel:** DRAGON is 370 / 430 pcm below OpenMC, against
+    240 fresh. The resonance-escape residual grows a little with Pu.
+  - **The headline.** At Unit 4's average burnup, complete voiding of one channel is **+2.4 to
+    +2.75 $** across every converged variant of both codes. The accident-state bracket (+1.96 $
+    DRAGON / +2.7 $ OpenMC on 09-25) has narrowed from a 38 % spread to 13 %, and every point in
+    it is above prompt critical.
 
 ---
 

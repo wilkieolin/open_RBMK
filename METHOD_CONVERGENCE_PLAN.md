@@ -86,7 +86,7 @@ names the next hypothesis.
 | A1 / H5 | **Confirmed.** MOC with P1 adds +79 pcm to void (fresh), and more on the fine mesh; P2 adds nothing. |
 | A2 / H6 | **Rejected as an artefact.** Per-ring USS sets move k −890 pcm, away from OpenMC; shared sets are neutral. |
 | A3 | **Passed.** SHEM-370 vs 361: +15 nominal / +2 void. |
-| A4 | Running: 8× mesh, hot cell and SRP, with CP and with MOC. |
+| A4 | SRP cell with MOC: 4→8 still moves void by +0.21 %Δk, so the mesh is not converged by the 20 pcm test. The extrapolated limit is ~3 % above OpenMC; at 8× DRAGON matches OpenMC (4.80 / 5.27 vs 4.77 / 5.24). Hot-cell `bestmoc8` pending. CP at 8× is impractical (no `ASM:` in 3 h). |
 | A5 / H11 | **Ruled out.** The codes agree to 18 pcm. |
 | A6 | (a) Nb-93 bound ≤ 59 pcm on void. (b) The graphite table is worth +0.06–0.08 %Δk on the SRP cell. |
 | A7 | OpenMC σ is 21 pcm per value on the hot cell; the 10P runs are seed-matched. |
@@ -111,6 +111,14 @@ normalisation (193.4 MeV per U-235 fission, no capture energy) books ~5 % more f
 than DRAGON's H-factor. Normalising OpenMC on deposited energy (`RBMK_NORM=energy-deposition`)
 removes 60–70 % of the depletion-trajectory difference. Accident-state comparisons use the
 deposited-energy scale: `openmc/accident_ref.py` (10P graphite, σ ≈ 20 pcm).
+
+**Gate B outcome (2026-09-25 (3)).**
+- **Transport meets the criterion.** DRAGON `bestmoc` settings on OpenMC's fuel (`oedbest`) come
+  within −6.2 % (10 MWd/kg) and −9.1 % (15) of `accident_ref.json`.
+- **Own depletion misses at 15 MWd/kg.** With each code's own depletion the gaps are −10.0 / −16.1 %.
+  The difference is a chain/yield depletion residual of 48 / 156 pcm, which is attributed and
+  bounded.
+- **Both codes are on the same side of 1 $:** +2.43 to +2.75 $ at 10.9 MWd/kgU.
 
 **GATE B:** the accident-state criterion is met, or the residual is attributed and bounded.
 
@@ -146,7 +154,7 @@ So the reference ladder is:
 **Status 2026-09-25 (3).**
 - **D0 closed for OpenMC.** It is within [ALX98]'s MCNP/MCU spread plus the data effect: VIII.0 and
   VIII.1 agree to 0.05 %Δk, and MCNP moves 0.56 between B-IV and B-VI.
-- **D0 for DRAGON.** `bestmoc` gives 4.59 / 5.04 against MCNP/MCU 4.80–4.85 / 5.28–5.47.
+- **D0 for DRAGON: closed.** `bestmoc8` gives 4.80 / 5.27 against MCNP/MCU 4.80–4.85 / 5.28–5.47.
 - **D2 deferred until after Tier A (A6–A9), by decision.** The candidate pair is [BEH96]
   assembly 1 (18 channels, void effect −3.1 %). The Smolensk-3 cold start-up states are a later
   whole-core reference.
