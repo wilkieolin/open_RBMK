@@ -1,187 +1,175 @@
 """
-The void-coefficient bracket, as a table.
+The void-reactivity bracket, as additive corrections (METHOD_CONVERGENCE_PLAN C3 / C5).
 
-DRAGON and OpenMC agree that the RBMK void coefficient is positive and rises
-steeply with burnup.  They disagree on its magnitude.  Rather than pick one,
-the project carries both and lets the AZ-5 transient decide whether the
-difference is load-bearing (PROGRESS.md, "A5b"; the plan of 2026-09-23).
+Three variants of the void reactivity dRho(BU, v), measured relative to the
+nominal 0.72 g/cm3 at the same burnup (v = 1 - dca/0.72 is the void fraction):
 
-This module turns that disagreement into a single number per state:
+  A    DRAGON production as computed: the A5b COMPO (SHEM-361, Zr self-shielded,
+       production mesh, collision probabilities).  dragon_a5b_void.json.
+  A'   A + the measured method correction: what DRAGON's converged settings
+       (4x flat-flux mesh + MOC with P1 scattering) add on top of production.
+       Measured, never fitted: rbmk_meth_bestmoc - zr361 (fresh) and
+       oedbest<bu> - oed<bu> (10, 15 MWd/kg, same fuel, only the method differs).
+  B    OpenMC: DRAGON's full-void worth REPLACED by OpenMC's matched value
+       (deposited-energy burnup scale, DRAGON's 10P graphite): method_study.json
+       g10p (fresh) and accident_ref.json (10, 15 MWd/kg).  At partial void it
+       follows DRAGON's own void shape, because OpenMC has matched points only at
+       full void.  The shapes agree: fresh, dRho(0.35)/dRho(0.02) is 0.65 in
+       OpenMC and 0.69 / 0.72 in DRAGON production / converged.
 
-    r(BU, v) = dRho_OpenMC(BU, v) / dRho_DRAGON(BU, v)
+The corrections are additive in dRho and are applied by the consumer (A7/A8)
+on top of the COMPO, which stays the single source of truth for the physics.
+DRAGON cannot write a scaled COMPO (no cross-section scaling facility anywhere in
+LIB:, EDI: or COMPO:), which is why this is a table.
 
-where v = 1 - dca/0.72 is the void fraction and dRho is measured relative to
-the nominal density 0.72 g/cm3 AT THE SAME BURNUP.  It is deliberately a ratio
-of BRANCH reactivities, not of absolute k: the two codes' depletion
-trajectories diverge (OpenMC is +268 pcm above DRAGON at 5 MWd/kg and -2084
-below at 20), so correcting absolute k would fold a depletion difference into
-a void correction.
+The multiplicative r = dRho_OpenMC / dRho_DRAGON of the 2026-09-23 version is
+retired.  On the 172-group library DRAGON's void worth crossed zero near
+5 MWd/kg, which made r a small number over a smaller one.
 
-Variant A of the transient uses r = 1 (DRAGON as computed).  Variant B
-multiplies the void-induced reactivity by r.  The two therefore differ only in
-how the DCA axis of the COMPO is used, which was the intent of the "two
-COMPOs" in the plan.
+Between correction nodes both corrections are linear in BU and in v (zero at
+v = 0).  Above 15 MWd/kg they are held at their 15 MWd/kg values (flagged):
+there is no matched OpenMC point at 20, and Unit 4 had nothing near 20.
 
-WHY THIS IS A TABLE AND NOT A SECOND COMPO FILE
------------------------------------------------
-The plan called for a second MULTICOMPO on disk with the void branches
-rescaled.  DRAGON cannot produce one: there is no cross-section scaling
-facility anywhere in the write path -- not in LIB: (see the keyword list in
-LIBINP.f), not in EDI:, not in COMPO:.  The alternatives were to patch the
-DRAGON source (5.1/ is an upstream submodule) or to hand-edit the 114 MB LCM
-ASCII file, which would reverse-engineer an undocumented format to produce an
-opaque derived artifact that has to be regenerated whenever an OpenMC branch
-point is added -- and two were added on 2026-09-23 alone.
-
-Carrying the correction as data keeps it inspectable and keeps the single
-source of truth for the physics in _ACompo.  The application point moves to
-the consumer (A7/A8), where it is one visible multiplier rather than a second
-binary.
+    python void_bracket.py        # table at every COMPO burnup, pcm and $
 """
 import json
 import os
+import platform
+import re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+ARCH = os.environ.get("DRAGON_ARCH", f"Linux_{platform.machine()}")
+DRA = os.path.join(ROOT, "5.1", "Dragon", ARCH)
+DON = os.path.join(ROOT, "5.1", "Donjon", ARCH)
 NOMINAL = 0.72
+NUM = r"([-+]?\d+\.\d+[eE][-+]\d+)"
 
 rho = lambda k: 1 - 1 / k
+vf = lambda dca: 1 - dca / NOMINAL
 
 
-def _dragon():
-    """DRAGON branch reactivities from the A5b COMPO run, at TF=900 K, TG=750 K.
-
-    Source: the A5BTAB rows of 5.1/Dragon/Linux_<arch>/rbmk_a5b_compo.result
-    (630 points), extracted by extract_a5btab.py -- regenerate, never hand-edit.
-    """
-    path = os.path.join(HERE, "dragon_a5b_void.json")
-    with open(path) as f:
-        raw = json.load(f)
+def _methtab(vid):
+    """{dca: k} from the METHTAB rows of rbmk_meth_<vid>.result."""
     out = {}
-    for bu, row in raw.items():
-        kn = row[str(NOMINAL)]
-        out[int(bu)] = {float(d): rho(k) - rho(kn) for d, k in row.items()}
+    for line in open(os.path.join(DRA, f"rbmk_meth_{vid}.result"), errors="ignore"):
+        m = re.search(r">\|METHTAB\s+\d+\s+" + NUM + r"\s+" + NUM, line)
+        if m:
+            out[round(float(m.group(1)), 2)] = float(m.group(2))
     return out
 
 
-def _openmc():
-    """OpenMC branch reactivities and their 1-sigma statistical error.
+def _drho(rows, d):
+    return rho(rows[d]) - rho(rows[NOMINAL])
 
-    Returns {bu: {dca: (dRho, sigma)}}.  The two k values are independent runs,
-    so the errors add in quadrature; d(rho)/dk = 1/k^2.
-    """
-    by = {}
-    for fn in ("branch_results81.json", "branch_results81_mid.json"):
-        p = os.path.join(HERE, fn)
-        if not os.path.exists(p):
-            continue
-        for r in json.load(open(p)):
-            by[(int(round(r["bu"] * 1000)), r["dca"])] = (r["k"], r["sd"])
+
+def dragon():
+    """A: {bu: {dca: dRho}} at TF 900 / TG 750 from the COMPO run."""
+    raw = json.load(open(os.path.join(HERE, "dragon_a5b_void.json")))
+    return {int(bu): {float(d): rho(k) - rho(row[str(NOMINAL)]) for d, k in row.items()}
+            for bu, row in raw.items()}
+
+
+def method_correction():
+    """A' - A: {bu: {dca: dRho}} at the measured nodes."""
+    pairs = {0: ("zr361", "bestmoc"), 10000: ("oed10", "oedbest10"),
+             15000: ("oed15", "oedbest15")}
     out = {}
-    for (bu, d), (k, sd) in by.items():
-        nom = by.get((bu, NOMINAL))
-        if nom is None:
-            continue
-        kn, sn = nom
-        sig = ((sd / k ** 2) ** 2 + (sn / kn ** 2) ** 2) ** 0.5
-        out.setdefault(bu, {})[d] = (rho(k) - rho(kn), sig)
+    for bu, (prod, best) in pairs.items():
+        p, b = _methtab(prod), _methtab(best)
+        out[bu] = {d: _drho(b, d) - _drho(p, d) for d in (0.35, 0.02)}
     return out
 
 
-def ratio_table():
-    """r(BU, void fraction) at the densities where OpenMC has a branch point.
-
-    DRAGON is interpolated linearly in void fraction onto OpenMC's densities.
-    The nominal point is excluded: both dRho are zero there by construction and
-    the ratio is 0/0.
-    """
-    D, O = _dragon(), _openmc()
-    tab = {}
-    for bu in sorted(O):
-        if bu not in D:
-            continue
-        dd = sorted(D[bu].items())            # (dca, dRho), ascending dca
-        xs = [1 - d / NOMINAL for d, _ in dd]  # void fraction, descending
-        ys = [v for _, v in dd]
-        xs, ys = xs[::-1], ys[::-1]            # ascending void fraction
-        row = {}
-        for d, (o, sig) in sorted(O[bu].items()):
-            v = 1 - d / NOMINAL
-            if v <= 0:
-                continue
-            # linear interpolation of the DRAGON curve at this void fraction
-            for i in range(len(xs) - 1):
-                if xs[i] <= v <= xs[i + 1]:
-                    f = (v - xs[i]) / (xs[i + 1] - xs[i])
-                    dr = ys[i] + f * (ys[i + 1] - ys[i])
-                    break
-            else:
-                dr = ys[-1]
-            # DRAGON is deterministic, so all the error is OpenMC's
-            row[round(v, 4)] = (None if abs(dr) < 1e-6
-                                else (o / dr, abs(sig / dr)))
-        tab[bu] = row
-    return tab
+def openmc_full_void():
+    """B at full void: {bu: (dRho(0.02), sigma)} on the matched basis."""
+    out = {}
+    ms = {(r["variant"], round(r["dca"], 2)): (r["k"], r["sd"])
+          for r in json.load(open(os.path.join(HERE, "method_study.json")))}
+    (kn, sn), (kv, sv) = ms[("g10p", 0.72)], ms[("g10p", 0.02)]
+    out[0] = (rho(kv) - rho(kn), ((sv / kv**2) ** 2 + (sn / kn**2) ** 2) ** 0.5)
+    ar = {(int(round(r["bu"] * 1000)), r["dca"]): (r["k"], r["sd"])
+          for r in json.load(open(os.path.join(HERE, "accident_ref.json")))}
+    for bu in (10000, 15000):
+        (kn, sn), (kv, sv) = ar[(bu, 0.72)], ar[(bu, 0.02)]
+        out[bu] = (rho(kv) - rho(kn), ((sv / kv**2) ** 2 + (sn / kn**2) ** 2) ** 0.5)
+    return out
 
 
-def bracket_multiplier(bu, void_fraction):
-    """r for one state, by linear interpolation of ratio_table() in both axes.
+def _lin(nodes, x):
+    """Piecewise-linear interpolation over sorted (x, y) nodes, clamped at the ends."""
+    xs = [n[0] for n in nodes]
+    if x <= xs[0]:
+        return nodes[0][1]
+    if x >= xs[-1]:
+        return nodes[-1][1]
+    for (x0, y0), (x1, y1) in zip(nodes, nodes[1:]):
+        if x0 <= x <= x1:
+            return y0 + (x - x0) / (x1 - x0) * (y1 - y0)
 
-    Returns 1.0 where there is no OpenMC evidence (zero void), so variant B
-    degrades gracefully to variant A rather than extrapolating.
-    """
-    if void_fraction <= 0:
-        return 1.0
-    tab = ratio_table()
-    bus = sorted(tab)
-    bu = min(max(bu, bus[0]), bus[-1])
-    lo = max([b for b in bus if b <= bu])
-    hi = min([b for b in bus if b >= bu])
 
+def _dragon_at(D, bu, dca):
+    """DRAGON dRho at (bu, dca): linear in void fraction, then in BU."""
     def at(b):
-        vs = sorted(v for v, r in tab[b].items() if r is not None)
-        if not vs:
-            return 1.0
-        v = min(max(void_fraction, vs[0]), vs[-1])
-        for i in range(len(vs) - 1):
-            if vs[i] <= v <= vs[i + 1]:
-                f = (v - vs[i]) / (vs[i + 1] - vs[i])
-                a, b2 = tab[b][vs[i]][0], tab[b][vs[i + 1]][0]
-                return a + f * (b2 - a)
-        return tab[b][vs[-1]][0]
+        pts = sorted((vf(d), v) for d, v in D[b].items())
+        return _lin(pts, vf(dca))
+    bus = sorted(D)
+    if bu in D:
+        return at(bu)
+    lo = max(b for b in bus if b <= bu); hi = min(b for b in bus if b >= bu)
+    return at(lo) + (bu - lo) / (hi - lo) * (at(hi) - at(lo))
 
-    if lo == hi:
-        return at(lo)
-    f = (bu - lo) / (hi - lo)
-    return at(lo) + f * (at(hi) - at(lo))
+
+def corrections(bu, dca, D=None, M=None, O=None):
+    """(dRho_A, dRho_A', dRho_B) at one state, in absolute reactivity."""
+    D = D or dragon(); M = M or method_correction(); O = O or openmc_full_void()
+    a = _dragon_at(D, bu, dca)
+    v = vf(dca)
+    # A': method correction, linear in v through (0, 0) and the 0.35 / 0.02 nodes
+    def mc(b):
+        return _lin([(0.0, 0.0), (vf(0.35), M[b][0.35]), (vf(0.02), M[b][0.02])], v)
+    a1 = a + _lin([(b, mc(b)) for b in sorted(M)], bu)
+    # B: OpenMC's full-void worth, with DRAGON's void shape at partial void
+    def ob(b):
+        full = _dragon_at(D, b, 0.02)
+        return O[b][0] * (_dragon_at(D, b, dca) / full) - _dragon_at(D, b, dca)
+    b_ = a + _lin([(b, ob(b)) for b in sorted(O)], bu)
+    return a, a1, b_
+
+
+def beta_curve():
+    """{bu: beta_eff} at nominal state from rbmk_a5b_beta.don (DONJON on the COMPO)."""
+    out = {}
+    p = os.path.join(DON, "rbmk_a5b_beta.don.result")
+    for line in open(p, errors="ignore"):
+        m = re.search(r">\|A5BBETA\s+" + r"\s+".join([NUM] * 5), line)
+        if m:
+            bu, dca, tf, tg, b = (float(x) for x in m.groups())
+            if abs(dca - NOMINAL) < 1e-6 and abs(tf - 900) < 1e-3 and abs(tg - 750) < 1e-3:
+                out[int(round(bu))] = b
+    return out
 
 
 if __name__ == "__main__":
-    tab = ratio_table()
-    voids = sorted({v for row in tab.values() for v in row})
-    print("VOID-COEFFICIENT BRACKET  r = dRho_OpenMC / dRho_DRAGON")
-    print("(branch reactivity relative to 0.72 g/cm3 at the same burnup)")
-    print("=" * 80)
-    print(f"{'BU':>7} | " + "".join(f"{f'v={v:.3f}':>18}" for v in voids))
-    print("-" * 80)
-    for bu in sorted(tab):
-        cells = ""
-        for v in voids:
-            e = tab[bu].get(v)
-            cells += ("{:>18}".format("--") if e is None
-                      else f"{e[0]:>11.2f} +/-{e[1]:<4.2f}")
-        print(f"{bu:>7} | {cells}")
-    print("-" * 80)
-    print("""
-The ratio is only meaningful where the DRAGON denominator is large; where
-DRAGON's void worth is near zero it is a small number over a smaller one.
-
-WHICH ROWS MATTER.  Unit 4 on 26 April 1986 averaged 10.9 MWd/kgU (Pavlovych,
-KURRI-KR-79, Table 1): 721 of 1659 assemblies at 13.7, 392 at 12.3, 154 at 10.5,
-172 near-fresh at 1.2.  Nothing was near 20.  The accident rows are 10000 and
-15000 -- not 20000, which is what this bracket was quoted at until
-2026-09-24 (3).""")
-    print("\nspot values from bracket_multiplier():")
-    for bu in (0, 10000, 12500, 15000, 20000):
-        for vf in (0.5, 0.8, 0.972):
-            print(f"  BU {bu:>6d} MWd/t   void {vf:.3f}   "
-                  f"r = {bracket_multiplier(bu, vf):.2f}")
+    D, M, O = dragon(), method_correction(), openmc_full_void()
+    try:
+        B = beta_curve()
+    except FileNotFoundError:
+        B = {}
+    print("Method correction A' - A (pcm), measured:")
+    for bu in sorted(M):
+        print(f"  BU {bu:>6d}: dca 0.35 {1e5 * M[bu][0.35]:+6.0f}   dca 0.02 {1e5 * M[bu][0.02]:+6.0f}")
+    print("OpenMC full-void reference (pcm), matched basis:")
+    for bu in sorted(O):
+        print(f"  BU {bu:>6d}: {1e5 * O[bu][0]:+6.0f} +/- {1e5 * O[bu][1]:.0f}")
+    print("\nFull-void (0.02 g/cm3) worth, three variants" + (" (pcm and $)" if B else " (pcm)"))
+    print(f"  {'BU':>6} {'A':>8} {'A-prime':>8} {'B':>8}" + (f" {'beta':>8} {'A $':>6} {'A-p $':>6} {'B $':>6}" if B else ""))
+    bus = sorted(set(D) | {10900})
+    for bu in bus:
+        a, a1, b = corrections(bu, 0.02, D, M, O)
+        flag = "  (held at 15 MWd/kg correction)" if bu > 15000 else ""
+        line = f"  {bu:>6d} {1e5 * a:+8.0f} {1e5 * a1:+8.0f} {1e5 * b:+8.0f}"
+        if B:
+            bb = _lin(sorted(B.items()), bu)
+            line += f" {bb:8.6f} {a / bb:+6.2f} {a1 / bb:+6.2f} {b / bb:+6.2f}"
+        print(line + flag + ("   <- Unit 4 average" if bu == 10900 else ""))

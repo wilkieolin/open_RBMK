@@ -8,7 +8,7 @@
 LINKED_LIST LIBRARY LIBSS GEOSS GEOFL TRKSS TRK SYS FLUX DONNEES ;
 SEQ_BINARY  FTRKSS FTRK ;
 MODULE      LIB: GEO: NXT: USS: ASM: FLU: GREP: DELETE: UTL: END: SHI: ;
-PROCEDURE   RbmkLibZ RbmkGeo ;
+PROCEDURE   RbmkLib RbmkGeo ;
 
 REAL tfuel := 900.0 ;
 REAL tgrap := 750.0 ;
@@ -29,7 +29,7 @@ EVALUATE iv := 0 ;
 WHILE iv ndc < DO
   EVALUATE iv := iv 1 + ;
   GREP: DONNEES :: GETVAL 'dca' <<iv>> >>dca<< ;
-  LIBRARY := RbmkLibZ :: <<dca>> <<tfuel>> <<tgrap>> <<tcool>> ;
+  LIBRARY := RbmkLib :: <<dca>> <<tfuel>> <<tgrap>> <<tcool>> ;
   LIBSS := LIBRARY ;
   LIBSS := SHI: LIBSS TRKSS FTRKSS :: EDIT 0 LJ ;
   SYS   := ASM: LIBSS TRK FTRK :: EDIT 0 ;
