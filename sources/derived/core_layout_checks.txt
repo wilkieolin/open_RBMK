@@ -1,0 +1,42 @@
+COUNTS (label-based; only black fill = outside)
+  positions inside the core outline: 1888   (expected 1888 = 1693 + 179 + 12 + 4)
+   1       H     89  стержень РР (manual control rod)
+   2       Q     21  стержень УСП (shortened absorber rod)
+   3      XO     12  стержень АР (automatic rod)
+   4       F     21  стержень АЗ (emergency rod)
+   5       O     36  стержень перекомпенсации АЗ (AZ over-compensation rod)
+   6       X     12  ДКЭ(в) (axial power detector)
+   7       T      4  пусковая камера деления (start-up fission chamber)
+   8       D    240  дополнительный поглотитель (additional absorber)
+   9       *      8  незагруженный канал (unloaded channel)
+  10       o    282  ТВС с ДКЭ(р) (fuel with radial detector)
+  11 (blank)   1163  тепловыделяющая кассета (fuel assembly)
+
+AGAINST DOLLEZHAL'S TEXT (p. 57 and the parameter table)
+  technological channels     digitised  1693   text  1693   OK
+  CPS rods                   digitised   179   text   179   OK
+  DKE(v) channels            digitised    12   text    12   OK
+  start-up chambers (KD)     digitised     4   text     4   OK
+
+MIRROR CHECK (the rod pattern is symmetric about the i <-> j diagonal, with exceptions)
+  rods whose mirror cell is fuel / absorber / outside -- one side is probably misread:
+    67-47 = T    mirror 30-10 = OUT  (confirmed on the scan)
+    50-10 = T    mirror 67-27 = OUT  (confirmed on the scan)
+    40-63 = F    mirror 14-37 = D  (confirmed on the scan)
+    30-63 = O    mirror 14-47 = D  (confirmed on the scan)
+    30-67 = T    mirror 10-47 = OUT  (confirmed on the scan)
+    10-30 = T    mirror 47-67 = OUT  (confirmed on the scan)
+  type differences between mirrored specials (AZ/over-compensation pairs look deliberate):
+    60-43 = O    34-17 = F
+    54-43 = F    34-23 = O
+    54-47 = O    30-23 = F
+    50-33 = F    44-27 = O
+    44-43 = O    34-33 = F
+    44-57 = F    20-33 = O
+    40-57 = O    20-37 = F
+
+OUTLINE CHECK (in/out under a 90-degree rotation about the grid centre)
+    67-47 in   vs  47-10
+    67-50 OUT  vs  50-10
+    50-10 in   vs  10-27
+    47-10 OUT  vs  10-30

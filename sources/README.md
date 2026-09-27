@@ -170,6 +170,21 @@ imply > 5 g/cm³, twice B₄C's theoretical density, so it does **not** set the 
   the epithermal share of the rod's absorption with water inside is 18–20 %. Used as sanity checks
   on the A6.3 section worths, not as targets.
 
+**[D] Fig. 2.3 (PDF p. 25), digitised — the first sourced core cartogram (2026-09-26).**
+"Начальная загрузка реактора второго блока Ленинградской АЭС": the initial loading of Leningrad
+Unit 2, a first-stage RBMK-1000. It was digitised by hand into `sources/derived/core_layout.xlsx`,
+checked against the scan with the overlay from `tools/render_core_layout.py`
+(`core_layout_overlay.svg`), and corrected (see that script's header). It closes on every count
+the book's text gives (p. 57 and the parameter table): **1693 technological channels, 179 CPS
+rods, 12 ДКЭ(в), 4 start-up chambers, 1888 positions**. The rod types are 89 РР, 21 УСП, 12 АР,
+21 АЗ and 36 АЗ over-compensation; 21 УСП and 21 АЗ agree with INSAG-7 p. 43 for first-stage
+units. Fuel with radial detectors: 282 in the figure, 270 in the text. That is recorded as a
+figure/text difference (no misreadings found); it doesn't affect the model.
+It is Leningrad-2's first core, not Chernobyl-4's: 179 rods, not 211, and 240 additional
+absorbers of the first loading. So it gives the sourced **core outline** and the **rod-type
+pattern**, and mapping it onto Unit 4's 211 sites (Fig. II-6) is a stated assumption for
+A6.5 / A6d.
+
 | Tag | Source | Used for |
 |---|---|---|
 | [OST] | ОСТ 1 90048-90, САВ-1 composition, as reproduced at evek.org/materials/splav-sav1.html (fetched 2026-09-26) | CPS tube alloy |
