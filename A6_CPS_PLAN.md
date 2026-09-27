@@ -118,6 +118,42 @@ the supercell).
 **GATE A6.4:** DONJON on the homogenised supercell reproduces DRAGON's supercell k∞ and the section
 worths within 1 % (the SPH test).
 
+> **Status 2026-09-26/27: the SPH test PASSES, the gate as a whole FAILS, and the cause is
+> identified.** Measured over 18 states (BU 0 / 10.9 / 15 MWd/kg × dca 0.72 / 0.35 / 0.02 × TF
+> 900 / 1500), by `openmc/cps_verify.py a64`:
+>
+> | Configuration | vs DRAGON's supercell |
+> |---|---|
+> | **A64S** all nine cells from the CPS MULTICOMPO | **≤ 0.1 % on every worth, ~1 pcm on k** |
+> | **A64V** the eight fuel cells from the FUEL MULTICOMPO (what the core will do) | absorber −2.5 %, displacer −7 to −9 %, **drained channel −9 to −10 %** |
+>
+> So the homogenisation, the SPH equivalence and the DONJON solver are exact. The whole error is
+> the *neighbour data*: an infinite-lattice fuel cell is not a fuel cell sitting next to a rod, and
+> the fuel COMPO cannot know which it is. It is worst on the positive worths — the displacer effect
+> the whole of A8 turns on — so it cannot be carried as a correction and ignored.
+>
+> Two method choices were settled on the way, neither by fitting:
+> - **SPH normalisation `ASYM 1`** (pin a fuel cell's factor to 1, so the rod cell carries the
+>   correction) against `STD` (average over all nine). Chosen on that principle; it also happens to
+>   be 3× better (+135 vs +394 pcm on the smoke case). `SELE_FD` / `SELE_EDF` need ADF, which the
+>   edit does not yet produce.
+> - **`TRIVAT: DUAL 1 1`, not the core's `MCFD 1`.** With MCFD the SPH iteration oscillates and
+>   never converges (200 iterations under any normalisation), and on the full deck it ended in a
+>   segfault in `TRI1GSO`. DUAL 1 1 converges in 18–40. A2 chose MCFD for speed, before any rod
+>   cell existed; from A6.5 on, the core must use the discretisation SPH was computed with.
+>
+> **Options for closing it** (a physics decision, not yet taken):
+> 1. **Discontinuity factors on the rod cell.** The textbook fix, and DONJON reads them
+>    (`NCRLIB.f:561`). Needs `EDI: ... ADF`, which wants named boundary regions; our cells have no
+>    gap mixture, so the outermost graphite ring would have to serve. Then `SPH: SELE_FD`.
+> 2. **Equivalence on the rod cell alone**: per-group factors that make the DONJON supercell
+>    reproduce DRAGON's k and the rod-cell rates with the fuel data the core actually uses. This is
+>    what upstream's `SPHPicardRT` does, except `FPSPH:` corrects *every* mixture and has no
+>    mixture selection, so it would need a small Picard loop of our own.
+> 3. **Rod-adjacent fuel data**: give the eight neighbours the supercell's own fuel data. Exact
+>    here by construction (that is A64S), and the real CPS lattice does put 7 fuel cells around
+>    every rod — but neighbourhoods overlap in the core, and it doubles the fuel data.
+
 ### A6.5 — Rod sites in the core
 Add the 211 CPS sites to the core generator (`decks/Donjon/data/gen_rbmk_realistic.py`) from the digitised
 map. Each rod is an axial stack (absorber / telescope water / displacer / water) that moves as one:

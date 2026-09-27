@@ -466,9 +466,11 @@ QUIT .
 # depletion nodes, MWd/t: the COMPO's (rbmk_a5b_compo) up to 15000 plus 10900,
 # the Unit 4 core average at 01:22:30 (INSAG-7 p. 128: 10.3 MWd/kg is the
 # "reference" core; PROJECT_PLAN uses 10.9)
-BU_NODES = [0.0, 2000.0, 3500.0, 5000.0, 7500.0, 10000.0, 10900.0, 12500.0, 15000.0]
-# depleted with EVO: EXTR 1 on this grid (no step > 2.5 MWd/kg), as rbmk_a5b_compo
-# since A6b (2026-09-26): within ~35 pcm of the step-converged k-inf
+BU_NODES = [0.0, 500.0, 2000.0, 3500.0, 5000.0, 7500.0, 10000.0, 10900.0, 12500.0, 15000.0]
+# depleted with EVO: EXTR 1 on this grid, which is rbmk_a5b_compo's (and
+# rbmk_meth_dstep25x's) with 10900 added: no step over 2.5 MWd/kg, and the
+# 500 MWd/t node kept.  Dropping that node biased the whole trajectory 45-75
+# pcm low (2026-09-27), because EXTR 1 extrapolates from the step history.
 
 
 def dragon_deck(name, bus, dcas, tfs, types, k=1, moc=0, b4c="nom", dsp="nom",

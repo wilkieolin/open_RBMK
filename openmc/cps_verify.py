@@ -90,8 +90,9 @@ def dragon_rows(deck):
     if not os.path.exists(p):
         return out
     num = r"([-+]?\d+\.\d+[eE][-+]\d+)"
+    pat = r">\|CPSTAB\s+" + r"\s+".join([num] * 3) + r"\s+(\d+)\s+" + num
     for line in open(p, errors="ignore"):
-        m = re.search(r">\|CPSTAB\s+" + r"\s+".join([num] * 5), line)
+        m = re.search(pat, line)
         if m:
             bu, dca, tf, it, k = (float(x) for x in m.groups())
             out[(int(round(bu / 1000)), round(dca, 2), cc.TYPES[int(it) - 1])] = k
@@ -157,5 +158,67 @@ def table():
             f"{k} {fmt(None if a[k] is None or b[k] is None else b[k] - a[k])}" for k in a))
 
 
+# ------------------------------------------------------- GATE A6.4 (a64 decks)
+DON = os.path.join(os.path.dirname(HERE), "5.1", "Donjon", "Linux_aarch64")
+
+
+def _rows(path, key):
+    import re
+    out = {}
+    if not os.path.exists(path):
+        return out
+    num = r"([-+]?\d+\.\d+[eE][-+]\d+)"
+    pat = r">\|" + key + r"\s+" + r"\s+".join([num] * 3) + r"\s+(\d+)\s+" + num
+    for line in open(path, errors="ignore"):
+        m = re.search(pat, line)
+        if m:
+            bu, dca, tf, it, k = (float(x) for x in m.groups())
+            out[(int(round(bu)), round(dca, 2), int(tf))] = (cc.TYPES[int(it) - 1], k)
+    return out
+
+
+def a64():
+    """GATE A6.4: DONJON on the homogenised supercell vs DRAGON's own k-inf.
+      A64S  all nine cells from the CPS MULTICOMPO -- tests SPH + homogenisation
+            + the DONJON solver alone.  Must reproduce DRAGON.
+      A64V  the eight fuel cells from the FUEL MULTICOMPO instead (what the core
+            will actually do) -- adds the error of using infinite-lattice fuel
+            data next to a rod.
+      A64M  as A64V but with the core's old MCFD 1 discretisation, for scale."""
+    print("GATE A6.4: DONJON on the homogenised 3 x 3 supercell vs DRAGON, pcm")
+    print(f"  {'state':>22} {'type':>5} {'DRAGON k':>9} {'A64S':>7} {'A64V':>7} {'A64M':>7}")
+    D, S_, V, M = {}, {}, {}, {}
+    for t in cc.TYPES[1:]:
+        dp = os.path.join(DRA, f"rbmk_cps_a64_{t}.result")
+        for (bu, dca, tf), (ty, k) in _rows(dp, "CPSTAB").items():
+            D[(bu, dca, tf, ty)] = k
+        p = os.path.join(DON, f"rbmk_cps_a64v_{t}.don.result")
+        for tag, dst in (("A64S", S_), ("A64V", V), ("A64M", M)):
+            for (bu, dca, tf), (ty, k) in _rows(p, tag).items():
+                dst[(bu, dca, tf, ty)] = k
+    for key in sorted(V, key=lambda k: (k[0], -k[1], k[2], k[3])):
+        bu, dca, tf, ty = key
+        d = D.get(key)
+        if d is None:
+            continue
+        f = lambda x: "     --" if x is None else f"{1e5 * (rho(x) - rho(d)):+7.0f}"
+        print(f"  BU {bu:>6.0f} dca {dca:4.2f} TF {tf:4d} {ty:>5} {d:9.6f} "
+              f"{f(S_.get(key))} {f(V.get(key))} {f(M.get(key))}")
+    print("\n  section worths (rho(type) - rho(WAT)), pcm, and the gate (1 %):")
+    states = sorted({(k[0], k[1], k[2]) for k in V})
+    for st in states:
+        w = lambda src: {t: (1e5 * (rho(src[st + (t,)]) - rho(src[st + ("WAT",)])))
+                         for t in ("ABS", "DSP", "VOID") if st + (t,) in src and st + ("WAT",) in src}
+        wd, wv, ws = w(D), w(V), w(S_)
+        for t in wd:
+            if t not in wv:
+                continue
+            e_v = 100 * (wv[t] - wd[t]) / abs(wd[t])
+            e_s = 100 * (ws[t] - wd[t]) / abs(wd[t]) if t in ws else float("nan")
+            print(f"  BU {st[0]:>6.0f} dca {st[1]:4.2f} TF {st[2]:4d} {t + '-WAT':>9}: "
+                  f"DRAGON {wd[t]:+7.0f}   A64S {ws.get(t, float('nan')):+7.0f} ({e_s:+5.1f} %)"
+                  f"   A64V {wv[t]:+7.0f} ({e_v:+5.1f} %)  {'PASS' if abs(e_v) <= 1 else 'FAIL'}")
+
+
 if __name__ == "__main__":
-    {"run": run, "table": table}[sys.argv[1]]()
+    {"run": run, "table": table, "a64": a64}[sys.argv[1]]()
