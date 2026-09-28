@@ -156,6 +156,21 @@ def table():
         a, b = worths(O, 0, dca), worths(R, 0, dca)
         print(f"  dca {dca}: " + "  ".join(
             f"{k} {fmt(None if a[k] is None or b[k] is None else b[k] - a[k])}" for k in a))
+    # A worth is a difference of two k's, so a worth error says nothing about
+    # WHICH of the two states is wrong.  This does: it localises the residual.
+    print("\nABSOLUTE k of the supercell, DRAGON minus OpenMC, pcm on rho")
+    print(f"{'BU':>3} {'dca':>5} {'type':>5} {'OpenMC k':>9} {'prod k':>9} {'d_rho':>7}"
+          f" {'conv k':>9} {'d_rho':>7}")
+    for bu in (0, 10):
+        for dca in (0.72, 0.02):
+            for t in cc.TYPES[1:]:
+                o = O.get((bu, dca, t))
+                if o is None:
+                    continue
+                d = lambda x: "     --" if x is None else f"{1e5 * (rho(x) - rho(o)):+7.0f}"
+                g = lambda x: "       --" if x is None else f"{x:9.5f}"
+                p, c = prod.get((bu, dca, t)), conv.get((bu, dca, t))
+                print(f"{bu:>3} {dca:5.2f} {t:>5} {o:9.5f} {g(p)} {d(p)} {g(c)} {d(c)}")
 
 
 # ------------------------------------------------------- GATE A6.4 (a64 decks)
@@ -206,18 +221,30 @@ def a64():
               f"{f(S_.get(key))} {f(V.get(key))} {f(M.get(key))}")
     print("\n  section worths (rho(type) - rho(WAT)), pcm, and the gate (1 %):")
     states = sorted({(k[0], k[1], k[2]) for k in V})
+    err = {"V": {}, "M": {}}
     for st in states:
         w = lambda src: {t: (1e5 * (rho(src[st + (t,)]) - rho(src[st + ("WAT",)])))
                          for t in ("ABS", "DSP", "VOID") if st + (t,) in src and st + ("WAT",) in src}
-        wd, wv, ws = w(D), w(V), w(S_)
+        wd, wv, ws, wm = w(D), w(V), w(S_), w(M)
         for t in wd:
             if t not in wv:
                 continue
             e_v = 100 * (wv[t] - wd[t]) / abs(wd[t])
             e_s = 100 * (ws[t] - wd[t]) / abs(wd[t]) if t in ws else float("nan")
+            err["V"].setdefault(t, []).append(e_v)
+            if t in wm:
+                err["M"].setdefault(t, []).append(100 * (wm[t] - wd[t]) / abs(wd[t]))
             print(f"  BU {st[0]:>6.0f} dca {st[1]:4.2f} TF {st[2]:4d} {t + '-WAT':>9}: "
                   f"DRAGON {wd[t]:+7.0f}   A64S {ws.get(t, float('nan')):+7.0f} ({e_s:+5.1f} %)"
                   f"   A64V {wv[t]:+7.0f} ({e_v:+5.1f} %)  {'PASS' if abs(e_v) <= 1 else 'FAIL'}")
+    # The discretisation the CORE uses, over every state.  A2 chose MCFD 1 for
+    # speed, before any rod cell existed; one mesh-centred point per 25 cm node
+    # cannot represent the flux depression in a black absorber.
+    print("\n  DISCRETISATION: worth error vs DRAGON over all states, %")
+    print(f"  {'worth':>9} {'DUAL 1 1 (A64V)':>22} {'MCFD 1 (A64M)':>22}")
+    for t in ("ABS", "DSP", "VOID"):
+        rng = lambda e: "--" if not e.get(t) else f"{min(e[t]):+.1f} to {max(e[t]):+.1f}"
+        print(f"  {t + '-WAT':>9} {rng(err['V']):>22} {rng(err['M']):>22}")
 
 
 if __name__ == "__main__":

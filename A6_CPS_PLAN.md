@@ -213,18 +213,55 @@ Merging the fuel makes it worse, because the rod's factor then compensates again
 average that matches the per-cell fuel COMPO even less well. So `ASYM 1` on nine regions stays,
 and the remaining ~135 pcm (2.6–10 % on the worths) needs an explicit correction.
 
-**Implementation.** Upstream's own pattern, from `Donjon/data/Equivalence_SPH_RT_APEX.x2m`:
-run the fixed-point in DONJON, then write the factors back into the database under a named
-equivalence, so nothing downstream has to change —
+> **The first implementation recorded here was wrong, and is corrected below (2026-09-28).** It
+> said: run a `SPHPicardRT` fixed point in DONJON, then `SPH: <compo> OPTIM :: IDEM SPOP
+> EQUI 'EQV_CPS'` to store the factors in the CPS MULTICOMPO under a named equivalence, and read
+> them back through `NCR:`. **That aborts.** `Dragon/src/SPH.F:440-442` rejects `EQUI` unless the
+> database is a SAPHYB or an APEX/MPO, and `NCR:` has no equivalence keyword at all
+> (`Donjon/src/NCR.f:149-308`; the one `SPH` hit in `NCRLIB.f:538` is `SPHEMB`, an unrelated
+> embedded-macrolib routine). Caught by reading the source before building anything.
 
-1. `SPHPicardRT`-style loop: `TRIVAA:` → `FLUD:` → `OUT: ... INTG MIX` → `FPSPH:` → `MAC:`,
-   against DRAGON's supercell per-cell fluxes as the reference.
-2. `SPH: <compo> OPTIM :: IDEM SPOP EQUI 'EQV_CPS'` stores the result in the CPS MULTICOMPO.
-3. The core reads that equivalence through `NCR:` as usual.
+**What the source actually provides** (all verified in the vendored 5.1 tree):
 
-**The open question to settle first**, because `FPSPH:` has no mixture selection and corrects every
-mixture: the fuel cells will come out with factors ≠ 1 as well. Either (a) keep only the rod
-cell's factor and re-measure what the residual becomes, or (b) accept a second fuel dataset for
-rod-adjacent cells, which is option 3 in disguise and which the real 7-fuel-per-rod lattice makes
-less unreasonable than it sounds. Settle it by measurement on the smoke case before building the
-full loop.
+- **A MULTICOMPO takes SPH factors destructively.** `SPH.F:801-806` → `SPHSCO.f` bakes them into
+  the stored cross sections of the calculation point — unnamed, one-way, no way to opt out. For
+  us that is the *wanted* behaviour: the CPS COMPO holds nothing but rod cells, so `NCR:` and the
+  whole core pipeline stay unchanged.
+- **`FPSPH:` has no mixture selection.** Its entire vocabulary is `EDIT`, `SPH PN|SN`, `GRPMIN`,
+  `GRPMAX`, `OUT-STEP-EPS`, `VAR-VAL-MIN`, `VAR-VAL-MAX`, `OUT-CONV-TST`, `ANDERSON`
+  (`FPSPH.f:192-265`); anything else hits `XABORT`. It corrects every mixture and normalises over
+  all of them (`FPSPH.f:324-336`). Neighbours can be pinned to 1 only by pre-seeding per-variable
+  bounds — `FPSPH.f:271-284` honours an existing `VAR-VAL-MIN`/`VAR-VAL-MAX` record and clamps
+  element-wise at `:386-389`, so `UTL: OPTIM :: CREA` after the first call does it. Not `GRAD:`,
+  which rewrites the whole `STATE-VECTOR` and clobbers `ISTATE(8)`/`ISTATE(15)` (`GRAD.f:339-352`).
+- **`SPH: … MACRO SPRD <nmerge> <ngcond> <values>`** (`SPH.F:325-348`) applies an explicit
+  per-mixture, per-group table with no optimiser at all. Inner loop mixture, outer loop group.
+- **A trap:** `ASYM <mix>` pins that mixture's factor to exactly 1 in every group
+  (`SPHEQU.f:306-321, 600-624, 679`), so merging the eight fuel cells into one macro-mixture and
+  using `ASYM 2` looks like the whole answer. It is not — it still normalises against DRAGON's
+  *own* fuel data rather than the fuel COMPO's, which is precisely the error we are removing. The
+  table above already measured that merge: worse, +254 vs +135 pcm.
+
+**Implementation, corrected.**
+
+1. **Solve the two factors directly.** Two unknowns (one per group on the rod cell) against two
+   conditions: the rod cell's group-wise volume-integrated flux as DRAGON's transport supercell
+   gives it — the same quantity `FPSPH:` matches (`FPSPH.f:312-316`). **k is left free and is the
+   check**, which is the right way round, because every worth is a k difference.
+2. **Apply trial factors with `SPRD`** in the A64V gate deck:
+   `MACRO := SPH: MACRO :: EDIT 0 MACRO SPRD 9 2 <18 values> ;` — 1.0 on the eight fuel mixtures,
+   `f_g` on the rod cell — and read k and the per-zone fluxes back through `OUT: … INTG MIX`.
+   Drive the iteration from Python; the 3×3 two-group DONJON solve takes milliseconds, so 18
+   states × 4 configurations is minutes.
+3. **Cross-check with upstream's own machinery (rule 4).** Reproduce the smoke-case factors with
+   `SPH_FixedPt`/`SPHPicardRT` and the eight neighbour variables clamped as above. Agreement
+   validates; disagreement is a finding about `FPSPH:`'s all-mixture normalisation.
+4. **Persist** by applying the converged table with a second `SPH: EDIOBJ :: EDIT 0 IDEM SPRD
+   9 2 <values> ;` on the L_EDIT in the A64 DRAGON deck, before `COMPO:` stores it. One extra
+   pass of the four A64 decks per COMPO rebuild, and nothing downstream changes.
+
+*Fallback*, if the destructive bake interacts badly with the DCA/TF interpolation: move the CPS
+database to a SAPHYB or APEX, store `EQUI 'ROD_EQV'`, and read it with `SCR:`/`ACR:` in a call
+whose `MIX` blocks name only rod mixtures — upstream's own pattern in
+`Donjon/data/Fessenheim_proc/InterpCP0.c2m:44-47`, where the fuel carries `EQUI EQVS` and the
+reflector comes from a plain `NCR:`.

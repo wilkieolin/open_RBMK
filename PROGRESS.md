@@ -2079,6 +2079,32 @@ The rod's influence reaches past the first ring of fuel. That is not an error in
 the core solve is what resolves it — but it is the same physics that breaks A6.4 below, and it
 sets the scale of the neighbour effect: of order 1000 pcm, not 100.
 
+**Where the residual actually lives — 2026-09-28.** A worth is a difference of two k's, so a
+worth error says nothing about *which* of the two states is wrong. Comparing absolute supercell
+k does (`cps_verify.py table`, last block):
+
+```
+ BU   dca  type  OpenMC k    prod k   d_rho    conv k   d_rho
+  0  0.72   WAT   1.24292   1.24995    +452   1.24437     +93
+  0  0.72   ABS   1.13679   1.12728    -743   1.12868    -632
+  0  0.72   DSP   1.29584   1.29864    +167   1.29402    -108
+  0  0.72  VOID   1.31418   1.31493     +43   1.31147    -157
+  0  0.02   WAT   1.24752   1.25718    +616   1.25665    +582
+  0  0.02   DSP   1.31665   1.31854    +109   1.31901    +136
+  0  0.02  VOID   1.33757   1.33619     -77   1.33725     -18
+ 10  0.72   ABS   0.95161   0.94254   -1010   0.94375    -875
+ 10  0.02   WAT   1.05277   1.05934    +589   1.05882    +543
+```
+
+Converged DRAGON reproduces OpenMC's **displacer and drained-channel** supercells to 100–240 pcm.
+The −7 to −10 % worth errors are almost entirely the **WAT baseline being 450–620 pcm too
+reactive**, and at voided coolant the converged settings do not touch it at all (+616 → +582).
+The absorber is a separate, genuine −630 to −1130 pcm over-absorption.
+
+So A6.3 is not one diffuse method gap but two specific findable things, and the larger of them
+sits in the water-filled CPS channel — a single cheap cell, not a 30-hour supercell. That
+reopens the gate as something to close rather than attribute.
+
 ### A6.4 — the homogenisation is exact; the neighbour data is not
 
 `python openmc/cps_verify.py a64`, 18 states (BU 0 / 10.9 / 15 MWd/kg × dca 0.72 / 0.35 / 0.02 ×
@@ -2111,6 +2137,25 @@ Two method choices were settled on the way, neither by fitting:
   segfault in `TRI1GSO`. DUAL converges in 18–41. A2 chose MCFD for speed, before any rod cell
   existed; **from A6.5 on the core must use the discretisation SPH was computed with.**
 
+**How much that second choice was worth — 2026-09-28.** The gate decks had been computing an
+MCFD variant (`A64M`) all along and nobody had read it out. Over all 18 states
+(`cps_verify.py a64`, last block):
+
+```
+  DISCRETISATION: worth error vs DRAGON over all states, %
+      worth        DUAL 1 1 (A64V)          MCFD 1 (A64M)
+    ABS-WAT           -2.8 to +3.2         +30.6 to +34.4
+    DSP-WAT           -9.1 to -6.8           -7.2 to -1.1
+   VOID-WAT          -10.5 to -8.5           -5.0 to +3.1
+```
+
+**`MCFD 1` loses a third of the absorber worth**, consistently, at every burnup, coolant density
+and fuel temperature. One mesh-centred point per 25 cm node cannot represent the flux depression
+in a black absorber. The switch was adopted to make SPH converge; it turns out to be mandatory on
+accuracy grounds, and the old setting would have cost ~1/3 of all-rods-in worth without ever
+failing a gate. Caveat, to be closed by a control run: `A64M` applies DUAL-derived SPH factors to
+an MCFD solve, so part of the 31 % is the mismatch rather than MCFD alone.
+
 ### A6.4b — the rod-cell equivalence, chosen after measuring the alternatives out
 
 DRAGON's built-in normalisations were exhausted first, on the smoke case (DRAGON 1.126503):
@@ -2129,16 +2174,39 @@ regions; our cells have no gap mixture, so the outermost graphite ring would hav
 
 **Decision: an explicit equivalence on the rod cell alone.** Per-group factors, computed per
 state, that make the DONJON supercell reproduce DRAGON's with the fuel data the core actually
-uses. The fuel COMPO stays untouched and there stays one dataset per rod type. Implementation
-follows upstream's own pattern (`Donjon/data/Equivalence_SPH_RT_APEX.x2m`): a `SPHPicardRT`-style
-loop (`TRIVAA:` → `FLUD:` → `OUT: … INTG MIX` → `FPSPH:` → `MAC:`) against DRAGON's per-cell
-fluxes, then `SPH: <compo> OPTIM :: IDEM SPOP EQUI 'EQV_CPS'` to store the result in the CPS
-MULTICOMPO, so `NCR:` downstream is unchanged.
+uses. The fuel COMPO stays untouched and there stays one dataset per rod type.
 
-Open question, to settle by measurement before building the loop: `FPSPH:` has no mixture
-selection and corrects every mixture, so the fuel cells will come out with factors ≠ 1 too.
-Either keep only the rod cell's factor and re-measure the residual, or accept a second fuel
-dataset for rod-adjacent cells.
+> **Corrected 2026-09-28, before anything was built.** The implementation first recorded here —
+> a `SPHPicardRT`-style loop, then `SPH: <compo> OPTIM :: IDEM SPOP EQUI 'EQV_CPS'` to store the
+> factors in the CPS MULTICOMPO — **would have aborted.** A read of the vendored source settles
+> three things:
+>
+> - **`EQUI` is rejected for a MULTICOMPO.** `Dragon/src/SPH.F:440-442` aborts unless the
+>   database is a SAPHYB or an APEX/MPO. What a MULTICOMPO does instead (`SPH.F:801-806` →
+>   `SPHSCO.f`) is bake the factors *destructively* into the stored cross sections of that
+>   calculation point — unnamed and one-way. For us that is the wanted behaviour, because the
+>   CPS COMPO holds nothing but rod cells, and `NCR:` then needs no change at all.
+> - **`FPSPH:` really has no mixture selection.** Its whole vocabulary is `EDIT`, `SPH PN|SN`,
+>   `GRPMIN`, `GRPMAX`, `OUT-STEP-EPS`, `VAR-VAL-MIN`, `VAR-VAL-MAX`, `OUT-CONV-TST`, `ANDERSON`
+>   (`FPSPH.f:192-265`); anything else hits `XABORT`, and its normalisation averages over every
+>   mixture (`FPSPH.f:324-336`). Neighbours can only be held at 1 by pre-seeding per-variable
+>   bounds through `UTL: OPTIM :: CREA` (`FPSPH.f:271-284, 386-389`).
+> - **`SPH: … MACRO SPRD <nmerge> <ngcond> <values>`** (`SPH.F:325-348`) applies an explicit
+>   per-mixture, per-group table with no optimiser at all. That is the clean lever, and it is
+>   what the rod-cell equivalence will use.
+>
+> One trap recorded so it is not walked into twice: `ASYM <mix>` pins a mixture's factor to 1
+> exactly, so merging the eight fuel cells into one macro-mixture and using `ASYM 2` looks like
+> the answer. It is not — it still normalises against DRAGON's *own* fuel data, not the fuel
+> COMPO's, which is the whole problem. The measurement above already shows that merge is worse.
+
+**The plan, as corrected.** Solve the two per-group factors directly — two unknowns against two
+conditions (the rod cell's group-wise volume-integrated flux, as DRAGON's transport supercell
+gives it), with k left free as the check, since every worth is a k difference. Apply trial
+factors through `SPRD`, drive the loop from Python (the 3×3 two-group DONJON solve takes
+milliseconds), and cross-check the smoke case against upstream's own `FPSPH:` machinery with the
+neighbour variables clamped. Persist by applying the converged table with a second
+`SPH: EDIOBJ :: IDEM SPRD …` in the A64 DRAGON deck before `COMPO:` stores it.
 
 ### A6d — the Unit 4 channel map, from registering two digitisations
 
@@ -2251,11 +2319,12 @@ against measurement. The single-channel void worth is not the core void reactivi
 depends on leakage, the rod pattern and the axial shape, which are exactly the parts A6.5 onward
 build.
 
-**Runs in flight.** Two converged A6.3 states (`fresh_conv_ABS`, `oed10_conv_VOID`, both at
-dca 0.02) have been running 30.7 h on `spark` and have finished one of three coolant densities
-each. Nearly all of it is `FLU:` — MOC source iteration converging slowly next to B₄C with one
-inner per outer in the upstream template. They fill two cells of the A6.3 table and are
-confirmatory: the A′ trend is established by the other ten.
+**Runs in flight.** Two converged A6.3 states (`fresh_conv_ABS`, `oed10_conv_VOID`) have been
+running 32 h on `spark` and have finished the first of their **two** coolant densities each —
+the decks run 0.72 and 0.02, so they are half done, not a third. Nearly all of it is `FLU:` —
+MOC source iteration converging slowly next to B₄C with one inner per outer in the upstream
+template. They fill two cells of the A6.3 table and are confirmatory: the A′ trend is
+established by the other ten.
 
 ---
 
