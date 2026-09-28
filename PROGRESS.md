@@ -2153,8 +2153,41 @@ MCFD variant (`A64M`) all along and nobody had read it out. Over all 18 states
 and fuel temperature. One mesh-centred point per 25 cm node cannot represent the flux depression
 in a black absorber. The switch was adopted to make SPH converge; it turns out to be mandatory on
 accuracy grounds, and the old setting would have cost ~1/3 of all-rods-in worth without ever
-failing a gate. Caveat, to be closed by a control run: `A64M` applies DUAL-derived SPH factors to
-an MCFD solve, so part of the 31 % is the mismatch rather than MCFD alone.
+failing a gate.
+
+**The control, and it closes the question harder than the number does.** `A64M` applies
+DUAL-derived SPH factors to an MCFD solve, so part of that 31 % could have been the mismatch
+rather than MCFD itself. `rbmk_cps_a64_smkm.x2m` is the same smoke deck with SPH computed under
+`MCFD 1` too — identical transport (both print k∞ 1.127280), differing only in the discretisation
+the equivalence is built on:
+
+| SPH discretisation | outcome |
+|---|---|
+| `DUAL 1 1` | oscillation warnings early, **converged in 40 iterations** |
+| `MCFD 1` | oscillates from iteration 5, hits the 200 cap, `SPHEQU: MAX. NUMBER OF ITERATIONS IS REACHED` |
+
+So there is no clean MCFD number to quote, because **MCFD cannot carry a converged SPH
+equivalence on this geometry at all**. The 31–34 % is the best available measure of what it
+costs; the operative fact is that the core could not have used MCFD with rod data whatever the
+size of the error.
+
+**And it costs nothing to leave.** `decks/Donjon/data/rbmk_core_3d_dual.don` is
+`rbmk_core_3d_realistic.don` with the tracking line changed and nothing else (still A2's
+wrong-on-purpose IAEA constants — this is solver timing, not physics). Matched runs, same
+machine, same day:
+
+| solver | wall | max RSS | k | unknowns/group |
+|---|---|---|---|---|
+| `MCFD 1` | 1.95 s | 39 MB | 1.123062 | — |
+| `DUAL 1 1` | 2.11 s | 56 MB | 1.123053 | 263 329 |
+
+**8 % more wall clock and 17 MB.** A2's note that `DUAL 3 3` took 729 s against MCFD's 1 s had
+made the mixed-dual family look unaffordable; `DUAL 1 1` is not `DUAL 3 3`. A8's transient
+multiplies this by a few hundred steps and remains cheap, and 56 MB raises no memory question.
+
+The two also agree to **0.7 pcm** on this rod-free core — which is the other half of the control.
+MCFD is not generally wrong; it fails specifically when a black absorber sits inside a node,
+which is exactly the claimed mechanism.
 
 ### A6.4b — the rod-cell equivalence, chosen after measuring the alternatives out
 
