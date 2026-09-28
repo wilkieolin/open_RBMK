@@ -192,3 +192,39 @@ of Fig. II-6). See PROJECT_PLAN.md, roadmap.
 - Additional absorbers (ДП) in fuel channels at start-up: none are listed for Unit 4 in 1986;
   confirm in A6.1.
 - Xenon in the surrounding fuel: the fuel COMPO has no Xe axis yet (A5b deferral).
+
+### A6.4b — the rod-cell equivalence (chosen 2026-09-27)
+
+**Decision: option 2.** The rod cell carries per-group factors, computed per state, so that the
+DONJON supercell reproduces DRAGON's with the fuel data the core actually uses. The fuel COMPO is
+left untouched and there stays one dataset per rod type.
+
+**DRAGON's native normalisations are exhausted — measured, not assumed.** On the smoke case
+(DRAGON 1.126503), the DONJON supercell with fuel-COMPO neighbours gives:
+
+| SPH normalisation | A64V error |
+|---|---|
+| `ASYM 1`, nine cell regions (current) | **+135 pcm** |
+| `STD`, nine cell regions | +394 pcm |
+| `ASYM 1`, fuel merged to one region (`MERG CELL ... REMIX`) | +254 pcm |
+| `SELE_FD` / `SELE_EDF` | refuse: no ADF directory in the macrolib |
+
+Merging the fuel makes it worse, because the rod's factor then compensates against an 8-cell
+average that matches the per-cell fuel COMPO even less well. So `ASYM 1` on nine regions stays,
+and the remaining ~135 pcm (2.6–10 % on the worths) needs an explicit correction.
+
+**Implementation.** Upstream's own pattern, from `Donjon/data/Equivalence_SPH_RT_APEX.x2m`:
+run the fixed-point in DONJON, then write the factors back into the database under a named
+equivalence, so nothing downstream has to change —
+
+1. `SPHPicardRT`-style loop: `TRIVAA:` → `FLUD:` → `OUT: ... INTG MIX` → `FPSPH:` → `MAC:`,
+   against DRAGON's supercell per-cell fluxes as the reference.
+2. `SPH: <compo> OPTIM :: IDEM SPOP EQUI 'EQV_CPS'` stores the result in the CPS MULTICOMPO.
+3. The core reads that equivalence through `NCR:` as usual.
+
+**The open question to settle first**, because `FPSPH:` has no mixture selection and corrects every
+mixture: the fuel cells will come out with factors ≠ 1 as well. Either (a) keep only the rod
+cell's factor and re-measure what the residual becomes, or (b) accept a second fuel dataset for
+rod-adjacent cells, which is option 3 in disguise and which the real 7-fuel-per-rod lattice makes
+less unreasonable than it sounds. Settle it by measurement on the smoke case before building the
+full loop.
