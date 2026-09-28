@@ -2105,6 +2105,36 @@ So A6.3 is not one diffuse method gap but two specific findable things, and the 
 sits in the water-filled CPS channel — a single cheap cell, not a 30-hour supercell. That
 reopens the gate as something to close rather than attribute.
 
+**The WAT/VOID pair is already the isolating experiment.** `SECTIONS['WAT']` and
+`SECTIONS['VOID']` are the *same* geometry — one annulus out to the tube, split four ways —
+differing only in whether it holds water or helium. Same Zr tube, same graphite, same eight fuel
+neighbours. Water is 450–620 pcm off; helium is 43 to −157. The error is in the water column and
+nothing else.
+
+**First hypothesis: eliminated.** The draglib carries `H1_H2O` at only 293.6 / 350 / 400 / 450 /
+500 / 600 K, and `LIBDRA.f:68` interpolates cubically in √T (`NOTX=3`), so the nominal 323.15 K
+sits 29.5 K off the nearest node in the steepest part of the bound-hydrogen kernel — while
+OpenMC's `c_H_in_H2O` has points at 320 and 324 K. That is a clean mechanism, and it is wrong.
+Running both codes with the CPS water at exactly 293.6 K, where `LIBLEX.f:46` returns `TERP = 1`
+and DRAGON interpolates nothing at all (`rbmk_cps_a63_twat.x2m`, and the matching OpenMC cases):
+
+```
+Track C: CPS water on a draglib temperature node vs interpolated
+  dca   T_wat    DRAGON    OpenMC   d_rho
+ 0.72  323.15   1.24995   1.24292    +452
+ 0.72  293.60   1.24788   1.24000    +509
+```
+
+The gap does not close; it is 509 pcm on the node against 452 interpolated. Temperature
+interpolation of the thermal scattering law is **not** the mechanism, and the CPS water
+temperature stays a free argument only because the test needed it.
+
+Next candidates, in order: the transport treatment of the water column (production is collision
+probabilities with a transport correction, and an 8.2 cm column of bound hydrogen is where that
+approximation is weakest — the converged MOC/P1 variant moves WAT by 558 pcm at dca 0.72 but
+essentially nothing at 0.02, which wants explaining on its own); then the spatial mesh inside the
+column; then the multigroup thermal scattering data itself.
+
 ### A6.4 — the homogenisation is exact; the neighbour data is not
 
 `python openmc/cps_verify.py a64`, 18 states (BU 0 / 10.9 / 15 MWd/kg × dca 0.72 / 0.35 / 0.02 ×

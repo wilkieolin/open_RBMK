@@ -119,9 +119,12 @@ def worths(K, bu, dca):
 
 def table():
     omc = json.load(open(OUT)) if os.path.exists(OUT) else []
-    O = {(r["bu"], r["dca"], r["type"]): r["k"] for r in omc if r["layout"] == "3x3"}
-    S = {(r["bu"], r["dca"], r["type"]): r["sd"] for r in omc if r["layout"] == "3x3"}
-    R = {(r["bu"], r["dca"], r["type"]): r["k"] for r in omc if r["layout"] == "r45"}
+    # variant cases (Track C's t_wat) share layout/type/bu/dca with the nominal
+    # ones and would silently overwrite them in these dicts -- keep them out.
+    nom = [r for r in omc if "t_wat" not in r]
+    O = {(r["bu"], r["dca"], r["type"]): r["k"] for r in nom if r["layout"] == "3x3"}
+    S = {(r["bu"], r["dca"], r["type"]): r["sd"] for r in nom if r["layout"] == "3x3"}
+    R = {(r["bu"], r["dca"], r["type"]): r["k"] for r in nom if r["layout"] == "r45"}
     prod, conv = {}, {}
     for f in ("a63_fresh", "a63_oed10"):
         prod.update(dragon_rows(f))
@@ -165,6 +168,25 @@ def table():
         a, b = worths(O, 0, dca), worths(R, 0, dca)
         print(f"  dca {dca}: " + "  ".join(
             f"{k} {fmt(None if a[k] is None or b[k] is None else b[k] - a[k])}" for k in a))
+    # Track C: does putting the CPS water on a draglib temperature node close
+    # the WAT gap?  The draglib has H1_H2O only at 293.6 / 350 / ... K and
+    # interpolates cubically in sqrt(T) (LIBDRA.f:68); at 293.6 LIBLEX.f:46
+    # returns TERP = 1 and no interpolation happens.  OpenMC is on-grid either
+    # way (it has 320 and 324 K), so any change here is DRAGON's.
+    tw = {(r["dca"], r["t_wat"]): r["k"] for r in omc
+          if r.get("t_wat") and r["type"] == "WAT"}
+    if tw:
+        dtw = dragon_rows("a63_twat")
+        print("\nTrack C: CPS water on a draglib temperature node vs interpolated")
+        print(f"{'dca':>5} {'T_wat':>7} {'DRAGON':>9} {'OpenMC':>9} {'d_rho':>7}")
+        for dca in (0.72, 0.02):
+            for t, kd, ko in ((323.15, prod.get((0, dca, "WAT")), O.get((0, dca, "WAT"))),
+                              (293.6, dtw.get((0, dca, "WAT")), tw.get((dca, 293.6)))):
+                if kd is None or ko is None:
+                    continue
+                print(f"{dca:5.2f} {t:7.2f} {kd:9.5f} {ko:9.5f}"
+                      f" {1e5 * (rho(kd) - rho(ko)):+7.0f}")
+
     # A worth is a difference of two k's, so a worth error says nothing about
     # WHICH of the two states is wrong.  This does: it localises the residual.
     print("\nABSOLUTE k of the supercell, DRAGON minus OpenMC, pcm on rho")
