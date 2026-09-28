@@ -63,7 +63,7 @@ COMPO := COMPO: ::
   ;
 
 LIBRARY := RbmkLib :: 0.72 900.0 <<tgnom>> <<tcool>> ;
-LIBRARY := RbmkCpsLib LIBRARY :: 2.0 1.65 323.15 ;
+LIBRARY := RbmkCpsLib LIBRARY :: 2.0 1.65 323.15 323.15 ;
 LIBSS := USS: LIBRARY SCTRKSS SCFTRKSS :: EDIT 0 PASS 2 MAXST 300 ;
 SYS := ASM: LIBSS SCTRK SCFTRK :: EDIT 0 ;
 *  B1 at zero buckling: sets the leakage flag so COMPO: keeps GOLVER's DIFF

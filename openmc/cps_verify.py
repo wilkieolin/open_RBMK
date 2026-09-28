@@ -43,12 +43,19 @@ def cases():
     for dca in (0.72, 0.02):
         for t in ("WAT", "ABS", "DSP", "VOID"):
             out.append(dict(layout="r45", type=t, bu=0, dca=dca))
+    # A6.3 Track C: the same WAT supercell with the CPS water on a draglib
+    # temperature node (293.6 K), where DRAGON does no interpolation.  Pairs
+    # with the rbmk_cps_a63_twat deck.  OpenMC has 294 K, so it barely
+    # interpolates at either temperature; DRAGON spans 29.5 K at 323.15.
+    for dca in (0.72, 0.02):
+        out.append(dict(layout="3x3", type="WAT", bu=0, dca=dca, t_wat=293.6))
     # cheapest-first within priority: fresh before burned
     return sorted(out, key=lambda c: (c["bu"], c["layout"] != "3x3", c["dca"] != 0.72))
 
 
 def tag(c):
-    return f"{c['layout']}_{c['type']}_bu{c['bu']}_d{c['dca']}"
+    t = f"{c['layout']}_{c['type']}_bu{c['bu']}_d{c['dca']}"
+    return t + (f"_tw{c['t_wat']:g}" if "t_wat" in c else "")
 
 
 def burned_fuel(bu):
@@ -66,7 +73,9 @@ def run():
         if tag(c) in have:
             continue
         fuel = burned_fuel(c["bu"]) if c["bu"] else None
-        model = cc.openmc_supercell(c["type"], c["layout"], dca=c["dca"], fuel=fuel)
+        kw = {k: v for k, v in c.items()
+              if k not in ("layout", "type", "bu", "dca")}
+        model = cc.openmc_supercell(c["type"], c["layout"], dca=c["dca"], fuel=fuel, **kw)
         d = os.path.join(RUNDIR, tag(c))
         os.makedirs(d, exist_ok=True)
         sp = model.run(cwd=d, threads=THREADS, output=False)
