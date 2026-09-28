@@ -86,22 +86,6 @@
 > - Local runs were stopped to move to the GB10; see the hand-off at the end of "Third-party
 >   benchmark".
 
-> **2026-09-26 (2): the plan is reordered.** The lattice gap is closed, but nothing whole-core is
-> built or validated yet. New order: A6 (CPS cells) → A6b (Xe axis + COMPO rebuild) → A6c
-> (Smolensk-3 start-up, the first measured core-level reference) → A6d (Unit 4 state at 01:22:30)
-> → A7 → A8 → A9. See "Where the project stands".
-
-> **2026-09-26: Phase C done: production is on the converged library.**
-> - **Library.** SHEM-361 with Zr self-shielded in `RbmkLib`; k∞ 1.313968.
-> - **COMPO.** Rebuilt at 840 points with burnup nodes at 7.5 and 12.5. Round trip 6.7 pcm, off-grid
->   21 pcm, β monotone.
-> - **Full-void worth at 10.9 MWd/kgU:** +1.95 $ (production COMPO), +2.42 $ (plus the measured
->   mesh/MOC correction), +2.72 $ (OpenMC matched).
-> - **Depletion step size.** 5 MWd/kg steps overstated nominal k∞ by ~200–530 pcm; the void worth
->   was converged.
-> - **What's next.** The method-convergence segment is closed. Next is A6 (CPS channel cells),
->   after a check-in. See "Phase C".
-
 > **2026-09-25 (3): the void gap closes to within its criterion.**
 > - **Hot cell, fresh fuel.** DRAGON on SHEM-361 + Zr self-shielding + 4× mesh + MOC with P1
 >   scattering gives full-void Δρ **+763 vs OpenMC +821 ± 21** (inside 2σ + 5 %). At 0.35 g/cm³
@@ -119,6 +103,45 @@
 >   of OpenMC. Full voiding at 10.9 MWd/kgU is **+2.4 to +2.75 $** across both codes. See "Phase A–B
 >   on the GB10".
 
+> **2026-09-26: Phase C done: production is on the converged library.**
+> - **Library.** SHEM-361 with Zr self-shielded in `RbmkLib`; k∞ 1.313968.
+> - **COMPO.** Rebuilt at 840 points with burnup nodes at 7.5 and 12.5. Round trip 6.7 pcm, off-grid
+>   21 pcm, β monotone.
+> - **Full-void worth at 10.9 MWd/kgU:** +1.95 $ (production COMPO), +2.42 $ (plus the measured
+>   mesh/MOC correction), +2.72 $ (OpenMC matched).
+> - **Depletion step size.** 5 MWd/kg steps overstated nominal k∞ by ~200–530 pcm; the void worth
+>   was converged.
+> - **What's next.** The method-convergence segment is closed. Next is A6 (CPS channel cells),
+>   after a check-in. See "Phase C".
+
+> **2026-09-26 (2): the plan is reordered.** The lattice gap is closed, but nothing whole-core is
+> built or validated yet. New order: A6 (CPS cells) → A6b (Xe axis + COMPO rebuild) → A6c
+> (Smolensk-3 start-up, the first measured core-level reference) → A6d (Unit 4 state at 01:22:30)
+> → A7 → A8 → A9. See "Where the project stands".
+
+> **2026-09-27: A6 — the CPS channel is built and verified, and homogenisation is where it
+> breaks.** The rod, displacer and water sections exist in both codes from one transcription
+> (`openmc/cps_common.py`), and every section worth is now measured against OpenMC.
+> - **A6.2 passed.** The 3×3 supercell reproduces the single cell to +2.8 pcm (DRAGON), +2 (OpenMC).
+> - **A6.3 missed its gate.** Production DRAGON is 9–17 % low on every section worth; converging it
+>   (4× mesh, MOC P1) leaves 5–11 %. The residual is tabulated per state as the A′ correction
+>   (+60 to +1107 pcm), not fitted.
+> - **A6.4: the transport-to-diffusion step is exact; the neighbour data is not.** With all nine
+>   cells from the CPS MULTICOMPO, DONJON reproduces DRAGON to ~1 pcm. With the eight fuel cells
+>   taken from the *fuel* COMPO — what the core will actually do — the displacer and drained-channel
+>   worths fall 7–10 % short. An infinite-lattice fuel cell is not a fuel cell next to a rod.
+> - **A6.4b chosen:** an explicit equivalence on the rod cell. DRAGON's own normalisations were
+>   measured out first; none of them closes it.
+> - **A6d done, and it is the strongest result here.** Two independent digitisations — Dollezhal
+>   Fig. 2.3 (Leningrad-2) and INSAG-7 Fig. II-6 (Unit 4 at 01:22:30) — register exactly, all 223
+>   sites at one offset. Unit 4's channel map is now sourced rather than assumed: 1661 fuel,
+>   211 rods, 12 ДКЭ(в), 4 start-up chambers, 1888 positions, each count closing against a
+>   different source.
+> - **Fuel COMPO rebuilt** on a corrected depletion grid (a dropped 500 MWd/t node had biased the
+>   whole trajectory 45–75 pcm low). Gates: round trip 0.9 pcm, off-grid 23.9. The void bracket at
+>   10.9 MWd/kgU is unchanged to within a few pcm: **+1.94 / +2.41 / +2.72 $**.
+> - See "A6: the CPS channel".
+
 ## Objective
 
 3-D spatially-resolved coupled neutronics/TH RBMK-1000 model, driving a historically
@@ -131,7 +154,7 @@ in-core detector readings). Accident scenario runs to **fuel failure** and stops
 
 | Tier | What | Status |
 |---|---|---|
-| **A — offline physics** | DRAGON5 lattice → MULTICOMPO → DONJON5 3-D steady + reference AZ-5 transient. Source of truth. | **In progress.** A3–A5b done and method-converged (2026-09-26: SHEM-361 + Zr SS, 840-point COMPO, void bracket). A6–A9 next. |
+| **A — offline physics** | DRAGON5 lattice → MULTICOMPO → DONJON5 3-D steady + reference AZ-5 transient. Source of truth. | **In progress.** A3–A5b done and method-converged (SHEM-361 + Zr SS, 840-point COMPO, void bracket). A6 cells built and verified, homogenisation open (A6.4b); A6d channel map sourced. A6.5 core, A6b Xe, A6c Smolensk-3, A7–A9 to go. |
 | **B — online engine** | Standalone 2-group nodal/FD diffusion + 6 precursor groups + 1-D per-channel TH on the GB10 GPU, reading Tier A cross sections, validated against Tier A. | Not started |
 | **C — mnemonic panel** | Driven by Tier B. | Not started |
 
@@ -172,8 +195,11 @@ Access via the per-deck `<name>.access` script, which symlinks `DLIB_99`.
 | Item | Result | Status |
 |---|---|---|
 | IAEA-3D benchmark, `Donjon/data/iaea3d_fuelmap.x2m` | k_eff = 1.028980 (ref 1.029069, **−8.9 pcm**) | ✅ Genuine. Standing regression test and the structural template for the core workflow. |
-| RBMK lattice cell, `Dragon/data/rbmk_cell_a3.x2m` | **k∞ = 1.304123** (2026-09-24 (3), pinned draglib `cb1395ffbb65`, x86_64) | ✅ Geometry closed against sources, guardrail passed, fractions match analytic. Steps from the last recorded value: 1.310172 → 1.308679 is the library (−87 pcm), → 1.304717 is the Dollezhal carrier and clad (−232 pcm), → 1.304123 is clad OD 13.58 (−35 pcm). Not independently checked: the OpenMC side has not been re-run on this geometry. Earlier: correct RBMK geometry, verified in-deck against design volume fractions. Value is post-hydrogen-fix (2026-09-23) and matches what `rbmk_h2otest.x2m` measured independently; the old free-gas value was 1.312816. |
-| Void coefficient vs burnup, `Dragon/data/rbmk_a5_void.x2m` + A5b COMPO | full void at 10 / 15 MWd/kg: **+207 / +819 pcm** (+0.39 / +1.65 $); OpenMC **+1202 / +2288** (+2.25 / +4.60 $). 2026-09-24 (4) | ⚠️ Re-baselined on the sourced geometry. **Sign and trend confirmed by OpenMC; magnitude is not, and the gap widened** (DRAGON fell 150–520 pcm, OpenMC barely moved). At the Unit 4 average burnup, 10.9, the two codes put full voiding either side of prompt critical: ~0.6 $ vs ~2.7 $. See "Re-baseline on the closed geometry". |
+| RBMK lattice cell, `Dragon/data/rbmk_cell_a3.x2m` | **k∞ = 1.313968** (2026-09-26, SHEM-361 with Zr self-shielded, `RbmkLib`) | ✅ Geometry closed against sources, guardrail passed, DRAGON's fractions equal the analytic ones. **Superseded:** 1.304123 on the pinned 172-group draglib (2026-09-24 (3)); the +985 pcm is the converged library, not a geometry change. Lineage of the geometry corrections before that: 1.310172 → 1.308679 (library, −87) → 1.304717 (Dollezhal carrier and clad, −232) → 1.304123 (clad OD 13.58, −35). The value is post-hydrogen-fix (2026-09-23) and was matched independently by `rbmk_h2otest.x2m`. |
+| Void coefficient vs burnup, `Dragon/data/rbmk_a5_void.x2m` + A5b COMPO | full void at the Unit 4 average burnup, 10.9 MWd/kgU: **+1024 pcm (+1.94 $) production, +1273 (+2.41 $) with the measured method correction, +1437 (+2.72 $) OpenMC matched**. At 15 MWd/kgU: +1666 / +1932 / +2254. 2026-09-27 | ✅ **Sign, trend and magnitude now agree between two codes and a third-party benchmark**, after the method-convergence segment; the 38 % spread fell to 13 %. Carried as a three-variant bracket (`openmc/void_bracket.py`), not a single number. Superseded: the 2026-09-24 (4) reading of +0.39 / +1.65 $ (DRAGON) against +2.25 / +4.60 $ (OpenMC), which came from the unconverged 172-group library. |
+| CPS section worths, `openmc/cps_verify.py table` | 3×3 supercell, six states: converged DRAGON is **5–11 % low** against OpenMC on absorber, displacer and drained-channel worth (production 9–17 % low) | ⚠️ Measured against an independent method (rule 4) and **not closed**. The production-minus-converged difference is tabulated per state as the A′ correction, +60 to +1107 pcm. Two of twelve states still computing. |
+| CPS homogenisation, `openmc/cps_verify.py a64` | DONJON on the homogenised supercell vs DRAGON: **~1 pcm with CPS-COMPO neighbours; −7 to −10 % on the displacer and drained channel with fuel-COMPO neighbours** | ⚠️ Gate A6.4 fails, cause identified: the homogenisation, SPH equivalence and solver are exact, the neighbour data is not. Being closed by an explicit rod-cell equivalence (A6.4b). |
+| Unit 4 channel map, `tools/build_unit4_map.py` | 1661 fuel + 211 rods + 12 ДКЭ(в) + 4 start-up chambers = 1888 positions; 47 rods inserted at 01:22:30, 4346 cm | ✅ Two independent digitisations register exactly (all 223 rod sites at one offset), and every count closes against a separate source — INSAG-7 pp. 43/103, [PAV] Table 1, [D] p. 57. The rod *types* of 32 sites remain an assumption, recorded per row. |
 | CANDU-6 control, `Dragon/data/rbmk_candu.x2m` + `openmc/candu_cell.py` | DRAGON +1624 pcm vs OpenMC +1603 pcm full-void | ✅ Same geometry, library and compositions in both codes; **agree to 22 pcm (1.3 %)**. This is what validates the OpenMC model and localises the RBMK disagreement. |
 | Cell volume fractions, analytic vs DRAGON tracking | graphite 89.5938 % vs 89.594 %, coolant 3.7721 % vs 3.772 %, fuel 2.9009 % vs 2.901 % | ✅ Method sound and independent of DRAGON (`openmc/volcheck.py`). **Current geometry (2026-09-24 (3))**: analytic graphite 89.5938, coolant 3.6037, fuel 2.9009, Zr 3.0313, gas 0.8702; DRAGON 89.594 / 3.604 / 2.901 / 3.031 / 0.870. Match to every printed digit again. |
 
@@ -1978,6 +2004,261 @@ the rod pattern and the axial power shape: exactly the parts still to build.
 
 ---
 
+## A6: the CPS channel — 2026-09-27
+
+Work order `A6_CPS_PLAN.md`. Branch `tier-a/a6`, six commits, nothing pushed. The rod cells are
+built and verified against an independent method; the step that turns them into core data is
+where it breaks, and the cause is identified rather than papered over.
+
+### A6.1 — the sources
+
+| Input | Value used | Source / status |
+|---|---|---|
+| Absorber | B₄C in an aluminium sleeve, САВ-1 alloy | closed: [SF] + [OST] agree on the alloy |
+| B₄C density | 2.0 g/cm³, bracket **1.7–2.3** | **found in no source.** The single largest open input for rod worth |
+| Displacer graphite | 1.65 g/cm³, bracket 1.50–1.73, grade GR-93 | [CAST] |
+| Additional absorbers in Unit 4, 1986 | one | INSAG-7 printed pp. 67 and 107 |
+| Rod and displacer geometry | as in `openmc/cps_common.py` | [D], [SF] |
+
+Status **PASSED**, with the B₄C density and the rod types carried as open inputs for A8's
+sensitivity rather than guessed at.
+
+### A6.2 — one transcription, two codes
+
+`openmc/cps_common.py` is the only place the CPS channel is written down. It generates the DRAGON
+library and geometry procedures, the A6.3 supercell decks, the A6.4 COMPO decks, the DONJON gate
+decks and the OpenMC supercells, so the two codes cannot drift apart by transcription. It reads
+the Zr-2.5Nb composition out of `RbmkLib.c2m` by regex rather than copying it (standing rule 6).
+`openmc/rbmk_cell.py` was refactored so the single cell and the supercells share `fuel_cells()`;
+the refactor is bit-identical on k (1.3138603888586933 vs …668).
+
+**GATE A6.2 passed.** The 3×3 FUEL-centre supercell reproduces the single cell to **+2.8 pcm**
+in DRAGON and **+2 pcm** in OpenMC (1.31638 vs 1.31635).
+
+### A6.3 — section worths against OpenMC, and the A′ correction
+
+`python openmc/cps_verify.py table`. Worths are Δρ(type − WAT) on the 3×3 supercell; "prod" is the
+production settings, "conv" is 4× mesh with MOC P1.
+
+```
+ BU   dca     worth  OpenMC   sd    prod    conv  prod%  conv%  A-corr
+  0  0.72   ABS-WAT   -7511   26   -8706   -8236    -16    -10    +470
+  0  0.72   DSP-WAT   +3285   22   +3000   +3084     -9     -6     +84
+  0  0.72  VOID-WAT   +4363   21   +3954   +4112     -9     -6    +158
+  0  0.02   ABS-WAT  -10236   26  -11764      --    -15     --      --
+  0  0.02   DSP-WAT   +4209   22   +3702   +3762    -12    -11     +60
+  0  0.02  VOID-WAT   +5397   21   +4703   +4796    -13    -11     +93
+ 10  0.72   ABS-WAT   -8955   32  -10454   -9890    -17    -10    +564
+ 10  0.72   DSP-WAT   +3964   29   +3553   +3671    -10     -7    +117
+ 10  0.72  VOID-WAT   +5155   28   +4644   +4857    -10     -6    +214
+ 10  0.02   ABS-WAT  -12158   36  -13873  -12766    -14     -5   +1107
+ 10  0.02   DSP-WAT   +4871   29   +4258   +4360    -13    -10    +102
+ 10  0.02  VOID-WAT   +6189   29   +5317      --    -14     --      --
+```
+
+**GATE A6.3 missed.** Production DRAGON is 9–17 % low on every section worth. Convergence closes
+roughly half the absorber gap but leaves 5–11 %, so the 5 % criterion is met in one of twelve
+cells. Per the standing decision for Gate A, the residual is **attributed and carried, not
+fitted**: the production-minus-converged difference is the A′ correction for CPS sections,
++60 to +1107 pcm, tabulated per state.
+
+The sign is consistent with everything found in the method-convergence segment — DRAGON
+under-predicts reactivity differences that depend on resonance absorption and on flux depression
+next to a strong absorber — and with [PAR07]'s independent −21 % against MCNP.
+
+**The 3×3 supercell is not spatially converged either.** A wider OpenMC supercell moves the
+worths substantially:
+
+```
+Supercell shape (OpenMC r45 minus 3x3 worth), fresh, pcm
+  dca 0.72: ABS-WAT   -1236  DSP-WAT    +471  VOID-WAT    +648
+  dca 0.02: ABS-WAT   -1748  DSP-WAT    +616  VOID-WAT    +829
+```
+
+The rod's influence reaches past the first ring of fuel. That is not an error in the supercell —
+the core solve is what resolves it — but it is the same physics that breaks A6.4 below, and it
+sets the scale of the neighbour effect: of order 1000 pcm, not 100.
+
+### A6.4 — the homogenisation is exact; the neighbour data is not
+
+`python openmc/cps_verify.py a64`, 18 states (BU 0 / 10.9 / 15 MWd/kg × dca 0.72 / 0.35 / 0.02 ×
+T_F 900 / 1500 K). Two configurations of the same DONJON supercell:
+
+| Configuration | vs DRAGON's supercell |
+|---|---|
+| **A64S** — all nine cells from the CPS MULTICOMPO | **≤ 0.1 % on every worth, ~1 pcm on k** |
+| **A64V** — the eight fuel cells from the fuel COMPO (what the core will do) | absorber −2.5 to +2.6 %, displacer **−7 to −9 %**, drained channel **−9 to −10.5 %** |
+
+So the two-group collapse, the SPH equivalence and the DONJON solver are all exact. The entire
+error is the neighbour data: an infinite-lattice fuel cell is not a fuel cell sitting next to a
+rod, and the fuel COMPO has no axis that could know which it is. It is worst on the *positive*
+worths — the displacer effect the whole of A8 turns on — so it cannot be carried as a correction
+and ignored.
+
+One detail worth keeping: the absorber error **changes sign with coolant density** (−2.5 % at
+0.72, ≈ 0 at 0.35, +2.4 % at 0.02) and passes the 1 % gate at 0.35 by coincidence. A correction
+table fitted at one density would have the wrong sign at another. The displacer and void errors
+do not change sign and barely move with burnup or fuel temperature, which is what makes them look
+like a fixed geometric defect rather than a data-range problem.
+
+Two method choices were settled on the way, neither by fitting:
+
+- **SPH normalisation `ASYM 1`** (pin a fuel cell's factor to 1, so the rod cell carries the
+  correction) over `STD` (average over all nine). Chosen on that principle; it also happens to be
+  3× better.
+- **`TRIVAT: DUAL 1 1`, not the core's `MCFD 1`.** Under MCFD the SPH iteration oscillates and
+  never converges in 200 iterations under any normalisation, and on the full deck it ended in a
+  segfault in `TRI1GSO`. DUAL converges in 18–41. A2 chose MCFD for speed, before any rod cell
+  existed; **from A6.5 on the core must use the discretisation SPH was computed with.**
+
+### A6.4b — the rod-cell equivalence, chosen after measuring the alternatives out
+
+DRAGON's built-in normalisations were exhausted first, on the smoke case (DRAGON 1.126503):
+
+| SPH normalisation | A64V error |
+|---|---|
+| `ASYM 1`, nine cell regions | **+135 pcm** |
+| `STD`, nine cell regions | +394 pcm |
+| `ASYM 1`, fuel merged to one region (`MERG CELL … REMIX`) | +254 pcm |
+| `SELE_FD` / `SELE_EDF` / `STD_FISS` | refuse: no ADF directory in the macrolib |
+
+Merging the fuel is *worse*, because the rod's factor then compensates against an eight-cell
+average that matches the per-cell fuel COMPO even less well. Discontinuity factors (the textbook
+fix, and DONJON reads them at `NCRLIB.f:561`) need `EDI: … ADF`, which wants named boundary
+regions; our cells have no gap mixture, so the outermost graphite ring would have to serve.
+
+**Decision: an explicit equivalence on the rod cell alone.** Per-group factors, computed per
+state, that make the DONJON supercell reproduce DRAGON's with the fuel data the core actually
+uses. The fuel COMPO stays untouched and there stays one dataset per rod type. Implementation
+follows upstream's own pattern (`Donjon/data/Equivalence_SPH_RT_APEX.x2m`): a `SPHPicardRT`-style
+loop (`TRIVAA:` → `FLUD:` → `OUT: … INTG MIX` → `FPSPH:` → `MAC:`) against DRAGON's per-cell
+fluxes, then `SPH: <compo> OPTIM :: IDEM SPOP EQUI 'EQV_CPS'` to store the result in the CPS
+MULTICOMPO, so `NCR:` downstream is unchanged.
+
+Open question, to settle by measurement before building the loop: `FPSPH:` has no mixture
+selection and corrects every mixture, so the fuel cells will come out with factors ≠ 1 too.
+Either keep only the rod cell's factor and re-measure the residual, or accept a second fuel
+dataset for rod-adjacent cells.
+
+### A6d — the Unit 4 channel map, from registering two digitisations
+
+**The cartogram.** Dollezhal & Emelyanov Fig. 2.3 (Leningrad-2's initial loading) is the first
+sourced RBMK core cartogram in the project. The legend OCR was deciphered and cross-checked
+against the body text; the figure was then hand-digitised into `sources/derived/core_layout.xlsx`
+and read back by `tools/render_core_layout.py`, which also draws a layered overlay SVG for
+checking against the scan. Six digitisation errors were found by mirror and rotation symmetry
+checks and each was confirmed on the scan. After correction every count closes against
+Dollezhal's own text:
+
+```
+  technological channels     digitised  1693   text  1693   OK
+  CPS rods                   digitised   179   text   179   OK
+  DKE(v) channels            digitised    12   text    12   OK
+  start-up chambers (KD)     digitised     4   text     4   OK
+```
+
+with rod types 89 РР, 21 УСП, 12 АР, 21 АЗ and 36 АЗ over-compensation — and the 21 УСП and
+21 АЗ independently match INSAG-7 p. 43, which was not used to build the digitisation. One
+disagreement is recorded and left standing: 282 fuel channels carry a radial detector in the
+figure against 270 in the text. The overlay shows no mismatches that could account for twelve,
+so it is a figure/text difference in the source.
+
+**The registration, which is the real result.** `tools/build_unit4_map.py` places INSAG-7
+Fig. II-6 (Unit 4 at 01:22:30, digitised separately by glyph detection in
+`tools/digitise_fig_II6.py`) onto the Fig. 2.3 lattice. It fits **exactly**: all 223 sites at a
+single offset (1, 1), nothing left over on the Unit 4 side. Two figures, twelve years and two
+reactors apart, digitised by different means — each is now a check on the other.
+
+What falls out:
+
+- Fig. II-6's 12 blank sites are Fig. 2.3's 12 ДКЭ(в) axial-detector channels. All twelve. That
+  had been an inference; it is now a measurement.
+- Unit 4's 211 rods sit on Leningrad-2's 179 rod sites plus 32 that Leningrad-2 used for
+  additional absorbers, unloaded channels and one fuel channel. 179 + 32 = 211, the second-stage
+  rod count, with no site left to guess at.
+
+```
+  rods                 211 vs   211  OK   INSAG-7 pp. 43, 103
+  fuel channels       1661 vs  1661  OK   [PAV] Table 1
+  DKE(v)                12 vs    12  OK   [D] p. 57
+  start-up chambers      4 vs     4  OK   [D] p. 57
+  positions           1888 vs  1888  OK   sum of the above
+  47 rods inserted at 01:22:30, 4346 cm in total
+```
+
+None of those five counts was an input to the map. `sources/derived/unit4_channel_map.csv` is the
+deliverable. **What is still an assumption** is not *which* sites hold rods — that is measured —
+but what *type* the 32 extra rods are. INSAG-7 p. 43 gives second-stage units 24 АЗ and 24 УСП
+against Leningrad-2's 21 and 21, so at least 3 + 3 of the 32 are АЗ and УСП and the rest are
+manual by elimination. The choice is recorded per row in `type_source` so A8 can vary it.
+
+This also unblocks A6.5, which had been stopped by the core generator: its core is the 1661 cells
+nearest the centre of a 590 cm circle, and no centred circle reproduces 1888 interspersed
+positions, because circle cell counts step by 8.
+
+### The depletion grid, and the COMPO rebuilt on it
+
+A regression of my own, caught by the interpolation gate: the rebuilt COMPO grid had dropped the
+500 MWd/t node, so the opening depletion step ran 0 → 2000. With `EXTR 1` extrapolating from the
+step history, that put the whole trajectory 45–75 pcm below the `dstep25x` reference. Restoring
+the node brought the rebuild to **1 pcm** of it (1.007263 vs 1.007262 at 15 MWd/kg). The opening
+step matters more than any later one.
+
+Gates on the rebuilt 840-point COMPO: **round trip 0.9 pcm** (was 6.7), **off-grid 23.9 pcm**,
+β monotone 0.006822 → 0.004677. The void bracket is essentially unchanged by the rebuild:
+
+| BU, MWd/t | A | A′ | B | A $ | A′ $ | B $ |
+|---|---|---|---|---|---|---|
+| 0 | +560 | +764 | +821 | +0.82 | +1.12 | +1.20 |
+| 10 000 | +901 | +1145 | +1276 | +1.69 | +2.14 | +2.39 |
+| **10 900** (Unit 4 average) | **+1024** | **+1273** | **+1437** | **+1.94** | **+2.41** | **+2.72** |
+| 15 000 | +1666 | +1932 | +2254 | +3.35 | +3.88 | +4.53 |
+
+### Machinery and traps found along the way
+
+Recorded because each cost real time and each is a statement about the input, not the tool
+(standing rule 3):
+
+- `EDI: MERG CELL` with NXT tracking merges the cells but **builds no macro-geometry**
+  (`EDI.f:449`); `MGEO` must be supplied explicitly.
+- `SEQ_ASCII _CCompo ;` without `:: FILE './_CCompo'` is a **scratch file, deleted at `END:`**.
+- `LIB:` accepts `MIX` blocks only after a `MIXS` line (`LIB.f:451`), even on an update.
+- `MIXTURESVOL` is written only by the micro edit (`EDIMIC.f:925`), so the volume-fraction
+  guardrail needs `MICR ALL`.
+- The `MERG MIX` list must run to the highest mixture index in the geometry.
+- CLE-2000 reads **columns 1–120 only** (`clelog.c:31`); the generator now asserts it and names
+  the offending line.
+- `rdragon` races on `/tmp/rundirN` when decks are launched simultaneously; stagger by ~10 s.
+- A parser bug of my own: the CPSTAB type index prints as a bare integer, not in E-format, so the
+  DRAGON columns of the A6.3 table were silently empty for a while and percentages I had quoted
+  from hand arithmetic were withdrawn. The table above comes from the script.
+
+### Where this leaves the core model
+
+| Piece | State |
+|---|---|
+| Fuel-cell physics | verified in two codes plus a third-party benchmark; bracketed |
+| CPS cell physics | built, verified against OpenMC, **5–11 % low and attributed** |
+| CPS core data (homogenised) | **blocked on A6.4b**, −7 to −10 % on the positive worths |
+| Channel map | **sourced and closed**, except the type of 32 rods |
+| Core geometry and rod sites (A6.5) | unblocked, not built; needs the `DUAL 1 1` switch |
+| Xe axis (A6b) | not built. Unit 4 was heavily poisoned at 01:23 |
+| Measured core-level reference (A6c) | **blocked**: the Behrens/Kurchatov 1993–94 Smolensk-3 loading map is not available online |
+| Coupling, transient, detectors (A7–A9) | not started |
+
+Confidence at core level is still *none* — everything to date is verification, not validation
+against measurement. The single-channel void worth is not the core void reactivity; that also
+depends on leakage, the rod pattern and the axial shape, which are exactly the parts A6.5 onward
+build.
+
+**Runs in flight.** Two converged A6.3 states (`fresh_conv_ABS`, `oed10_conv_VOID`, both at
+dca 0.02) have been running 30.7 h on `spark` and have finished one of three coolant densities
+each. Nearly all of it is `FLU:` — MOC source iteration converging slowly next to B₄C with one
+inner per outer in the upstream template. They fill two cells of the A6.3 table and are
+confirmatory: the A′ trend is established by the other ten.
+
+---
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to
@@ -2020,7 +2301,7 @@ the rod pattern and the axial power shape: exactly the parts still to build.
 
 ---
 
-*Last updated: 2026-09-26 (2) (project assessment; Tier A reordered: A6 → A6b Xe → A6c Smolensk-3 → A6d initial state → A7–A9). Previously: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the
+*Last updated: 2026-09-27 (A6: CPS cells built and verified in both codes; A6.3 gate missed, residual carried as the A′ correction; A6.4 homogenisation exact but neighbour data 7–10 % low, closing via a rod-cell equivalence; A6d Unit 4 channel map sourced by registering two digitisations, all counts closing; fuel COMPO rebuilt on the corrected depletion grid, bracket +1.94 / +2.41 / +2.72 $ at 10.9 MWd/kgU). Previously: 2026-09-26 (2) (project assessment; Tier A reordered: A6 → A6b Xe → A6c Smolensk-3 → A6d initial state → A7–A9). Previously: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the
 bracket straddles prompt criticality at the accident burnup, ~0.6 $ DRAGON vs ~2.7 $ OpenMC;
 OpenMC β_eff 0.006739 confirms DRAGON to −1.3 %). Previously: 2026-09-24 (3) (cell geometry closed against eight new sources; clad OD 13.58;
 k∞ 1.304123 on the pinned library; Unit 4 accident burnup 10.9 MWd/kgU, not 20 — the bracket
