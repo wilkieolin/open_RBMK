@@ -2045,7 +2045,7 @@ production settings, "conv" is 4× mesh with MOC P1.
   0  0.72   ABS-WAT   -7511   26   -8706   -8236    -16    -10    +470
   0  0.72   DSP-WAT   +3285   22   +3000   +3084     -9     -6     +84
   0  0.72  VOID-WAT   +4363   21   +3954   +4112     -9     -6    +158
-  0  0.02   ABS-WAT  -10236   26  -11764      --    -15     --      --
+  0  0.02   ABS-WAT  -10236   26  -11764  -10834    -15     -6    +931
   0  0.02   DSP-WAT   +4209   22   +3702   +3762    -12    -11     +60
   0  0.02  VOID-WAT   +5397   21   +4703   +4796    -13    -11     +93
  10  0.72   ABS-WAT   -8955   32  -10454   -9890    -17    -10    +564
@@ -2053,12 +2053,13 @@ production settings, "conv" is 4× mesh with MOC P1.
  10  0.72  VOID-WAT   +5155   28   +4644   +4857    -10     -6    +214
  10  0.02   ABS-WAT  -12158   36  -13873  -12766    -14     -5   +1107
  10  0.02   DSP-WAT   +4871   29   +4258   +4360    -13    -10    +102
- 10  0.02  VOID-WAT   +6189   29   +5317      --    -14     --      --
+ 10  0.02  VOID-WAT   +6189   29   +5317   +5463    -14    -12    +147
 ```
 
-**GATE A6.3 missed.** Production DRAGON is 9–17 % low on every section worth. Convergence closes
-roughly half the absorber gap but leaves 5–11 %, so the 5 % criterion is met in one of twelve
-cells. Per the standing decision for Gate A, the residual is **attributed and carried, not
+**GATE A6.3 missed, now on the complete table** (the last two converged states landed
+2026-09-29 after ~44 h each on `spark`). Production DRAGON is 9–17 % low on every section worth.
+Convergence closes roughly half the absorber gap but leaves 5–12 %, so the 5 % criterion is met
+in one of twelve cells. Per the standing decision for Gate A, the residual is **attributed and carried, not
 fitted**: the production-minus-converged difference is the A′ correction for CPS sections,
 +60 to +1107 pcm, tabulated per state.
 
@@ -2090,10 +2091,17 @@ k does (`cps_verify.py table`, last block):
   0  0.72   DSP   1.29584   1.29864    +167   1.29402    -108
   0  0.72  VOID   1.31418   1.31493     +43   1.31147    -157
   0  0.02   WAT   1.24752   1.25718    +616   1.25665    +582
+  0  0.02   ABS   1.10626   1.09520    -912   1.10607     -15
   0  0.02   DSP   1.31665   1.31854    +109   1.31901    +136
   0  0.02  VOID   1.33757   1.33619     -77   1.33725     -18
+ 10  0.72   WAT   1.04025   1.04557    +489   1.04090     +60
  10  0.72   ABS   0.95161   0.94254   -1010   0.94375    -875
+ 10  0.72   DSP   1.08499   1.08591     +78   1.08225    -233
+ 10  0.72  VOID   1.09920   1.09892     -23   1.09633    -238
  10  0.02   WAT   1.05277   1.05934    +589   1.05882    +543
+ 10  0.02   ABS   0.93331   0.92360   -1126   0.93274     -66
+ 10  0.02   DSP   1.10967   1.10938     -24   1.11006     +31
+ 10  0.02  VOID   1.12615   1.12256    -284   1.12383    -183
 ```
 
 Converged DRAGON reproduces OpenMC's **displacer and drained-channel** supercells to 100–240 pcm.
@@ -2123,17 +2131,33 @@ Track C: CPS water on a draglib temperature node vs interpolated
   dca   T_wat    DRAGON    OpenMC   d_rho
  0.72  323.15   1.24995   1.24292    +452
  0.72  293.60   1.24788   1.24000    +509
+ 0.02  323.15   1.25718   1.24752    +616
+ 0.02  293.60   1.25453   1.24360    +701
 ```
 
-The gap does not close; it is 509 pcm on the node against 452 interpolated. Temperature
-interpolation of the thermal scattering law is **not** the mechanism, and the CPS water
-temperature stays a free argument only because the test needed it.
+The gap does not close at either density; it grows, 452 → 509 and 616 → 701. Temperature
+interpolation of the thermal scattering law is **not** the mechanism. The CPS water temperature
+stays a free argument only because the test needed it.
 
-Next candidates, in order: the transport treatment of the water column (production is collision
-probabilities with a transport correction, and an 8.2 cm column of bound hydrogen is where that
-approximation is weakest — the converged MOC/P1 variant moves WAT by 558 pcm at dca 0.72 but
-essentially nothing at 0.02, which wants explaining on its own); then the spatial mesh inside the
-column; then the multigroup thermal scattering data itself.
+**What the completed table points at instead.** With all twelve converged states in, the
+residual has a structure that a single localised data error would not produce — convergence
+fixes each state at one coolant density and not the other, and the two types fail on opposite
+sides:
+
+| | dca 0.72 | dca 0.02 |
+|---|---|---|
+| WAT, converged | **+93 / +60** (fixed) | +582 / +543 (untouched) |
+| ABS, converged | −632 / −875 (barely moved) | **−15 / −66** (fixed) |
+
+So it is not "the water column is wrong". It is that the converged settings — 4× mesh, MOC with
+P1, finer tracking, all changed together — help the water when the surrounding fuel is wet and
+help the absorber when it is voided. Both are spectral: what changes between dca 0.72 and 0.02
+is how hard the thermal flux is driven into the CPS channel from outside.
+
+Next candidates, in order: separate the converged bundle, since it changes four things at once
+and the answer is evidently in which one (cheapest first — mesh alone, then MOC alone); the
+transport treatment of the column, production being collision probabilities with a transport
+correction through 8.2 cm of bound hydrogen; then the multigroup thermal scattering data.
 
 ### A6.4 — the homogenisation is exact; the neighbour data is not
 
@@ -2382,15 +2406,78 @@ against measurement. The single-channel void worth is not the core void reactivi
 depends on leakage, the rod pattern and the axial shape, which are exactly the parts A6.5 onward
 build.
 
-**Runs in flight.** Two converged A6.3 states (`fresh_conv_ABS`, `oed10_conv_VOID`) have been
-running 32 h on `spark` and have finished the first of their **two** coolant densities each —
-the decks run 0.72 and 0.02, so they are half done, not a third. Nearly all of it is `FLU:` —
-MOC source iteration converging slowly next to B₄C with one inner per outer in the upstream
-template. They fill two cells of the A6.3 table and are confirmatory: the A′ trend is
-established by the other ten.
+**The converged runs are in.** `fresh_conv_ABS` and `oed10_conv_VOID` finished on `spark` after
+roughly 44 h each (two coolant densities apiece), and the A6.3 table above is complete for the
+first time. They changed nothing about the verdict — the A′ trend was already established by the
+other ten — but they close the gate properly rather than on ten twelfths of the evidence.
+
+Nearly all of that time is `FLU:`: MOC source iteration converging slowly next to B₄C with one
+inner per outer in the upstream template. The cost sits in the tracking — the converged decks use
+`TISO 30 120.0` against production's `TISO 15 30.0`, on 4× the mesh with `ANIS 2` — and
+`cps_common.py` already exposes both knobs, so a convergence ladder on one cheap state is the way
+to stop paying 44 h for a data point.
 
 ---
 
+## Should we port DRAGON/DONJON out of Fortran? — assessed 2026-09-29
+
+Recorded because the question will come back, and because the answer is not the obvious one.
+Prompted by how often this project has been slowed by something that looked like a Fortran or
+CLE-2000 limitation.
+
+**Scale.** ~407 000 lines across Ganlib 19.5k, Utilib 13.6k, Trivac 57.2k, Dragon 239.8k,
+Donjon 76.9k, plus 920 shipped `.c2m` procedures. Inside Dragon: `LIB` 31.7k, `NXT` 29.7k,
+`EDI` 12.0k, `SPH` 6.7k, `USS` 6.3k. Against that, **the CLE-2000 interpreter is 8 220 lines —
+2 % of the tree.**
+
+**But the difficulties are mostly not the language.** Sorting every obstacle this project has
+actually hit:
+
+| class | count | examples |
+|---|---|---|
+| Fortran the language | 3 | the `TRI1GSO` segfault; `SPH.F:377` and `SPH.F:818` using unassigned integers (implicit typing, `-O1`, no warnings) |
+| CLE-2000 the language | 4 | the 120-column limit; 12-character procedure names; `MODULE` declarations; `ERROR NUMBER (5000)` naming nothing |
+| the shell drivers | 2 | `/tmp/rundirN` races; stale `.result` files |
+| **the domain model** | **6** | `MERG CELL` + NXT building no macro-geometry; `MIXTURESVOL` only under `MICR ALL`; `LIB:` needing `MIXS` first; `B-ZONE` being an NCH-list not a grid; `FPSPH:` having no mixture selection; `SPH: … EQUI` rejected for a MULTICOMPO |
+
+The last group is where the days went, and **a rewrite reproduces every one of it** unless it
+also redesigns the physics data model — which is the actual hard part and is orthogonal to
+language choice. The pain has been epistemic, not syntactic.
+
+**What makes a port expensive is not the code.** DRAGON's value is thirty years of comparison
+against measurement; a port starts at zero validation. This project has just spent a whole
+segment establishing agreement with OpenMC on one cell type and is still 5–12 % out on the CPS
+sections. Revalidating a ported lattice code is a bigger job than writing it. And the
+performance argument is weak: the bottleneck is `FLU:` MOC source iteration, which well-tuned
+Fortran wins — and we are still compiling at `-O1` with no `-march=native`.
+
+**The ladder, and where we already are on it.**
+
+0. Replace the shell drivers — trivial, partly done.
+1. **Never hand-write CLE-2000; generate it.** `cps_common.py` and `gen_rbmk_unit4.py` already
+   do, and it converts the whole syntax class into generator assertions: the column-120 failure
+   of 2026-09-28 was caught by an `assert`, named its own line, and cost two minutes.
+2. **Stop parsing `.result` text.** This is the remaining fragility — the CPSTAB parser silently
+   matched nothing for a day, and the variant-overwrite bug in `cps_verify.table` was the same
+   species.
+3. **Rewrite the nodal core solver** — Tier B. Small, well understood, and validated against
+   DONJON itself. Worth doing; already the plan.
+4. Rewrite lattice transport — multi-year, no payoff.
+
+**The unused lever: `5.1/PyGan/`**, in our tree and unbuilt. Upstream's own Python binding to the
+Ganlib object stack: push objects onto a LIFO, call modules, get LCM objects back subscriptable
+(`Fmap["STATE-VECTOR"]`). That is rung 2 and most of rung 1 while keeping every Fortran kernel
+and its validation, and it would have made the `MIXTURESVOL` and `B-ZONE` discoveries a `dir()`
+instead of a source read. Half a day to try building it (C extension modules against the
+Fortran, so it may fight back) before entertaining any port.
+
+**Decision: do not port.** Build PyGan, finish moving deck generation and result parsing into
+Python, turn on `-O3 -march=native`, and spend the rewrite budget on Tier B, where a new
+implementation has a clear validation reference and a real reason to exist (GPU, 10 Hz). The one
+thing worth coveting from Julia — autodiff for adjoint and sensitivity work in A8 — is worth
+revisiting only if uncertainty analysis becomes the bottleneck.
+
+---
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to
@@ -2433,7 +2520,7 @@ established by the other ten.
 
 ---
 
-*Last updated: 2026-09-27 (A6: CPS cells built and verified in both codes; A6.3 gate missed, residual carried as the A′ correction; A6.4 homogenisation exact but neighbour data 7–10 % low, closing via a rod-cell equivalence; A6d Unit 4 channel map sourced by registering two digitisations, all counts closing; fuel COMPO rebuilt on the corrected depletion grid, bracket +1.94 / +2.41 / +2.72 $ at 10.9 MWd/kgU). Previously: 2026-09-26 (2) (project assessment; Tier A reordered: A6 → A6b Xe → A6c Smolensk-3 → A6d initial state → A7–A9). Previously: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the
+*Last updated: 2026-09-29 (A6.3 table complete, gate missed at 5-12 %; MCFD 1 shown to lose 31-34 % of absorber worth and to be unable to carry an SPH equivalence at all, while DUAL 1 1 costs 8 %; the thermal-scattering interpolation hypothesis for the WAT residual eliminated by measurement; Unit 4 core geometry and 1661-channel fuel map generated from the sourced map and accepted by DONJON; recommendation recorded against porting out of Fortran). Previously: 2026-09-27 (A6: CPS cells built and verified in both codes; A6.3 gate missed, residual carried as the A′ correction; A6.4 homogenisation exact but neighbour data 7–10 % low, closing via a rod-cell equivalence; A6d Unit 4 channel map sourced by registering two digitisations, all counts closing; fuel COMPO rebuilt on the corrected depletion grid, bracket +1.94 / +2.41 / +2.72 $ at 10.9 MWd/kgU). Previously: 2026-09-26 (2) (project assessment; Tier A reordered: A6 → A6b Xe → A6c Smolensk-3 → A6d initial state → A7–A9). Previously: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the
 bracket straddles prompt criticality at the accident burnup, ~0.6 $ DRAGON vs ~2.7 $ OpenMC;
 OpenMC β_eff 0.006739 confirms DRAGON to −1.3 %). Previously: 2026-09-24 (3) (cell geometry closed against eight new sources; clad OD 13.58;
 k∞ 1.304123 on the pinned library; Unit 4 accident burnup 10.9 MWd/kgU, not 20 — the bracket
