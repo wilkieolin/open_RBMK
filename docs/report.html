@@ -15,7 +15,7 @@
   --ink:#141a21; --ink-2:#4d5661; --ink-3:#79828d;
   --rule:#d5dbe1; --rule-2:#e6eaee;
   --accent:#1c5cab; --accent-soft:#e3ecf8;
-  --dragon:#2a78d6; --openmc:#eb6834;
+  --dragon:#2a78d6; --openmc:#eb6834; --aprime:#7a4bbd;
   --danger:#c0362f; --danger-soft:#fbeae9;
   --good:#0f7a52; --good-soft:#e3f3ec;
   --warn:#8a5a00; --warn-soft:#faf0dc;
@@ -32,7 +32,7 @@
     --ink:#eef1f4; --ink-2:#a7b0ba; --ink-3:#78828c;
     --rule:#2c3339; --rule-2:#252b31;
     --accent:#6da7ec; --accent-soft:#17283c;
-    --dragon:#3987e5; --openmc:#d95926;
+    --dragon:#3987e5; --openmc:#d95926; --aprime:#a582e0;
     --danger:#e66767; --danger-soft:#33201f;
     --good:#2f9f74; --good-soft:#15291f;
     --warn:#c98500; --warn-soft:#2b2210;
@@ -46,7 +46,7 @@
   --ink:#eef1f4; --ink-2:#a7b0ba; --ink-3:#78828c;
   --rule:#2c3339; --rule-2:#252b31;
   --accent:#6da7ec; --accent-soft:#17283c;
-  --dragon:#3987e5; --openmc:#d95926;
+  --dragon:#3987e5; --openmc:#d95926; --aprime:#a582e0;
   --danger:#e66767; --danger-soft:#33201f;
   --good:#2f9f74; --good-soft:#15291f;
   --warn:#c98500; --warn-soft:#2b2210;
@@ -165,6 +165,8 @@ tr.hi td{background:var(--accent-soft)}
 .call .ch .badge{font-family:var(--mono); font-size:.64rem; letter-spacing:.08em; text-transform:uppercase;
                  background:var(--danger-soft); color:var(--danger); border-radius:3px; padding:2px 6px; font-weight:600}
 .call.note .ch .badge{background:var(--accent-soft); color:var(--accent)}
+.call .ch .badge.good{background:var(--good-soft); color:var(--good)}
+.call p.fine{font-size:.85rem; color:var(--ink-3)}
 .call p{font-size:.93rem; color:var(--ink-2)}
 .call code{background:var(--panel-2)}
 
@@ -200,8 +202,8 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
     historically accurate mnemonic display of all 1661 fuel channels. This is the physics
     record: what has been measured, how it was checked, and what is still open.</p>
   <div class="meta">
-    <span>2026-09-24</span>
-    <span>DRAGON5 / DONJON5 v5.1.0 &middot; ENDF/B-VIII.1 (172-group XMAS)</span>
+    <span>2026-09-29</span>
+    <span>DRAGON5 / DONJON5 v5.1.0 &middot; ENDF/B-VIII.1, SHEM-361 with Zr self-shielded</span>
     <span>OpenMC 0.16.1 &middot; continuous energy, same evaluation</span>
   </div>
 </header>
@@ -209,9 +211,10 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
 <div class="gates" role="list" aria-label="Tier A gate status">
   <div class="gate" role="listitem"><span class="id">A2</span><span class="what">3-D core geometry solves</span><span class="st pass">passed</span></div>
   <div class="gate" role="listitem"><span class="id">A3</span><span class="what">Lattice cell, correct materials</span><span class="st pass">passed</span></div>
-  <div class="gate" role="listitem"><span class="id">A5a</span><span class="what">Void coefficient sign &amp; trend</span><span class="st part">bracketed</span></div>
+  <div class="gate" role="listitem"><span class="id">A5a</span><span class="what">Void coefficient sign &amp; trend</span><span class="st pass">passed</span></div>
   <div class="gate" role="listitem"><span class="id">A5b</span><span class="what">Cross-section database</span><span class="st pass">passed</span></div>
-  <div class="gate" role="listitem"><span class="id">A6</span><span class="what">Graphite-tipped control rods</span><span class="st open">next</span></div>
+  <div class="gate" role="listitem"><span class="id">A6</span><span class="what">Graphite-tipped control rods</span><span class="st part">in progress</span></div>
+  <div class="gate" role="listitem"><span class="id">A6d</span><span class="what">Unit&nbsp;4 channel map</span><span class="st pass">passed</span></div>
   <div class="gate" role="listitem"><span class="id">A7</span><span class="what">Critical core at 3200&nbsp;MW</span><span class="st open">open</span></div>
   <div class="gate" role="listitem"><span class="id">A8</span><span class="what">AZ-5 reference transient</span><span class="st open">open</span></div>
   <div class="gate" role="listitem"><span class="id">A9</span><span class="what">In-core detectors</span><span class="st open">open</span></div>
@@ -220,20 +223,22 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
 <!-- ============================================================ -->
 <section>
   <div class="call" style="margin-bottom:0">
-    <div class="ch"><span class="badge">re-baseline owed</span>Every DRAGON number here was measured on the wrong library</div>
-    <p>Restructuring the repository on 24&nbsp;September exposed a silent substitution. DRAGON
-      resolves its nuclear data through a hook that decompresses the library <em>in place</em>
-      inside the <code>libraries</code> submodule &mdash; and on every later run finds the
-      decompressed file already sitting there and uses it without re-checking. When the
-      submodule moved to a newer library build, the leftover from the previous one kept
-      winning.</p>
-    <p>The reference cell returns <span class="num">1.310172</span> on the library that was
-      actually used and <span class="num">1.308679</span> on the one the repository ships: a
-      systematic <span class="num">&minus;87&nbsp;pcm</span> under every DRAGON figure below.
-      The cache is content-addressed now, so it cannot recur; the figures have not yet been
-      re-measured. <strong>The OpenMC column is unaffected</strong> &mdash; it is
-      continuous-energy ENDF/B-VIII.1 and never reads a draglib &mdash; so the DRAGON/OpenMC
-      bracket has to be recomputed rather than relabelled.</p>
+    <div class="ch"><span class="badge good">resolved</span>The factor of two was DRAGON not being converged</div>
+    <p>For several days the two codes disagreed by about 2&times; on the void coefficient, and it
+      was not clear which was wrong. It is now closed. Converging DRAGON against itself &mdash; a
+      finer energy mesh through the uranium resonances (172&nbsp;&rarr;&nbsp;SHEM-361), zirconium
+      self-shielding, a finer spatial mesh, and characteristics with anisotropic scattering in
+      place of collision probabilities &mdash; moved DRAGON most of the way to OpenMC without
+      touching OpenMC at all.</p>
+    <p>At the burnup Chernobyl Unit&nbsp;4 actually had, complete voiding is
+      <span class="num">+2.4</span> to <span class="num">+2.75&nbsp;$</span> in every converged
+      variant of both codes. The spread fell from 38&nbsp;% to 13&nbsp;%, and the historical
+      outcome was never an input to any of it. Our OpenMC also reproduces the 1990s MCNP and MCU
+      results on a published RBMK benchmark cell, so there is a third-party anchor.</p>
+    <p class="fine">Everything on this page was re-measured on the converged library. The
+      superseded figures &mdash; the &plusmn;2&times; bracket, the &ldquo;+1957&nbsp;pcm at
+      20&nbsp;MWd/t&rdquo; claim and the 24&nbsp;September dollars table &mdash; are retained only
+      in the project log.</p>
   </div>
 </section>
 
@@ -331,14 +336,14 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
     <dl class="def">
       <dt>MULTICOMPO</dt>
       <dd>A reactivity database. The detailed transport calculation is run once per combination of
-        conditions, condensed from 172 neutron energy groups down to 2, and tabulated. The core
+        conditions, condensed from 361 neutron energy groups down to 2, and tabulated. The core
         solver then interpolates it instead of re-running transport &mdash; which it could never
         afford to do 1661 times per time step.</dd>
     </dl>
 
     <p>The database now spans four axes &mdash; burnup, coolant density, fuel temperature and
-      graphite temperature &mdash; at every combination: <strong>630 points</strong>, 81 minutes,
-      114&nbsp;MB. Each point is a full re-solve including re-computed self-shielding, which is not
+      graphite temperature &mdash; at every combination: <strong>840 points</strong>, 14.7 hours,
+      152&nbsp;MB. Each point is a full re-solve including re-computed self-shielding, which is not
       optional: boiling the coolant hardens the neutron spectrum into exactly the uranium
       resonances that self-shielding governs.</p>
 
@@ -346,16 +351,16 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
   </div>
 
   <div class="tiles">
-    <div class="tile"><span class="v">630</span><span class="k">branch points, all present, no non-convergence</span></div>
-    <div class="tile"><span class="v" style="color:var(--good)">6.4 pcm</span><span class="k">worst round-trip loss, 8 nodes spanning every axis extreme</span></div>
-    <div class="tile"><span class="v" style="color:var(--good)">27 pcm</span><span class="k">worst off-grid interpolation error &mdash; what the transient will actually use</span></div>
+    <div class="tile"><span class="v">840</span><span class="k">branch points, all present, no non-convergence</span></div>
+    <div class="tile"><span class="v" style="color:var(--good)">0.9 pcm</span><span class="k">worst round-trip loss, 8 nodes spanning every axis extreme</span></div>
+    <div class="tile"><span class="v" style="color:var(--good)">24 pcm</span><span class="k">worst off-grid interpolation error &mdash; what the transient will actually use</span></div>
     <div class="tile"><span class="v" style="color:var(--good)">&minus;0.5 %</span><span class="k">&beta; against an independent Monte Carlo measurement</span></div>
   </div>
 
   <div class="stack col" style="margin-top:22px">
-    <p>The round trip compares the detailed 172-group transport answer against what comes back out
+    <p>The round trip compares the detailed 361-group transport answer against what comes back out
       of the database after condensation, homogenisation, storage and interpolation. Losing
-      6.4&nbsp;pcm through all of that is two orders of magnitude below the physics uncertainties
+      0.9&nbsp;pcm through all of that is three orders of magnitude below the physics uncertainties
       here. The off-grid test matters more: the transient will never land exactly on a tabulated
       point, so it measures error at the <em>midpoints</em> of the coolant-density and temperature
       axes. Burnup is deliberately left on grid nodes &mdash; fuel composition does not change over
@@ -397,7 +402,7 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
 
   <div class="stack col" style="margin-top:24px">
     <p>The cross-check is worth stating carefully, because the two methods share almost nothing.
-      DRAGON computes a flux-weighted ratio of delayed to total fission production in 172 energy
+      DRAGON computes a flux-weighted ratio of delayed to total fission production in 361 energy
       groups on a deterministic transport solve. OpenMC runs the same cell twice in continuous
       energy by Monte Carlo &mdash; once with delayed neutrons enabled and once without &mdash; and
       takes <b>&beta;<sub>eff</sub> = 1 &minus; k<sub>prompt</sub>/k<sub>total</sub></b>. They agree
@@ -421,63 +426,61 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
 <!-- ============================================================ -->
 <section>
   <div class="sechead"><span class="tag">A5a &middot; the central quantity</span></div>
-  <h2>The void coefficient, and a disagreement</h2>
+  <h2>The void coefficient, and how the disagreement closed</h2>
   <div class="stack col">
-    <p>Two independent codes now compute the same quantity: how much reactivity is added when the
+    <p>Two independent codes compute the same quantity: how much reactivity is added when the
       coolant in a fuel channel boils away completely. Both agree it is <strong>positive</strong>
       and that it <strong>rises steeply with burnup</strong>. That is the RBMK's defining hazard
       reproduced from first principles, by two methods, with no tuning.</p>
-    <p>They disagree on the magnitude by about a factor of two.</p>
+    <p>They used to disagree on the magnitude by about a factor of two. Chasing that disagreement
+      down took a dedicated segment of work, and the answer was not in the nuclear data. A
+      four-factor decomposition put the whole discrepancy in resonance absorption &mdash;
+      uranium-238 and zirconium &mdash; with everything thermal already in agreement. Four things
+      were wrong with the deterministic calculation, in order of size:</p>
+    <ol class="plain" style="padding-left:1.2em; list-style:decimal">
+      <li>the 172-group energy mesh, too coarse through the U-238 resonances;</li>
+      <li>zirconium left at infinite dilution instead of self-shielded;</li>
+      <li>the flat-flux spatial mesh;</li>
+      <li>isotropic scattering with a transport correction, instead of characteristics with P<sub>1</sub>.</li>
+    </ol>
+    <p>None of them is an approximation anyone would defend once named; each was simply the
+      default. Fixing the first two in production and carrying the last two as a measured
+      correction is what the three curves below represent.</p>
   </div>
 
   <figure>
     <figcaption>
       <span class="ft">Reactivity added by complete voiding, against burnup</span>
       <span class="fs">Coolant density 0.72&nbsp;&rarr;&nbsp;0.02&nbsp;g/cm&sup3;, measured against
-        the same fuel at normal density. Error bars are OpenMC's Monte Carlo statistics; DRAGON is
-        deterministic and has none. Chernobyl Unit 4's core averaged roughly 10&ndash;15&nbsp;MWd/t.</span>
+        the same fuel at normal density. <b>A</b> is the production database. <b>A&prime;</b> adds
+        the measured mesh and characteristics correction. <b>B</b> replaces the deterministic
+        answer with OpenMC's on a matched basis; its error bars are Monte Carlo statistics where
+        it was measured directly. Chernobyl Unit&nbsp;4 averaged 10.9&nbsp;MWd/kgU.</span>
     </figcaption>
     <div class="plot" id="plot-pcm"></div>
     <div class="legend">
-      <span class="lg"><i style="background:var(--dragon)"></i>DRAGON &mdash; deterministic, 172-group</span>
-      <span class="lg"><i style="background:var(--openmc)"></i>OpenMC &mdash; Monte Carlo, continuous energy</span>
+      <span class="lg"><i style="background:var(--dragon)"></i>A &mdash; DRAGON, production database</span>
+      <span class="lg"><i style="background:var(--aprime)"></i>A&prime; &mdash; plus measured method correction</span>
+      <span class="lg"><i style="background:var(--openmc)"></i>B &mdash; OpenMC, matched basis</span>
     </div>
     <details class="data"><summary>data table</summary><div class="tw" id="tbl-pcm"></div></details>
   </figure>
 
   <div class="stack col" style="margin-top:24px">
-    <p>Until today the comparison had only two coolant densities &mdash; full and empty &mdash; so
-      the disagreement was a single number with no structure. Adding two intermediate densities to
-      the Monte Carlo side changed the picture, and the change is the most useful result of the
-      day.</p>
-  </div>
-
-  <figure>
-    <figcaption>
-      <span class="ft">Shape of the void curve at discharge burnup</span>
-      <span class="fs">At 20&nbsp;MWd/t the two codes trace the <em>same shape</em> and differ by a
-        near-constant factor across the whole density range. A single multiplier describes the
-        entire disagreement, which is a far better-behaved problem than one that varies with
-        conditions.</span>
-    </figcaption>
-    <div class="plot" id="plot-dens"></div>
-    <div class="legend">
-      <span class="lg"><i style="background:var(--dragon)"></i>DRAGON, 7 densities</span>
-      <span class="lg"><i style="background:var(--openmc)"></i>OpenMC, 4 densities</span>
+    <p>The three are now a <em>bracket</em> rather than a contradiction: a band roughly
+      &plusmn;15&nbsp;% wide, carried forward explicitly so the accident simulation can be run at
+      both edges and say whether the remaining width matters. That is a different and much more
+      useful object than a factor of two with no structure.</p>
+    <div class="call note">
+      <div class="ch"><span class="badge">checked against a third party</span>Not just the two codes agreeing with each other</div>
+      <p>Two codes converging on each other can converge on the same mistake. On the published
+        RBMK Safety Review Project cell (Alexeev <em>et al.</em>, 1998) our OpenMC reproduces the
+        MCNP and MCU results of the 1990s to within a few tenths of a percent on watered
+        k<sub>&infin;</sub>, and converged DRAGON comes within 4&nbsp;% on the void effect where
+        the production settings were 42&ndash;48&nbsp;% low. An independent 2007 study had already
+        found DRAGON 21&nbsp;% low against MCNP on this reactor, which is the same finding from
+        outside.</p>
     </div>
-    <details class="data"><summary>data table</summary><div class="tw" id="tbl-dens"></div></details>
-  </figure>
-
-  <div class="stack col" style="margin-top:24px">
-    <p>The ratio between the two codes at discharge burnup is <span class="num">1.95&nbsp;&plusmn;&nbsp;0.14</span>,
-      <span class="num">1.98&nbsp;&plusmn;&nbsp;0.09</span> and <span class="num">1.83&nbsp;&plusmn;&nbsp;0.05</span>
-      at the three measured void fractions &mdash; constant within its own error bars. So rather than
-      pick a winner, the project carries <strong>both</strong> and lets the accident simulation
-      decide whether the difference changes the outcome.</p>
-    <p>At low burnup the ratio is meaningless and must not be used: DRAGON's own void worth dips to
-      +155&nbsp;pcm at 5&nbsp;MWd/t, so the ratio is a small number divided by a smaller one, and at
-      fresh fuel the two curves disagree in shape rather than scale. Neither is the state the
-      reactor was in.</p>
   </div>
 </section>
 
@@ -496,29 +499,36 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
       <span class="ft">Void worth in dollars &mdash; the prompt-critical threshold</span>
       <span class="fs">The same reactivities divided by the measured &beta; at each burnup. Above
         $1 a reactor is critical on prompt neutrons alone and no mechanical control system is fast
-        enough to stop it. Both codes cross that line, and by discharge burnup both are far past it.</span>
+        enough to stop it. All three variants cross that line before the burnup Unit&nbsp;4 had.</span>
     </figcaption>
     <div class="plot" id="plot-usd"></div>
     <div class="legend">
-      <span class="lg"><i style="background:var(--dragon)"></i>DRAGON</span>
-      <span class="lg"><i style="background:var(--openmc)"></i>OpenMC</span>
+      <span class="lg"><i style="background:var(--dragon)"></i>A &mdash; production</span>
+      <span class="lg"><i style="background:var(--aprime)"></i>A&prime; &mdash; method-corrected</span>
+      <span class="lg"><i style="background:var(--openmc)"></i>B &mdash; OpenMC</span>
       <span class="lg" style="color:var(--danger)"><i class="dash"></i>$1.00 &mdash; prompt critical</span>
     </div>
     <details class="data"><summary>data table</summary><div class="tw" id="tbl-usd"></div></details>
   </figure>
 
   <div class="stack col" style="margin-top:24px">
-    <p>From fresh fuel to discharge the worth of complete voiding grows <strong>14&times;</strong>
-      (DRAGON) or <strong>5.7&times;</strong> (OpenMC) in dollars. At discharge burnup it is
-      <strong>+4.7&nbsp;$</strong> and <strong>+8.6&nbsp;$</strong> &mdash; prompt-supercritical at
-      both ends of the bracket. This is the first quantitative statement the project can make about
-      why the reactor was dangerous, and it does not depend on resolving the factor of two.</p>
+    <p>At the burnup Unit&nbsp;4 actually had &mdash; <strong>10.9&nbsp;MWd/kgU</strong>, not the
+      20 the project assumed for its first week &mdash; complete voiding is worth
+      <strong>+1.94&nbsp;$</strong>, <strong>+2.41&nbsp;$</strong> and <strong>+2.72&nbsp;$</strong>
+      across the three variants. Every one of them is above prompt critical, and the whole bracket
+      sits on one side of the line. Earlier, on the unconverged library, it straddled &mdash;
+      +0.6&nbsp;$ against +2.7&nbsp;$ &mdash; and the question of which code to believe was
+      load-bearing. It no longer is.</p>
+    <p>Two effects compound to get there. The numerator rises steeply with burnup as plutonium
+      builds in; &beta;, the denominator, falls from 0.00682 to 0.00498 over the same range because
+      plutonium-239 yields fewer delayed neutrons than uranium-235. The reactor became more
+      dangerous twice over as its fuel aged, and neither half of that is a modelling choice.</p>
     <div class="call note">
       <div class="ch"><span class="badge">caveat</span>This is not yet the accident</div>
-      <p>What is plotted is the <em>equilibrium</em> worth of completely voiding a channel at fixed
-        burnup &mdash; not a transient, not the real core, and not the graphite-tipped control rods
-        that turned the scram itself into an insertion of positive reactivity. Those come next, and
-        the reference transient will be run under both ends of the bracket.</p>
+      <p>What is plotted is the <em>equilibrium</em> worth of completely voiding a single channel
+        at fixed burnup &mdash; not a transient, and not the whole core, whose void reactivity also
+        depends on leakage, the rod pattern and the axial power shape. Those are exactly the parts
+        still being built. The reference transient will be run at both edges of the bracket.</p>
     </div>
   </div>
 </section>
@@ -534,16 +544,99 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
       not a physics result: it still uses the placeholder textbook constants, and the point of the
       gate is only that the geometry and solver are sound. It was previously carrying an asserted
       target value, which has been removed &mdash; a gate must report, not assert.</p>
-    <p>The surprise was speed. The flux solve takes <strong>1 second</strong> where a
-      higher-order discretisation of the same problem took 729. That is a factor of ~700, not the
-      ~40 previously estimated, and it makes a fallback architecture that keeps the reference
-      solver in the loop far more viable than budgeted.</p>
+    <p>The surprise was speed. The flux solve takes about <strong>2 seconds</strong> where a
+      higher-order discretisation of the same problem took 729, making a fallback architecture
+      that keeps the reference solver in the loop far more viable than budgeted.</p>
+    <div class="call">
+      <div class="ch"><span class="badge">corrected</span>The fast solver loses a third of the rod worth</div>
+      <p>That 1-second figure was measured with a mesh-centred finite-difference scheme, chosen
+        for speed before the model had any control rods in it. Once it did, the choice turned out
+        to be untenable: one mesh point per 25&nbsp;cm node cannot represent the flux depression
+        inside a black absorber, and it under-predicts absorber worth by
+        <strong>31&ndash;34&nbsp;%</strong> at every state tested. It also cannot carry the
+        equivalence that makes homogenised rod data valid &mdash; the iteration oscillates and
+        never converges.</p>
+      <p>The fix costs almost nothing, because the alternative that had looked expensive was a
+        much higher-order scheme. The lowest-order mixed-dual discretisation runs the same core in
+        <span class="num">2.11&nbsp;s</span> against <span class="num">1.95&nbsp;s</span>, and the
+        two agree to <span class="num">0.7&nbsp;pcm</span> when no absorber is present &mdash;
+        which is itself the control confirming the mechanism.</p>
+    </div>
   </div>
   <div class="tiles">
-    <div class="tile"><span class="v">76 832</span><span class="k">mesh regions, 2 energy groups</span></div>
-    <div class="tile"><span class="v">1.123062</span><span class="k">k<sub>eff</sub>, converged (placeholder cross sections)</span></div>
-    <div class="tile"><span class="v">1 s</span><span class="k">per flux solve &mdash; vs 729 s at higher order</span></div>
-    <div class="tile"><span class="v">~100 MB</span><span class="k">projected state for the real-time solver; the machine has 110 GB</span></div>
+    <div class="tile"><span class="v">86 528</span><span class="k">mesh nodes in the Unit&nbsp;4 core, 2 energy groups</span></div>
+    <div class="tile"><span class="v">2.11 s</span><span class="k">per flux solve &mdash; vs 729 s at higher order</span></div>
+    <div class="tile"><span class="v">56 MB</span><span class="k">peak memory for the core solve</span></div>
+    <div class="tile"><span class="v">31&ndash;34 %</span><span class="k">rod worth the old fast solver would have lost</span></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <div class="sechead"><span class="tag">A6 &middot; the rods, and where the core is</span></div>
+  <h2>The feature that made the scram dangerous</h2>
+  <div class="stack col">
+    <p>The rods that scrammed Chernobyl carried graphite displacers below the boron absorber.
+      Driving them down from fully withdrawn pushed graphite &mdash; a moderator &mdash; into a
+      column of water at the bottom of the core, <em>adding</em> reactivity for the first seconds
+      of the shutdown. Modelling that is the point of this stage, and it is the one result that
+      does not depend on the void-coefficient bracket at all.</p>
+    <p>The channel itself is now built in both codes from a single shared description, so the two
+      cannot drift apart by transcription, and every section &mdash; boron absorber, graphite
+      displacer, water column, drained channel &mdash; has been measured against Monte Carlo.
+      Two findings, one good and one not.</p>
+    <p><b>The homogenisation is exact; the neighbour data is not.</b> Collapsing the rod cell to
+      two energy groups and solving it with diffusion theory reproduces the transport answer to
+      about <span class="num">1&nbsp;pcm</span> &mdash; provided the eight fuel cells around it
+      carry data generated in the rod's presence. Give them ordinary infinite-lattice fuel data,
+      which is what a whole-core model must do, and the displacer and drained-channel worths fall
+      <strong>7&ndash;10&nbsp;%</strong> short. A fuel cell next to a rod is not a fuel cell in an
+      infinite lattice, and the database has no axis that could know the difference. That is the
+      current blocker, and the fix &mdash; an explicit equivalence carried by the rod cell alone
+      &mdash; is designed but not yet built.</p>
+    <p><b>The deterministic method is 5&ndash;12&nbsp;% low on the section worths</b> even
+      converged, against Monte Carlo. That residual is measured per state and carried as a
+      correction rather than tuned away. It is not diffuse: comparing absolute multiplication
+      factors rather than differences localises it, and it behaves like a spectral effect that
+      shifts with coolant density rather than a single bad number.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <div class="sechead"><span class="tag">A6d &middot; the core map</span></div>
+  <h2>Two figures, twelve years apart, that check each other</h2>
+  <div class="stack col">
+    <p>A whole-core model needs to know what sits at every one of the 1888 lattice positions. The
+      project had been placing 1661 fuel channels in a circle, which is wrong in a way no amount
+      of care downstream could repair: the real boundary is a staircase, the rods are interspersed
+      with the fuel rather than ringed outside it, and no centred circle reproduces the count
+      &mdash; circle cell counts step by eight.</p>
+    <p>Two independent sources fixed it. A cartogram of Leningrad-2's initial loading from the
+      reactor's designer, digitised by hand, gives the outline and what sits at every position
+      including the rod types. A figure in the IAEA's INSAG-7 report gives Unit&nbsp;4's rod
+      positions and insertion depths at 01:22:30 on the night of the accident, digitised by glyph
+      detection.</p>
+    <p>Registering one onto the other is <strong>exact</strong>. All 223 rod-lattice sites land on
+      sites of the other map at a single offset, with nothing left over. Two figures, twelve years
+      and two reactors apart, digitised by completely different means &mdash; so each is now a
+      check on the other, and neither was adjusted to make them agree.</p>
+    <p>What fell out of the registration was not just the map. The twelve blank positions in the
+      accident figure turn out to be exactly the twelve axial power-detector channels of the
+      cartogram &mdash; an inference that became a measurement. And Unit&nbsp;4's 211 rods sit on
+      Leningrad-2's 179 rod sites plus 32 more, with no site left to guess at.</p>
+  </div>
+  <div class="tiles">
+    <div class="tile"><span class="v">1661</span><span class="k">fuel channels &mdash; matches an independent assembly count</span></div>
+    <div class="tile"><span class="v">211</span><span class="k">control rods &mdash; matches INSAG-7's own figure</span></div>
+    <div class="tile"><span class="v">1888</span><span class="k">total positions, every count closing</span></div>
+    <div class="tile"><span class="v">47</span><span class="k">rods partly inserted at 01:22:30, 4346&nbsp;cm in all</span></div>
+  </div>
+  <div class="stack col" style="margin-top:20px">
+    <p class="fine">Five separate counts close against five sources that were not used to build
+      the map. What remains an assumption is not <em>which</em> positions hold rods &mdash; that is
+      measured &mdash; but what <em>type</em> 32 of the 211 rods are; the choice is recorded per
+      row so the transient study can vary it.</p>
   </div>
 </section>
 
@@ -559,15 +652,15 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
 
   <ol class="steps">
     <li>
-      <span class="sid">A6</span><span class="sh">Graphite-tipped control rods</span>
-      <span class="sb">The rods that scrammed Chernobyl had graphite displacers below the boron
-        absorber. Driving them down from fully withdrawn pushed graphite &mdash; a moderator &mdash;
-        into a column of water at the bottom of the core, <em>adding</em> reactivity for the first
-        several seconds of the shutdown. The model currently has no absorber material and nowhere
-        for a rod to go: every cell is fuel or graphite.</span>
+      <span class="sid">A6</span><span class="sh">Finish the control rods</span>
+      <span class="sb">The channel physics is built and checked against Monte Carlo, and the core
+        now has all 227 rod and detector positions at their real coordinates. Two things stand
+        between that and a rod that can move: the neighbour-data error above, which costs
+        7&ndash;10&nbsp;% of exactly the positive worth this gate is about, and a graphite
+        reflector dataset, which the core currently fakes.</span>
       <span class="sg"><b>Gate:</b> inserting the displacer alone from below gives <em>positive</em>
-        reactivity. This is a stronger result than the void coefficient because it does not depend
-        on the disputed magnitude.</span>
+        reactivity, with a bottom-skewed axial flux. Stronger than the void coefficient, because it
+        does not depend on the width of the bracket.</span>
     </li>
     <li>
       <span class="sid">A7</span><span class="sh">Steady coupled core at 3200 MW</span>
@@ -581,12 +674,12 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
     <li>
       <span class="sid">A8</span><span class="sh">The AZ-5 transient, run twice</span>
       <span class="sb">Start from the accident state &mdash; high burnup, xenon-poisoned, almost all
-        rods withdrawn, low coolant flow &mdash; and insert the rods at their real 0.4&nbsp;m/s.
-        Run it under both ends of the void bracket.</span>
+        rods withdrawn, low coolant flow &mdash; and insert the rods at their real 0.4&nbsp;m/s,
+        from the measured 01:22:30 pattern. Run it at both edges of the void bracket.</span>
       <span class="sg"><b>Gate:</b> a prompt power rise before the absorber takes over. The
         deliverable is the <em>comparison</em>: if both variants reach fuel failure at similar times
-        the factor of two is not load-bearing and can stay open. If one runs away and the other does
-        not, closing it becomes the priority.</span>
+        the remaining 15&nbsp;% of bracket width is not load-bearing. If one runs away and the
+        other does not, closing it becomes the priority.</span>
     </li>
     <li>
       <span class="sid">A9</span><span class="sh">In-core detectors</span>
@@ -601,7 +694,10 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
         2-group solver with delayed-precursor tracking and per-channel thermal-hydraulics, validated
         against the A8 trace rather than written and hoped for.</span>
       <span class="sg"><b>Gate:</b> reproduces the reference transient to a stated tolerance
-        <em>through the excursion</em>, not just at steady state.</span>
+        <em>through the excursion</em>, not just at steady state. Assessed 2026-09-29: build this,
+        rather than porting the reference codes out of Fortran &mdash; most of the friction there
+        has been the physics data model, which a rewrite reproduces, and a port starts at zero
+        validation.</span>
     </li>
     <li>
       <span class="sid">C</span><span class="sh">The mnemonic panel</span>
@@ -618,25 +714,31 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
   <h2>Known gaps</h2>
   <div class="stack col">
     <ul class="plain">
-      <li><b>The factor of two is unresolved.</b> Every candidate tested so far has been a nuclear
-        data or library option. Spatial discretisation and self-shielding geometry &mdash; which all
-        bite harder in a voided channel, the signature this disagreement has &mdash; have never been
-        tested. The highest-information test is a direct comparison of the neutron energy spectrum
-        between the two codes, which would localise the cause in energy rather than guess at it.</li>
-      <li><b>Xenon is not yet an axis.</b> The database holds equilibrium xenon only. The operating
-        margin story before the accident is a transient-xenon story, so this has to be added.</li>
-      <li><b>The second database the plan called for cannot be built.</b> DRAGON has no
-        cross-section scaling facility anywhere in its write path. The bracket is carried as a
-        ratio table and applied in the consuming deck instead, which keeps a single source of truth
-        for the physics. Not yet implemented or validated.</li>
-      <li><b>Unsourced geometry.</b> Pressure tube wall thickness, the two fuel-ring radii and the
-        carrier rod wall are inferred rather than taken from a primary source. The tube alone moves
-        coolant area by 10&nbsp;%, directly on the disputed quantity.</li>
+      <li><b>No comparison against measurement, at any level.</b> Everything here is verification
+        &mdash; two codes, and a third-party benchmark that is itself a code comparison. The one
+        candidate measured core-level reference, a cold zero-power start-up at Smolensk-3, is
+        blocked on a 1993&ndash;94 report that is not available online. Until that is found this
+        is a model checked against other models.</li>
+      <li><b>Boron carbide density is in no source we have found.</b> It is carried at
+        2.0&nbsp;g/cm&sup3; with a 1.7&ndash;2.3 bracket, and it is the largest single open input
+        for rod worth. It will be reported as a band rather than a number.</li>
+      <li><b>Homogenised rod data is 7&ndash;10&nbsp;% short</b> on the displacer and
+        drained-channel worths once the surrounding fuel carries ordinary infinite-lattice data.
+        The cause is identified and the fix designed; it is the current blocker.</li>
+      <li><b>The graphite reflector is a placeholder.</b> The core deck runs, but its
+        eigenvalue is not a physics result until a reflector dataset exists.</li>
+      <li><b>Xenon is not yet a database axis.</b> The operating-margin story before the accident
+        is a transient-xenon story, and Unit&nbsp;4 was heavily poisoned at 01:23.</li>
+      <li><b>The deterministic method is 5&ndash;12&nbsp;% low</b> on the control-rod section
+        worths even converged. Measured per state and carried as a correction, not tuned away, but
+        not closed.</li>
       <li><b>Steam uses liquid-water scattering data</b> in both codes. A shared approximation, so
         it cancels in the comparison and is wrong in both.</li>
       <li><b>Transient thermal-hydraulics is homogeneous-flow only.</b> The drift-flux model is
         available at steady state but hardcoded off in the transient path. For a positive-void
         reactor that is a real caveat, and the error needs bounding.</li>
+      <li><b>Rod types for 32 of the 211 positions are assumed</b>, by elimination from published
+        second-stage counts. Recorded per position so the transient can vary them.</li>
     </ul>
   </div>
 </section>
@@ -679,22 +781,25 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
 (() => {
 "use strict";
 
-const BU = [0, 2000, 5000, 10000, 15000, 20000];
+// Regenerated 2026-09-29 from `python openmc/void_bracket.py` on the converged
+// production database (SHEM-361, Zr self-shielded, 840-point MULTICOMPO).
+// The pre-convergence arrays this replaced are in the project log, superseded.
+const BU = [0, 2000, 5000, 7500, 10000, 10900, 12500, 15000, 20000];
 
-const BETA   = [0.006824, 0.006361, 0.005877, 0.005358, 0.004985, 0.004680];
-const D_PCM  = [222.2, 247.4, 154.7, 499.3, 1204.5, 2189.7];
-const O_PCM  = [1030.4, 919.0, 851.6, 1473.4, 2650.2, 4007.5];
-const O_SD   = [66.2, 80.7, 78.6, 92.1, 121.4, 117.3];
-const D_USD  = D_PCM.map((v, i) => v / 1e5 / BETA[i]);
-const O_USD  = O_PCM.map((v, i) => v / 1e5 / BETA[i]);
-const O_USDSD= O_SD.map((v, i) => v / 1e5 / BETA[i]);
+const BETA = [0.006822, 0.006344, 0.005862, 0.005604, 0.005346,
+              0.005280, 0.005163, 0.004979, 0.004677];
+// A: production database.  A': plus the measured mesh/characteristics
+// correction.  B: OpenMC on a matched basis -- directly measured at 0, 10000
+// and 15000 MWd/t (error bars there), interpolated between, and held at the
+// 15 MWd/kg correction beyond it.
+const A_PCM  = [ 560,  596,  519,  650,  901, 1024, 1243, 1666, 2718];
+const AP_PCM = [ 764,  808,  743,  884, 1145, 1273, 1498, 1932, 2985];
+const B_PCM  = [ 821,  880,  837,  996, 1276, 1437, 1724, 2254, 3306];
+const B_SD   = [  21, null, null, null,   28, null, null,   33, null];
 
-// discharge-burnup density sweep: void fraction = 1 - dca/0.72
-const DENS_D = [[0.72,0],[0.60,312.9],[0.45,656.1],[0.30,995.4],[0.15,1457.0],[0.05,1972.9],[0.02,2189.7]];
-// The 0.72 entry carries no error: it is the reference the others are
-// measured against, so its delta-rho is exactly zero by construction.
-const DENS_O = [[0.72,0,0],[0.35,1721.7,120.2],[0.15,2878.5,126.1],[0.02,4007.5,117.3]];
-const vf = d => 1 - d / 0.72;
+const usd = a => a.map((v, i) => v / 1e5 / BETA[i]);
+const A_USD = usd(A_PCM), AP_USD = usd(AP_PCM), B_USD = usd(B_PCM);
+const B_USDSD = B_SD.map((v, i) => v === null ? null : v / 1e5 / BETA[i]);
 
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const SVGNS = "http://www.w3.org/2000/svg";
@@ -843,40 +948,31 @@ chart(document.getElementById("plot-beta"), {
 });
 
 chart(document.getElementById("plot-pcm"), {
-  alt: "Full-void reactivity rises with burnup in both codes; DRAGON from 222 to 2190 pcm, OpenMC from 1030 to 4008 pcm.",
-  xLabel: "burnup, MWd/t", yLabel: "pcm", xTicks: BU, yMin: 0, yMax: 4400,
+  alt: "Full-void reactivity rises with burnup in all three variants, from about +560 to +2700 pcm (production), +760 to +3000 (method-corrected) and +820 to +3300 (OpenMC). The three stay within about 15 per cent of each other.",
+  xLabel: "burnup, MWd/t", yLabel: "pcm", xTicks: [0, 5000, 10000, 15000, 20000],
+  yMin: 0, yMax: 3600,
   xFmt: kfmt, yFmt: v => (v ? "+" : "") + v, xTip: v => v.toLocaleString() + " MWd/t",
   yTip: v => Math.round(v) + " pcm",
   series: [
-    { name: "OpenMC", color: "--openmc", pts: BU.map((b, i) => [b, O_PCM[i], O_SD[i]]) },
-    { name: "DRAGON", color: "--dragon", pts: BU.map((b, i) => [b, D_PCM[i]]) },
-  ],
-});
-
-chart(document.getElementById("plot-dens"), {
-  alt: "At 20000 MWd/t both codes' void curves have the same shape, differing by a near-constant factor of about 1.9.",
-  xLabel: "void fraction  (coolant density 0.72 → 0.02 g/cm³)", yLabel: "pcm",
-  xMin: 0, xMax: 1, yMin: 0, yMax: 4400,
-  xTicks: [0, 0.25, 0.5, 0.75, 1],
-  xFmt: v => v.toFixed(2), yFmt: v => (v ? "+" : "") + v,
-  xTip: v => "void " + v.toFixed(3) + "  ·  " + (0.72 * (1 - v)).toFixed(2) + " g/cm³",
-  yTip: v => Math.round(v) + " pcm",
-  series: [
-    { name: "OpenMC", color: "--openmc", pts: DENS_O.map(([d, v, s]) => [+vf(d).toFixed(4), v, s]) },
-    { name: "DRAGON", color: "--dragon", pts: DENS_D.map(([d, v]) => [+vf(d).toFixed(4), v]) },
+    { name: "B (OpenMC)", color: "--openmc",
+      pts: BU.map((b, i) => B_SD[i] === null ? [b, B_PCM[i]] : [b, B_PCM[i], B_SD[i]]) },
+    { name: "A\u2032", color: "--aprime", pts: BU.map((b, i) => [b, AP_PCM[i]]) },
+    { name: "A", color: "--dragon", pts: BU.map((b, i) => [b, A_PCM[i]]) },
   ],
 });
 
 chart(document.getElementById("plot-usd"), {
-  alt: "In dollars the void worth grows from 0.33 to 4.68 (DRAGON) and 1.51 to 8.56 (OpenMC); both cross the one-dollar prompt-critical line.",
-  xLabel: "burnup, MWd/t", yLabel: "dollars", xTicks: BU, yMin: 0, yMax: 9.4,
-  yTicks: [0, 2, 4, 6, 8],
+  alt: "In dollars the void worth grows from about 0.8 to 5.8 (production), 1.1 to 6.4 (method-corrected) and 1.2 to 7.1 (OpenMC). All three cross the one-dollar prompt-critical line below 5000 MWd/t.",
+  xLabel: "burnup, MWd/t", yLabel: "dollars", xTicks: [0, 5000, 10000, 15000, 20000],
+  yMin: 0, yMax: 7.6, yTicks: [0, 2, 4, 6],
   xFmt: kfmt, yFmt: v => "$" + v.toFixed(0), xTip: v => v.toLocaleString() + " MWd/t",
   yTip: v => "$" + v.toFixed(2),
   rules: [{ y: 1, label: "$1.00  prompt critical", color: "--danger" }],
   series: [
-    { name: "OpenMC", color: "--openmc", pts: BU.map((b, i) => [b, O_USD[i], O_USDSD[i]]) },
-    { name: "DRAGON", color: "--dragon", pts: BU.map((b, i) => [b, D_USD[i]]) },
+    { name: "B (OpenMC)", color: "--openmc",
+      pts: BU.map((b, i) => B_USDSD[i] === null ? [b, B_USD[i]] : [b, B_USD[i], B_USDSD[i]]) },
+    { name: "A\u2032", color: "--aprime", pts: BU.map((b, i) => [b, AP_USD[i]]) },
+    { name: "A", color: "--dragon", pts: BU.map((b, i) => [b, A_USD[i]]) },
   ],
 });
 
@@ -888,21 +984,16 @@ const table = (id, head, rows) => {
     rows.map(r => "<tr>" + r.map(c => `<td>${c}</td>`).join("") + "</tr>").join("") +
     "</tbody></table>";
 };
+const sd = (v, s_) => "+" + v.toFixed(0) + (s_ === null ? "" : " ± " + s_.toFixed(0));
 table("tbl-beta", ["Burnup, MWd/t", "β (DRAGON)", "vs assumed 0.0048"],
   BU.map((b, i) => [b.toLocaleString(), BETA[i].toFixed(6), (BETA[i] / 0.0048).toFixed(2) + "×"])
     .concat([["0 — OpenMC", "0.006856 ± 0.000162", "−0.5 % vs DRAGON"]]));
-table("tbl-pcm", ["Burnup, MWd/t", "DRAGON, pcm", "OpenMC, pcm", "ratio"],
-  BU.map((b, i) => [b.toLocaleString(), "+" + D_PCM[i].toFixed(0),
-    "+" + O_PCM[i].toFixed(0) + " ± " + O_SD[i].toFixed(0), (O_PCM[i] / D_PCM[i]).toFixed(2) + "×"]));
-table("tbl-dens", ["Coolant density, g/cm³", "Void fraction", "DRAGON, pcm", "OpenMC, pcm"],
-  DENS_D.map(([d, v]) => {
-    const o = DENS_O.find(r => r[0] === d);
-    return [d.toFixed(2), vf(d).toFixed(3), "+" + v.toFixed(0),
-      o ? "+" + o[1].toFixed(0) + (o[2] ? " ± " + o[2].toFixed(0) : "") : "—"];
-  }));
-table("tbl-usd", ["Burnup, MWd/t", "β", "DRAGON, $", "OpenMC, $"],
-  BU.map((b, i) => [b.toLocaleString(), BETA[i].toFixed(6),
-    "+" + D_USD[i].toFixed(2), "+" + O_USD[i].toFixed(2) + " ± " + O_USDSD[i].toFixed(2)]));
+table("tbl-pcm", ["Burnup, MWd/t", "A, pcm", "A′, pcm", "B, pcm", "B / A"],
+  BU.map((b, i) => [b.toLocaleString(), "+" + A_PCM[i], "+" + AP_PCM[i],
+    sd(B_PCM[i], B_SD[i]), (B_PCM[i] / A_PCM[i]).toFixed(2) + "×"]));
+table("tbl-usd", ["Burnup, MWd/t", "β", "A, $", "A′, $", "B, $"],
+  BU.map((b, i) => [b.toLocaleString(), BETA[i].toFixed(6), "+" + A_USD[i].toFixed(2),
+    "+" + AP_USD[i].toFixed(2), "+" + B_USD[i].toFixed(2)]));
 })();
 </script>
 </body>

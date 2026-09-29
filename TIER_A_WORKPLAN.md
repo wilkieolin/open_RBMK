@@ -140,8 +140,22 @@ The current map has an 88-cell one-cell ring and **nothing axially**. Add:
 
 In the generated `.don`:
 
-- `TRIVAT: ... DUAL 3 3` → `TRIVAT: ... MCFD 1`  (≈40× fewer unknowns; precedent `AFMtest_proc/Pcalflu.c2m:45`)
+- ~~`TRIVAT: ... DUAL 3 3` → `TRIVAT: ... MCFD 1`~~ (≈40× fewer unknowns; precedent `AFMtest_proc/Pcalflu.c2m:45`)
 - `FLUD:` / solver block: `EPSOUT 1.0E-7` → `1.0E-5`
+
+> **SUPERSEDED 2026-09-28 — use `TRIVAT: ... DUAL 1 1`.** The MCFD recommendation was made before
+> any rod cell existed and is wrong once one does. Measured on the A6.4 gate over 18 states,
+> `MCFD 1` loses **31–34 % of the absorber worth**: one mesh-centred point per 25 cm node cannot
+> represent the flux depression in a black absorber. It also cannot carry a converged SPH
+> equivalence at all — it oscillates from iteration 5 and hits the 200-iteration cap, where
+> `DUAL 1 1` converges in 40 on identical transport, and on the full deck it ended in a segfault
+> in `TRI1GSO`.
+>
+> The speed argument that motivated MCFD does not survive either, because **`DUAL 1 1` is not
+> `DUAL 3 3`**. Matched runs on the same core, same machine: MCFD 1.95 s / 39 MB,
+> DUAL 1 1 2.11 s / 56 MB — 8 % — and the two agree to 0.7 pcm where no absorber is present.
+> `decks/Donjon/data/rbmk_core_3d_dual.don` is the timing probe; A6.5's generator
+> (`gen_rbmk_unit4.py`) already emits `DUAL 1 1`.
 
 ### A2.4 Fix the macrolib sanity
 
@@ -382,10 +396,14 @@ without checking in.** Report:
 
 *Order from 2026-09-26: A6 → A6b → A6c → A6d → A7 → A8 → A9 (PROJECT_PLAN.md, roadmap).*
 
-- **A6 CPS channel cells.** B₄C absorber, graphite displacer, water column. The core mix map
-  currently has **no rod sites** — every live cell is fuel or graphite, so there is nowhere
-  for a rod to go. Gate: displacer-only insertion from below gives **positive** reactivity.
+- **A6 CPS channel cells.** B₄C absorber, graphite displacer, water column. Gate:
+  displacer-only insertion from below gives **positive** reactivity.
   **Work order: `A6_CPS_PLAN.md`** (started 2026-09-26, on the A′ basis).
+  *Status 2026-09-29: A6.1 passed; A6.2 passed; A6.3 gate missed at 5–12 % with the residual
+  measured and localised; A6.4 gate failed with the cause identified and A6.4b chosen to close
+  it; A6.5's core exists on the sourced map but has placeholder reflector data and no rods yet.
+  The "no rod sites" problem above is solved — `gen_rbmk_unit4.py` places all 227 CPS channels
+  at their real positions.*
 - **A6b Xenon axis and fuel COMPO rebuild.** Add a Xe branch axis (equilibrium Xe at the branch
   power, plus a zero-Xe and a peak-Xe point) and switch depletion to `EVO: EXTR 1` with
   ≤ 2.5 MWd/kg steps; test that combination against `rbmk_meth_dstep125` first. Gates as A5b
@@ -394,7 +412,11 @@ without checking in.** Report:
   3-D DONJON model with the A6 rods and reproduce the two measured critical states and the
   ordering of the two subcritical ones. Cold, zero power, no TH: a test of the core model
   alone. Report the graphite-impurity sensitivity; do not tune it.
-- **A6d Unit 4 initial state at 01:22:30.** A sourced deliverable, not a step inside A8:
+- **A6d Unit 4 initial state at 01:22:30.** A sourced deliverable, not a step inside A8.
+  *Status 2026-09-27: the channel map and the rod pattern are DONE and sourced — registering
+  Dollezhal Fig. 2.3 against INSAG-7 Fig. II-6 is exact (all 223 rod sites at one offset), and
+  every count closes against an independent source. `sources/derived/unit4_channel_map.csv`.
+  The remaining items below are still open.*
   - channel map;
   - burnup distribution consistent with [PAV];
   - rod pattern digitised from INSAG-7 Fig. II-6;

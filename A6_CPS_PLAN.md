@@ -109,6 +109,35 @@ when the surrounding fuel voids.
 **GATE A6.3:** converged DRAGON within 5 % of OpenMC on each worth, or the residual attributed. The
 production-minus-converged difference is tabulated as the A′ correction for CPS sections.
 
+> **Status 2026-09-29: MISSED, on the complete table.** All twelve states are in (the last two
+> took ~44 h each on `spark`). Production DRAGON is 9–17 % low on every section worth; converging
+> it — 4× mesh, MOC with P1, `TISO 30 120.0` — leaves 5–12 %, and the 5 % criterion is met in one
+> cell of twelve. The A′ correction is +60 to +1107 pcm, tabulated per state by
+> `openmc/cps_verify.py table` and carried, not fitted.
+>
+> **Where the residual actually is.** A worth is a difference of two k's, so the worth error does
+> not say which state is wrong. The absolute-k comparison does, and it rules out a single
+> localised data error:
+>
+> | converged, DRAGON − OpenMC | dca 0.72 | dca 0.02 |
+> |---|---|---|
+> | WAT | **+93 / +60** (fixed) | +582 / +543 (untouched) |
+> | ABS | −632 / −875 (barely moved) | **−15 / −66** (fixed) |
+> | DSP, VOID | −108 to −238 | −18 to +136 |
+>
+> Convergence fixes the water when the surrounding fuel is wet and the absorber when it is
+> voided. Both are spectral — what changes with coolant density is how hard the thermal flux is
+> driven into the CPS channel from outside.
+>
+> One hypothesis raised and eliminated: the draglib has `H1_H2O` at 293.6 / 350 / 400 / 450 /
+> 500 / 600 K only and interpolates cubically in √T (`LIBDRA.f:68`), putting the nominal 323.15 K
+> 29.5 K off the nearest node, while OpenMC has points at 320 and 324 K. Run on the node, where
+> `LIBLEX.f:46` returns `TERP = 1`, the gap *grows*: 452 → 509 at dca 0.72 and 616 → 701 at 0.02.
+>
+> **Next**, and it needs A6.3e first: the converged variant changes mesh, scattering order, flux
+> solver and tracking density together, so the four have to be separated. That is 44 h a state at
+> today's settings, which is why the tracking ladder comes before the diagnosis.
+
 ### A6.4 — Homogenisation and COMPO
 Two-group homogenisation of the central cell with **SPH** equivalence. Diffusion theory is not
 adequate next to B₄C, and this is the place A4's SPH work was always meant for. Write a CPS
@@ -155,13 +184,42 @@ worths within 1 % (the SPH test).
 >    every rod — but neighbourhoods overlap in the core, and it doubles the fuel data.
 
 ### A6.5 — Rod sites in the core
-Add the 211 CPS sites to the core generator (`decks/Donjon/data/gen_rbmk_realistic.py`) from the digitised
-map. Each rod is an axial stack (absorber / telescope water / displacer / water) that moves as one:
+
+> **Status 2026-09-28: unblocked by A6d, and the core now exists.**
+> `decks/Donjon/data/gen_rbmk_unit4.py` replaces `gen_rbmk_realistic.py` (which is superseded and
+> should not be extended). It reads `sources/derived/unit4_channel_map.csv` and emits a
+> 52 × 52 × 32 core, 1300 × 1300 × 800 cm: the real 48 × 48 staircase outline, a 2-cell radial
+> graphite reflector, 28 active planes and 2 reflector planes each end. 1661 fuel channels, 227
+> CPS/detector channels, graphite elsewhere — counts asserted, not assumed. `GEO:`, `USPLIT:` and
+> `RESINI:` accept it and the deck reaches normal end.
+>
+> **Solver: `TRIVAT DUAL 1 1`, not the `MCFD 1` that TIER_A_WORKPLAN A2.3 still recommends.**
+> Measured 2026-09-28: MCFD loses 31–34 % of the absorber worth on the A6.4 gate and cannot carry
+> a converged SPH equivalence at all (oscillates, hits the 200-iteration cap, where DUAL converges
+> in 40 on identical transport). It costs 8 % — 2.11 s against 1.95 s, 56 MB against 39, on the
+> full core — and the two agree to 0.7 pcm where no absorber is present.
+>
+> **Still missing before the gate can be attempted:**
+> - **reflector cross sections.** The deck carries a marked placeholder, so its k is not a physics
+>   result. A reflector dataset is its own job — a 1-D core/reflector transport calculation,
+>   homogenised and SPH-corrected; upstream's `Reflector_beavrs` case is the template.
+> - **the rods themselves.** Every CPS channel is currently a full-height water column, i.e. all
+>   rods withdrawn, because a rod inserted on today's CPS data is 7–10 % short on worth. Devices
+>   wait on A6.4b.
+>
+> Two traps are recorded in the generator rather than left to be rediscovered: CLE-2000 reads
+> columns 1–120 only and reports just `ERROR NUMBER (5000)` (a 52-wide row of 4-character fields
+> is 208 — the maps are wrapped and an assertion names any offending line), and `B-ZONE` is not an
+> nx-by-ny map but exactly NCH integers, one per fuel channel, in the order `RESPFM.f:74-82` finds
+> them (`RESDRV.f:347-356`).
+
+Each rod is an axial stack (absorber / telescope water / displacer / water) that moves as one:
 - RR and AZ: 5 m absorber + 1.25 m water + 4.5 m displacer;
 - AR: absorber only;
 - USP: 3.5 m absorber, from below.
 
-> **Found 2026-09-26, blocks this step until A6d's channel map exists.** The generator's core is
+> **Found 2026-09-26, blocked this step until A6d's channel map existed; resolved 2026-09-28.**
+> The old generator's core was
 > the 1661 cells nearest the centre of a 590 cm circle, which holds only 1749 cells. Unit 4 needs
 > 1884 channel positions: 1661 fuel, 211 rods and the 12 empty lattice sites of Fig. II-6. That
 > is 117.8 m², an equivalent diameter of 12.2 m. The rods are also interspersed with the fuel, not
