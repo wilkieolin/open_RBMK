@@ -2676,6 +2676,48 @@ is exactly why it does not cancel in a worth, and why ABS (±3 %) fares better t
 VOID (−7 to −10 %): the absorber's neighbour perturbation is closer to the water case it is
 differenced against.
 
+### 4. How big is the fixable part? Three of nine points
+
+The framing above — "the rod's neighbours are a special case" — is wrong, and the channel map
+says so. Counted on `sources/derived/unit4_channel_map.csv`:
+
+```
+  fuel channels                      1661
+  with >=1 CPS in the eight-ring     1367   (82.3 %)
+  with none                           294   (17.7 %)
+  mean CPS count in the eight-ring   1.08
+  CPS fraction, 3x3 supercell        1/9      = 11 %
+  CPS fraction, Unit 4               227/1888 = 12 %
+```
+
+Having a CPS neighbour is not the special case — **not** having one is, at 17.7 %. And the
+3 × 3 supercell's CPS fraction matches the core's to one point. So the supercell, not the
+single infinite-lattice cell the fuel COMPO is built from, is the representative lattice cell
+for this reactor.
+
+Tested by drawing the eight neighbours from the **water** supercell's own fuel cells — the
+right reference environment, since a withdrawn rod *is* a water column and only 47 of 211 were
+inserted at 01:22:30 (`A64B_NBR=wat`):
+
+| worth | fuel-COMPO neighbours | representative-environment neighbours |
+|---|---|---|
+| ABS | −3.24 to +2.84 % | −1.93 to +4.07 % |
+| DSP | −9.10 to −6.72 % | −5.97 to −4.18 % |
+| VOID | −10.56 to −8.48 % | −7.30 to −5.81 % |
+
+**A clean decomposition of the ~9 %:** about 3 points are the fuel being computed in an
+unrepresentative environment, and are recoverable. The remaining ~6 points are the
+*centre-dependence* — the difference between neighbouring a water column and neighbouring a
+graphite displacer or a drained channel — and no single fuel dataset can carry that, because
+it changes as the rods move.
+
+Two consequences. First, the recoverable 3 points are not free: `_CCompoWAT` already holds the
+right fuel data but only on the coarse A64 grid (3 burnups, 3 densities, no `TG` axis), so
+using it in the core means rebuilding the fuel COMPO on the 3 × 3 supercell at the full
+840-point grid — expensive, and only sensible batched with A6b's xenon rebuild. Second,
+**expect a core-level k bias**: the same substitution moves the supercell k by 38–484 pcm
+depending on state, and it applies to 82 % of the core's fuel, so A7's eigenvalue carries it.
+
 ### Where this leaves A6.4
 
 Two sound ways out, and one that is not.
@@ -2684,7 +2726,7 @@ Two sound ways out, and one that is not.
   already exists — the CPS MULTICOMPO stores all nine cells, and the core currently uses only
   mixture 5. It is real work: a channel can neighbour more than one rod, it has its own
   burnup, and the correction depends on the rod's insertion state, which moves during the
-  transient.
+  transient. Item 4 bounds what it buys: the state-dependent part is ~6 of the 9 points.
 * **Carry it as a measured, one-signed bias**, the way A6.3's residual is carried as the A′
   correction: displacer and drained-channel worth low by 7–10 %, absorber worth within ±3 %,
   mechanism named, present at all burnups, and propagated into A8's uncertainty band.

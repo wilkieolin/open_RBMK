@@ -76,6 +76,30 @@ def _ncr_ref(bu, dca, tf):
             f"  COMPO CCpo 'EDICPS'\n{rows}  ;")
 
 
+def _ncr_wat(bu, dca, tf):
+    """Neighbours from the WATER supercell's own fuel cells, centre from <type>.
+
+    Why this is a sensible model and not a fiddle: the 3 x 3 supercell has one
+    CPS channel per nine positions, 11 %, and Unit 4 has 227 CPS channels in
+    1888 positions, 12 %.  Counted on the sourced map, 82.3 % of fuel channels
+    have a CPS channel in their eight-ring and the mean count is 1.08 -- which
+    is exactly the supercell's geometry.  The INFINITE-LATTICE cell the fuel
+    COMPO is built from describes the other 17.7 %.  So the supercell, not the
+    single cell, is the representative lattice cell for this core.
+
+    The water column is the right reference environment because a withdrawn rod
+    IS a water column, and at 01:22:30 only 47 of 211 rods were inserted.
+    """
+    rows = "".join(
+        f"  MIX {m} FROM {m} SET 'burnup' {bu} SET 'DCA' {dca} SET 'TF' {tf} ENDMIX\n"
+        for m in FUEL_MIX)
+    return (f"MTRI := NCR: WCpo CCpo :: EDIT 0 MACRO LINEAR NMIX {NMIX}\n"
+            f"  COMPO WCpo 'EDICPS'\n{rows}"
+            f"  COMPO CCpo 'EDICPS'\n"
+            f"  MIX {ROD} FROM {ROD} SET 'burnup' {bu} SET 'DCA' {dca}"
+            f" SET 'TF' {tf} ENDMIX ;")
+
+
 def _ncr_trial(bu, dca, tf):
     """What the core has: eight fuel cells from the FUEL COMPO, centre from CPS."""
     rows = "".join(
@@ -131,13 +155,15 @@ def deck(stype, trials_by_state):
 *    A64B REF   <bu> <dca> <tf> <k>   + an OUT: INTG MIX block
 *    A64B TRI t<i> <bu> <dca> <tf> <k> + an OUT: INTG MIX block, one per trial
 *----
-LINKED_LIST FCpo CCpo MREF MTRI MCUR OUTM GEOM TRACK SYSTEM FLUX ;
+LINKED_LIST FCpo CCpo WCpo MREF MTRI MCUR OUTM GEOM TRACK SYSTEM FLUX ;
 SEQ_ASCII   _ACompo :: FILE './_ACompo' ;
 SEQ_ASCII   _CCompo :: FILE './_CCompo{tag}' ;
+SEQ_ASCII   _CCompoW :: FILE './_CCompoWAT' ;
 MODULE      NCR: GEO: TRIVAT: TRIVAA: FLUD: OUT: SPH: GREP: DELETE: END: ;
 REAL kk ;
 FCpo := _ACompo ;
 CCpo := _CCompo ;
+WCpo := _CCompoW ;
 GEOM := GEO: :: CAR2D 3 3
   X- REFL X+ REFL Y- REFL Y+ REFL
   MESHX 0.0 25.0 50.0 75.0 MESHY 0.0 25.0 50.0 75.0
@@ -148,7 +174,7 @@ TRACK := TRIVAT: GEOM :: EDIT 0 MAXR 20 DUAL 1 1 ;"""]
         st = f"{bu} {dca} {tf}"
         L.append(f"\n{_ncr_ref(bu, dca, tf)}\nMCUR := MREF ;\n"
                  f"{_solve('REF', f' {st}')}\nMREF MCUR := DELETE: MREF MCUR ;")
-        L.append(f"{_ncr_trial(bu, dca, tf)}")
+        L.append(_ncr_wat(bu, dca, tf) if NBR == "wat" else _ncr_trial(bu, dca, tf))
         for i, (f1, f2) in enumerate(tr):
             L.append(f"MCUR := SPH: MTRI :: EDIT 0\n{_sprd(f1, f2)}\n"
                      f"{_solve(f'TRI t{i}', f' {st}')}\nMCUR := DELETE: MCUR ;")
@@ -167,6 +193,7 @@ ACCESS = """#!/bin/sh
 src="$1"/../Dragon/compo
 cp "$src"/_ACompo . || exit 1
 cp "$src"/_CCompo{t} . || exit 1
+cp "$src"/_CCompoWAT . || exit 1
 """
 
 MARK = re.compile(r">\|A64B (REF|TRI t\d+) +([\d.eE+-]+) +([\d.eE+-]+) +"
@@ -212,6 +239,11 @@ def parse(path):
 # because it is the target the plan originally recorded and the run that
 # disproved it has to stay reproducible.
 TARGET = os.environ.get("A64B_TARGET", "removal")
+
+# Where the eight neighbour fuel cells come from in the TRIAL configuration:
+#   "fuel" -- the fuel MULTICOMPO, an infinite-lattice cell (what the core has)
+#   "wat"  -- the WATER supercell's own fuel cells (see _ncr_wat)
+NBR = os.environ.get("A64B_NBR", "fuel")
 
 
 def _zone(rec, m, g, what=None):
