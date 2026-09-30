@@ -1,0 +1,5 @@
+#!/bin/sh
+# Stage the fuel COMPO and the one-point smoke CPS COMPO.
+src="$1"/../Dragon/compo
+cp "$src"/_ACompo . || exit 1
+cp "$src"/_CComposmk . || exit 1

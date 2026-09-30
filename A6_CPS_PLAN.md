@@ -251,7 +251,36 @@ of Fig. II-6). See PROJECT_PLAN.md, roadmap.
   confirm in A6.1.
 - Xenon in the surrounding fuel: the fuel COMPO has no Xe axis yet (A5b deferral).
 
-### A6.4b — the rod-cell equivalence (chosen 2026-09-27)
+### A6.4b — the rod-cell equivalence (chosen 2026-09-27) — ❌ **DISPROVED 2026-09-30**
+
+> **Do not build what this section describes.** It was built, and it does not work. The whole
+> approach is refuted, not just the `EQUI` persistence step corrected below. Full measurement in
+> `PROGRESS.md`, "A6.4b: the rod-cell equivalence cannot work, and here is why"; reproduce with
+> `openmc/a64b.py` (`worths`, `gate`, `scan`); results in `openmc/a64b_findings.txt`.
+>
+> - The **flux target** proposed here converges in three Newton iterations and makes the gate
+>   **worse** — VOID worth error −14.2 % against −10.6 % at unit factors. SPH equivalence
+>   preserves reaction rates, not fluxes; forcing the rod's flux up by lowering its own cross
+>   sections buys the flux at the cost of the absorption, which is what a worth is made of.
+> - The **removal-rate target**, which is the correct invariant, will not converge: a black
+>   absorber's reaction rate is nearly invariant to its own SPH factor, because raising its
+>   cross section depresses its flux almost proportionally.
+> - Therefore **no rod-only factor can close the gate at all.** Sweeping the rod cell's two
+>   factors over ±20 % leaves the worth error between −15.3 % and −3.45 % and it never
+>   straddles zero. The gate wants 1 %.
+> - **The cause is not the rod.** The eight fuel cells around it differ from infinite-lattice
+>   fuel by ±3 % **at zero burnup**, where the material is identical — the rod perturbs the
+>   spectrum across the whole 75 cm supercell (migration length ~1 m). The perturbation depends
+>   on what is in the centre, which is why it does not cancel in a worth.
+>
+> **Survivors:** give the rod's neighbours their own core mixtures from the CPS MULTICOMPO's
+> other eight cells (principled, real work, and the insertion state moves during the transient),
+> or carry the 7–10 % as a measured one-signed bias the way A6.3's residual is carried as A′.
+> Fitting the four rod/reference factors to the worth would hit the gate, is not an equivalence,
+> and was not done.
+>
+> What *is* reusable from below: the `SPRD` and `OUT: INTG MIX` machinery, both now confirmed to
+> work inside DONJON, and the `EQUI` correction.
 
 **Decision: option 2.** The rod cell carries per-group factors, computed per state, so that the
 DONJON supercell reproduces DRAGON's with the fuel data the core actually uses. The fuel COMPO is

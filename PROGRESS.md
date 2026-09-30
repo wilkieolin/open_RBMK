@@ -197,6 +197,16 @@ Access via the per-deck `<name>.access` script, which symlinks `DLIB_99`.
 > for a 4 s transient, ~4 h per scenario once the thermal-hydraulic Picard loop is included.
 > Peak memory 105 MB. Tier B stays parallel rather than urgent. Two `KINSOL:` prerequisites are
 > undocumented and were found in source: `OVERV` (`KINXSD.f:152`) and `UNIT` on `TRIVAA:`.
+>
+> **2026-09-30 (2): A6.4b is disproved, and the real cause of A6.4 is named.** The rod-cell
+> equivalence cannot close the gate — not "is hard", cannot. Matching the rod's flux makes the
+> worth error worse (VOID −14 % against −10 % at unit factors), matching its removal rate will
+> not converge because a black absorber's reaction rate is nearly invariant to its own SPH
+> factor, and sweeping the factors over ±20 % never brings the worth within −3.45 % of a gate
+> that wants 1 %. The cause is not the rod: **the eight fuel cells around it differ from
+> infinite-lattice fuel by ±3 % at zero burnup**, because the rod perturbs the spectrum across
+> the whole 75 cm supercell. Fitting four factors to one worth would hit the gate and was not
+> done. Carried as a measured one-signed bias, mechanism named.
 
 ## Validated results
 
@@ -206,7 +216,7 @@ Access via the per-deck `<name>.access` script, which symlinks `DLIB_99`.
 | RBMK lattice cell, `Dragon/data/rbmk_cell_a3.x2m` | **k∞ = 1.313968** (2026-09-26, SHEM-361 with Zr self-shielded, `RbmkLib`) | ✅ Geometry closed against sources, guardrail passed, DRAGON's fractions equal the analytic ones. **Superseded:** 1.304123 on the pinned 172-group draglib (2026-09-24 (3)); the +985 pcm is the converged library, not a geometry change. Lineage of the geometry corrections before that: 1.310172 → 1.308679 (library, −87) → 1.304717 (Dollezhal carrier and clad, −232) → 1.304123 (clad OD 13.58, −35). The value is post-hydrogen-fix (2026-09-23) and was matched independently by `rbmk_h2otest.x2m`. |
 | Void coefficient vs burnup, `Dragon/data/rbmk_a5_void.x2m` + A5b COMPO | full void at the Unit 4 average burnup, 10.9 MWd/kgU: **+1024 pcm (+1.94 $) production, +1273 (+2.41 $) with the measured method correction, +1437 (+2.72 $) OpenMC matched**. At 15 MWd/kgU: +1666 / +1932 / +2254. 2026-09-27 | ✅ **Sign, trend and magnitude now agree between two codes and a third-party benchmark**, after the method-convergence segment; the 38 % spread fell to 13 %. Carried as a three-variant bracket (`openmc/void_bracket.py`), not a single number. Superseded: the 2026-09-24 (4) reading of +0.39 / +1.65 $ (DRAGON) against +2.25 / +4.60 $ (OpenMC), which came from the unconverged 172-group library. |
 | CPS section worths, `openmc/cps_verify.py table` | 3×3 supercell, six states: converged DRAGON is **5–11 % low** against OpenMC on absorber, displacer and drained-channel worth (production 9–17 % low) | ⚠️ Measured against an independent method (rule 4) and **not closed**. The production-minus-converged difference is tabulated per state as the A′ correction, +60 to +1107 pcm. Two of twelve states still computing. |
-| CPS homogenisation, `openmc/cps_verify.py a64` | DONJON on the homogenised supercell vs DRAGON: **~1 pcm with CPS-COMPO neighbours; −7 to −10 % on the displacer and drained channel with fuel-COMPO neighbours** | ⚠️ Gate A6.4 fails, cause identified: the homogenisation, SPH equivalence and solver are exact, the neighbour data is not. Being closed by an explicit rod-cell equivalence (A6.4b). |
+| CPS homogenisation, `openmc/cps_verify.py a64` | DONJON on the homogenised supercell vs DRAGON: **~1 pcm with CPS-COMPO neighbours; −7 to −10 % on the displacer and drained channel with fuel-COMPO neighbours** | ⚠️ Gate A6.4 fails, cause identified: the homogenisation, SPH equivalence and solver are exact, the neighbour data is not. **A6.4b, the rod-cell equivalence proposed to close it, is disproved (2026-09-30):** the flux target makes the gate worse, the removal-rate target will not converge because a black absorber's reaction rate is nearly invariant to its own SPH factor, and a ±20 % sweep of the rod factors never brings the worth error within −3.45 %. The neighbour fuel constants differ by ±3 % **at zero burnup** — the rod perturbs the spectrum across the whole 75 cm supercell. Carried as a measured one-signed bias unless A8 proves sensitive. |
 | Unit 4 channel map, `tools/build_unit4_map.py` | 1661 fuel + 211 rods + 12 ДКЭ(в) + 4 start-up chambers = 1888 positions; 47 rods inserted at 01:22:30, 4346 cm | ✅ Two independent digitisations register exactly (all 223 rod sites at one offset), and every count closes against a separate source — INSAG-7 pp. 43/103, [PAV] Table 1, [D] p. 57. The rod *types* of 32 sites remain an assumption, recorded per row. |
 | Kinetics cost, `tools/kin_cost.sh` | `KINSOL:` on the 49×49×32 `DUAL 1 1` core: **0.430 s/step** under a severe transient, 0.090 s/step with a frozen macrolib; max RSS 105 MB | ✅ Per-step cost measured by *differencing* 10-step and 110-step runs, so the fixed setup cancels rather than being estimated. Self-checked two ways: the unperturbed transient holds power to 1.4e-4, and the severe one obeys the prompt-jump relation at step 1 (−0.20 $ for P/P₀ = 0.836 at β = 0.007219). On IAEA PWR constants — this is the solver, not the reactor. |
 | CANDU-6 control, `Dragon/data/rbmk_candu.x2m` + `openmc/candu_cell.py` | DRAGON +1624 pcm vs OpenMC +1603 pcm full-void | ✅ Same geometry, library and compositions in both codes; **agree to 22 pcm (1.3 %)**. This is what validates the OpenMC model and localises the RBMK disagreement. |
@@ -2568,6 +2578,123 @@ inside the flux tolerance.
 per-step cost should hold — it is set by the matrix structure, which the real cross sections do
 not change — but the iteration counts could move, so A8 re-measures rather than assuming.
 
+## A6.4b: the rod-cell equivalence cannot work, and here is why — 2026-09-30
+
+The design recorded in `A6_CPS_PLAN.md` and in the A6 section above is **disproved**. Not
+abandoned for effort — measured, and it fails. Three results, in the order they were found;
+everything regenerates from `openmc/a64b.py` and is recorded in `openmc/a64b_findings.txt`.
+
+### The machinery works, and was proved to before anything was built on it
+
+`SPH:` and `OUT:` are not in DONJON's own module table (`DONDRV.F`), but `DONDRV` falls
+through to `KDRDRV` and both symbols are in the binary. Confirmed on the cheapest state there
+is (`rbmk_cps_a64b_smk.don`):
+
+* `SPH: <macrolib> :: MACRO SPRD <nmix> <ngrp> <values>` applies an explicit per-mixture,
+  per-group table, values in mixture-major order (`SPH.F:325-348`). **Proved applied rather
+  than silently ignored by a pair of runs**, because all-factors-1.0 alone proves nothing —
+  an ignored `SPRD` would also leave k unchanged. All 1.0 reproduces k exactly; 1.05/0.95 on
+  the centre moves it +208 pcm. Only the pair is conclusive.
+* `OUT: FLUX TRACK MACRO GEOM :: INTG MIX` integrates over the geometry's `MIX` zones
+  (`OUTHOM.f:162`) and prints VOLUME, FLUX-INTG, NTOT0, SIGW00 per zone per group. Give it no
+  `COND`, or it silently condenses to one group.
+
+The new tooling reproduces the previously recorded A6.4 failure to the decimal — ABS −3.24 to
++2.84 %, DSP −9.10 to −6.72 %, VOID −10.56 to −8.48 % — which is the check that it is measuring
+the same thing the old measurement did.
+
+### 1. The recorded target is the wrong target
+
+Solving the two rod-cell factors against the rod cell's group-wise volume-integrated flux
+converges cleanly — three Newton iterations, factors remarkably consistent across all 18
+states (ABS: f₁ 0.956–0.959, f₂ 0.910–0.928) — and **makes the gate worse**:
+
+| worth | at unit factors | flux-matched |
+|---|---|---|
+| ABS | −3.2 to +2.8 % | −9.6 to −4.4 % |
+| DSP | −9.1 to −6.7 % | −13.7 to −9.3 % |
+| VOID | −10.6 to −8.5 % | −14.2 to −10.1 % |
+
+The reason is not subtle once seen. **SPH equivalence preserves reaction rates, not fluxes.**
+The rod cell's flux is low because its *neighbours* are wrong; forcing it up by lowering the
+rod's own cross sections buys the flux at the cost of the absorption — and absorption is what
+a rod worth is made of. The flux was made right by making the cross section wrong.
+
+Targeting the removal rate instead, `(NTOT0 − SIGW00) × FLUX-INTG`, is the physically correct
+invariant and **will not converge**: the residual stalls around 2e-4 through twenty damped
+Newton iterations. That is a statement about the physics, not the solver. Raising a black
+absorber's cross section depresses its flux almost proportionally, so its reaction rate — and
+with it its effect on the core — is nearly invariant to its own SPH factor.
+
+### 2. So no rod-only equivalence can close the gate, at any factor
+
+If the rate is nearly invariant, the worth should be too. Tested directly rather than argued:
+sweep the VOID rod cell's two factors over **±20 %**, a 5 × 5 grid, holding the water reference
+cell at 1.0, and record the worth error over the whole grid.
+
+```
+  bu      0 dca 0.72: REF worth  3954 pcm, err over the grid  -13.26 to  -3.71 %
+  bu      0 dca 0.02: REF worth  4702 pcm, err over the grid  -15.27 to  -3.52 %
+  bu  10900 dca 0.72: REF worth  4704 pcm, err over the grid  -14.70 to  -3.45 %
+```
+
+**The range never straddles zero.** The gate wants 1 %; the best any rod-cell factor achieves
+is −3.45 %, and that is at the edge of a deliberately wide sweep. A6.4b as conceived is not
+hard, it is impossible.
+
+### 3. What is actually wrong: the neighbours, spectrally
+
+Comparing the supercell's own fuel-cell constants against the fuel COMPO's, cell by cell:
+
+```
+ centre VOID, bu 0, dca 0.72      NTOT0 ref   NTOT0 tri      d%
+   corner cell (mix 1), group 1     5.89140     6.01834  +2.155
+   corner cell (mix 1), group 2     8.33873     8.14683  -2.301
+   edge   cell (mix 2), group 1     5.81617     5.84696  +0.529
+   edge   cell (mix 2), group 2     8.42977     8.40410  -0.305
+```
+
+Two things to read here. First, the neighbour fuel constants differ by **up to ±3 %** — and
+this is at **zero burnup**, where the supercell's fuel and the fuel COMPO's fuel are the same
+material. So it is not a depletion-history difference; the worth error is fully present at
+bu = 0 (VOID −8.48 to −9.56 %) and barely changes by 15 MWd/kg. Second, `NTOT0` and `SIGW00`
+shift by almost exactly the same relative amount (+2.155 vs +2.160), so the whole set is
+scaled rather than reshaped.
+
+The corner cell — the one *farthest* from the rod — differs *most*, which looks backwards
+until you remember `ASYM 1` pins merged region 1, the corner, to a factor of exactly 1. Its
+numbers are therefore the raw homogenised supercell values, and they are 2–3 % from
+infinite-lattice fuel because **the rod perturbs the spectrum across the whole 75 cm
+supercell**. The RBMK's migration length is ~1 m; a 25 cm cell two cells from an absorber is
+not in an infinite lattice.
+
+**That is the finding.** This was never a rod-cell problem. The core gives every fuel channel
+infinite-lattice constants, including the ~8 neighbours of each of the 211 rods, and fuel next
+to a rod genuinely does not have infinite-lattice constants. The error depends on what is in
+the centre — water, graphite or helium perturb the neighbouring spectrum differently — which
+is exactly why it does not cancel in a worth, and why ABS (±3 %) fares better than DSP and
+VOID (−7 to −10 %): the absorber's neighbour perturbation is closer to the water case it is
+differenced against.
+
+### Where this leaves A6.4
+
+Two sound ways out, and one that is not.
+
+* **Give the rod's neighbours their own mixtures in the core.** Principled, and the data
+  already exists — the CPS MULTICOMPO stores all nine cells, and the core currently uses only
+  mixture 5. It is real work: a channel can neighbour more than one rod, it has its own
+  burnup, and the correction depends on the rod's insertion state, which moves during the
+  transient.
+* **Carry it as a measured, one-signed bias**, the way A6.3's residual is carried as the A′
+  correction: displacer and drained-channel worth low by 7–10 %, absorber worth within ±3 %,
+  mechanism named, present at all burnups, and propagated into A8's uncertainty band.
+* **Not acceptable:** fitting the four factors of the rod and reference cells to hit the
+  worth. Four parameters against one number is not an equivalence, it is a fudge, and standing
+  rule 1 forbids it. It was not done.
+
+A6.4b is closed as a design. The choice between the two survivors is a scoping decision, and
+the honest default until A8 shows sensitivity is the second.
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to
@@ -2610,7 +2737,10 @@ not change — but the iteration counts could move, so A8 re-measures rather tha
 
 ---
 
-*Last updated: 2026-09-30 (Phase 0 of the transient: `KINSOL:` runs on the full core for the first time; a severe step costs 0.430 s against 0.090 s frozen, so A8 is hours not days and Tier B stays parallel; `OVERV` and `TRIVAA: UNIT` found to be undocumented prerequisites). Previously: 2026-09-29 (A6.3 table complete, gate missed at 5-12 %; MCFD 1 shown to lose 31-34 % of absorber worth and to be unable to carry an SPH equivalence at all, while DUAL 1 1 costs 8 %; the thermal-scattering interpolation hypothesis for the WAT residual eliminated by measurement; Unit 4 core geometry and 1661-channel fuel map generated from the sourced map and accepted by DONJON; recommendation recorded against porting out of Fortran). Previously: 2026-09-27 (A6: CPS cells built and verified in both codes; A6.3 gate missed, residual carried as the A′ correction; A6.4 homogenisation exact but neighbour data 7–10 % low, closing via a rod-cell equivalence; A6d Unit 4 channel map sourced by registering two digitisations, all counts closing; fuel COMPO rebuilt on the corrected depletion grid, bracket +1.94 / +2.41 / +2.72 $ at 10.9 MWd/kgU). Previously: 2026-09-26 (2) (project assessment; Tier A reordered: A6 → A6b Xe → A6c Smolensk-3 → A6d initial state → A7–A9). Previously: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the
+*Last updated: 2026-09-30 (2) (A6.4b disproved: no rod-only SPH equivalence can close gate A6.4,
+shown by a ±20 % factor sweep that never reaches the gate; the cause is the rod perturbing its
+neighbours' spectrum by ±3 % at zero burnup, not the rod cell itself; carried as a measured
+one-signed bias). Previously: 2026-09-30 (Phase 0 of the transient: `KINSOL:` runs on the full core for the first time; a severe step costs 0.430 s against 0.090 s frozen, so A8 is hours not days and Tier B stays parallel; `OVERV` and `TRIVAA: UNIT` found to be undocumented prerequisites). Previously: 2026-09-29 (A6.3 table complete, gate missed at 5-12 %; MCFD 1 shown to lose 31-34 % of absorber worth and to be unable to carry an SPH equivalence at all, while DUAL 1 1 costs 8 %; the thermal-scattering interpolation hypothesis for the WAT residual eliminated by measurement; Unit 4 core geometry and 1661-channel fuel map generated from the sourced map and accepted by DONJON; recommendation recorded against porting out of Fortran). Previously: 2026-09-27 (A6: CPS cells built and verified in both codes; A6.3 gate missed, residual carried as the A′ correction; A6.4 homogenisation exact but neighbour data 7–10 % low, closing via a rod-cell equivalence; A6d Unit 4 channel map sourced by registering two digitisations, all counts closing; fuel COMPO rebuilt on the corrected depletion grid, bracket +1.94 / +2.41 / +2.72 $ at 10.9 MWd/kgU). Previously: 2026-09-26 (2) (project assessment; Tier A reordered: A6 → A6b Xe → A6c Smolensk-3 → A6d initial state → A7–A9). Previously: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the
 bracket straddles prompt criticality at the accident burnup, ~0.6 $ DRAGON vs ~2.7 $ OpenMC;
 OpenMC β_eff 0.006739 confirms DRAGON to −1.3 %). Previously: 2026-09-24 (3) (cell geometry closed against eight new sources; clad OD 13.58;
 k∞ 1.304123 on the pinned library; Unit 4 accident burnup 10.9 MWd/kgU, not 20 — the bracket

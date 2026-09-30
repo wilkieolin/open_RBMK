@@ -1,0 +1,100 @@
+*----
+*  A6.4b SYNTAX PROBE -- does SPH: SPRD and OUT: INTG MIX work inside DONJON?
+*
+*  Both modules live in Dragon/Trivac, not Donjon's own table (DONDRV.F), but
+*  DONDRV falls through to KDRDRV and `nm` shows sph_ and out_ in the Donjon
+*  binary.  This deck is the confirmation, on the cheapest state there is:
+*  the one-point smoke COMPO (ABS, bu 0, dca 0.72, TF 900).
+*
+*  Three macrolibs on the same 3x3, nine-mixture geometry:
+*    REF    all nine cells from the CPS COMPO.  A64S already shows this
+*           reproduces DRAGON's supercell to ~1 pcm, so ITS per-cell fluxes
+*           are the reference A6.4b solves against -- no new DRAGON run.
+*    TRIAL  the eight fuel cells from the FUEL COMPO (what the core actually
+*           has), centre from the CPS COMPO.  This is the configuration whose
+*           worths are 7-10 % low.
+*    SPHD   TRIAL with an explicit SPH factor on the centre cell.  1.0 here;
+*           the point today is only that SPRD parses and changes k.
+*----
+LINKED_LIST FCpo CCpo MREF MTRI MSPH OREF OTRI GEOM TRACK SYSTEM FLUX ;
+SEQ_ASCII   _ACompo :: FILE './_ACompo' ;
+SEQ_ASCII   _CCompo :: FILE './_CComposmk' ;
+MODULE      NCR: GEO: TRIVAT: TRIVAA: FLUD: OUT: SPH: GREP: DELETE: END: ;
+REAL kref ktri ksph ;
+REAL bu := 0.0 ; REAL dca := 0.72 ; REAL tf := 900.0 ;
+FCpo := _ACompo ;
+CCpo := _CCompo ;
+
+GEOM := GEO: :: CAR2D 3 3
+  X- REFL X+ REFL Y- REFL Y+ REFL
+  MESHX 0.0 25.0 50.0 75.0 MESHY 0.0 25.0 50.0 75.0
+  MIX 1 2 3  4 5 6  7 8 9 ;
+TRACK := TRIVAT: GEOM :: EDIT 0 MAXR 20 DUAL 1 1 ;
+
+*--- REF: all nine from the CPS COMPO (the A64S configuration)
+MREF := NCR: CCpo :: EDIT 0 MACRO LINEAR NMIX 9
+  COMPO CCpo 'EDICPS'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> ENDMIX
+  MIX 2 FROM 2 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> ENDMIX
+  MIX 3 FROM 3 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> ENDMIX
+  MIX 4 FROM 4 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> ENDMIX
+  MIX 5 FROM 5 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> ENDMIX
+  MIX 6 FROM 6 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> ENDMIX
+  MIX 7 FROM 7 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> ENDMIX
+  MIX 8 FROM 8 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> ENDMIX
+  MIX 9 FROM 9 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> ENDMIX ;
+SYSTEM := TRIVAA: MREF TRACK :: EDIT 0 ;
+FLUX := FLUD: SYSTEM TRACK :: EDIT 0 EXTE 1.0E-7 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kref<< ;
+ECHO "A64B-REF k=" kref ;
+OREF := OUT: FLUX TRACK MREF GEOM :: EDIT 2 INTG MIX ;
+SYSTEM FLUX := DELETE: SYSTEM FLUX ;
+
+*--- TRIAL: eight fuel cells from the FUEL COMPO, centre from the CPS COMPO
+MTRI := NCR: FCpo CCpo :: EDIT 0 MACRO LINEAR NMIX 9
+  COMPO FCpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> SET 'TG' 750.0 ENDMIX
+  MIX 2 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> SET 'TG' 750.0 ENDMIX
+  MIX 3 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> SET 'TG' 750.0 ENDMIX
+  MIX 4 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> SET 'TG' 750.0 ENDMIX
+  MIX 6 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> SET 'TG' 750.0 ENDMIX
+  MIX 7 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> SET 'TG' 750.0 ENDMIX
+  MIX 8 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> SET 'TG' 750.0 ENDMIX
+  MIX 9 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> SET 'TG' 750.0 ENDMIX
+  COMPO CCpo 'EDICPS'
+  MIX 5 FROM 5 SET 'burnup' <<bu>> SET 'DCA' <<dca>> SET 'TF' <<tf>> ENDMIX ;
+SYSTEM := TRIVAA: MTRI TRACK :: EDIT 0 ;
+FLUX := FLUD: SYSTEM TRACK :: EDIT 0 EXTE 1.0E-7 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>ktri<< ;
+ECHO "A64B-TRI k=" ktri ;
+OTRI := OUT: FLUX TRACK MTRI GEOM :: EDIT 2 INTG MIX ;
+SYSTEM FLUX := DELETE: SYSTEM FLUX ;
+
+*--- SPHD: TRIAL with explicit SPH factors.  SPRD reads NMERGE x NGROUP reals
+*    in mixture-major order (SPH.F:325-348).
+*
+*    TWO checks, because all-1.0 alone proves nothing: a silently IGNORED SPRD
+*    would also leave k unchanged.  So run it twice.
+*      SPH1  all factors 1.0            -> k must EQUAL ktri
+*      SPH2  centre cell 1.05 / 0.95    -> k must DIFFER from ktri
+*    Only the pair is conclusive.
+MSPH := SPH: MTRI :: EDIT 1 MACRO SPRD 9 2
+  1.0 1.0  1.0 1.0  1.0 1.0  1.0 1.0  1.0 1.0
+  1.0 1.0  1.0 1.0  1.0 1.0  1.0 1.0 ;
+SYSTEM := TRIVAA: MSPH TRACK :: EDIT 0 ;
+FLUX := FLUD: SYSTEM TRACK :: EDIT 0 EXTE 1.0E-7 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>ksph<< ;
+ECHO "A64B-SPH1 k=" ksph "(must EQUAL A64B-TRI)" ;
+MSPH SYSTEM FLUX := DELETE: MSPH SYSTEM FLUX ;
+
+MSPH := SPH: MTRI :: EDIT 1 MACRO SPRD 9 2
+  1.0 1.0  1.0 1.0  1.0 1.0  1.0 1.0  1.05 0.95
+  1.0 1.0  1.0 1.0  1.0 1.0  1.0 1.0 ;
+SYSTEM := TRIVAA: MSPH TRACK :: EDIT 0 ;
+FLUX := FLUD: SYSTEM TRACK :: EDIT 0 EXTE 1.0E-7 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>ksph<< ;
+ECHO "A64B-SPH2 k=" ksph "(must DIFFER from A64B-TRI)" ;
+
+ECHO "rbmk_cps_a64b_smk completed" ;
+END: ;
+QUIT .
