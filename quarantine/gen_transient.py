@@ -1,4 +1,21 @@
 #!/usr/bin/env python3
+# QUARANTINED 2026-09-30.  Superseded; do not run, do not copy from.
+#
+# This generator writes rbmk_transient_full.don, which is already quarantined
+# in this same directory along with the four other transient decks that abort
+# (see PROGRESS.md, "Retracted claims": "Transient framework ready").
+#
+# Three things are wrong with it, and the first two are silent:
+#   * PITCH = 0.25 -- metres.  GEO: mesh coordinates are centimetres, so this
+#     builds a core 100x too small in every direction.
+#   * the core is a CIRCLE of the 1661 positions nearest the centre, not the
+#     real Unit 4 channel map, and it has no CPS sites at all.
+#   * 49 x 49 x 28, predating the 52 x 52 x 32 sourced geometry.
+#
+# What replaces it: decks/Donjon/data/gen_rbmk_unit4.py for the core, and
+# decks/Donjon/data/gen_kin_probe.py for the kinetics.  Kept rather than
+# deleted so the four quarantined transient decks still have their provenance.
+#
 """Generate RBMK 3D DONJON transient input with realistic 1661-channel pattern"""
 
 # Core parameters

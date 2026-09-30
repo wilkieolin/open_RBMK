@@ -190,6 +190,14 @@ Access via the per-deck `<name>.access` script, which symlinks `DLIB_99`.
 
 ---
 
+> **2026-09-30: `KINSOL:` runs, and a hard time step costs 4.8× a quiet one.** The first time
+> step the project has ever advanced. On the full `DUAL 1 1` core a severe transient costs
+> **0.430 s/step** against 0.090 s/step with a frozen macrolib — so the easy measurement, which
+> is the one a probe naturally produces, understates A8 five-fold. Budget: ~29 min of neutronics
+> for a 4 s transient, ~4 h per scenario once the thermal-hydraulic Picard loop is included.
+> Peak memory 105 MB. Tier B stays parallel rather than urgent. Two `KINSOL:` prerequisites are
+> undocumented and were found in source: `OVERV` (`KINXSD.f:152`) and `UNIT` on `TRIVAA:`.
+
 ## Validated results
 
 | Item | Result | Status |
@@ -200,6 +208,7 @@ Access via the per-deck `<name>.access` script, which symlinks `DLIB_99`.
 | CPS section worths, `openmc/cps_verify.py table` | 3×3 supercell, six states: converged DRAGON is **5–11 % low** against OpenMC on absorber, displacer and drained-channel worth (production 9–17 % low) | ⚠️ Measured against an independent method (rule 4) and **not closed**. The production-minus-converged difference is tabulated per state as the A′ correction, +60 to +1107 pcm. Two of twelve states still computing. |
 | CPS homogenisation, `openmc/cps_verify.py a64` | DONJON on the homogenised supercell vs DRAGON: **~1 pcm with CPS-COMPO neighbours; −7 to −10 % on the displacer and drained channel with fuel-COMPO neighbours** | ⚠️ Gate A6.4 fails, cause identified: the homogenisation, SPH equivalence and solver are exact, the neighbour data is not. Being closed by an explicit rod-cell equivalence (A6.4b). |
 | Unit 4 channel map, `tools/build_unit4_map.py` | 1661 fuel + 211 rods + 12 ДКЭ(в) + 4 start-up chambers = 1888 positions; 47 rods inserted at 01:22:30, 4346 cm | ✅ Two independent digitisations register exactly (all 223 rod sites at one offset), and every count closes against a separate source — INSAG-7 pp. 43/103, [PAV] Table 1, [D] p. 57. The rod *types* of 32 sites remain an assumption, recorded per row. |
+| Kinetics cost, `tools/kin_cost.sh` | `KINSOL:` on the 49×49×32 `DUAL 1 1` core: **0.430 s/step** under a severe transient, 0.090 s/step with a frozen macrolib; max RSS 105 MB | ✅ Per-step cost measured by *differencing* 10-step and 110-step runs, so the fixed setup cancels rather than being estimated. Self-checked two ways: the unperturbed transient holds power to 1.4e-4, and the severe one obeys the prompt-jump relation at step 1 (−0.20 $ for P/P₀ = 0.836 at β = 0.007219). On IAEA PWR constants — this is the solver, not the reactor. |
 | CANDU-6 control, `Dragon/data/rbmk_candu.x2m` + `openmc/candu_cell.py` | DRAGON +1624 pcm vs OpenMC +1603 pcm full-void | ✅ Same geometry, library and compositions in both codes; **agree to 22 pcm (1.3 %)**. This is what validates the OpenMC model and localises the RBMK disagreement. |
 | Cell volume fractions, analytic vs DRAGON tracking | graphite 89.5938 % vs 89.594 %, coolant 3.7721 % vs 3.772 %, fuel 2.9009 % vs 2.901 % | ✅ Method sound and independent of DRAGON (`openmc/volcheck.py`). **Current geometry (2026-09-24 (3))**: analytic graphite 89.5938, coolant 3.6037, fuel 2.9009, Zr 3.0313, gas 0.8702; DRAGON 89.594 / 3.604 / 2.901 / 3.031 / 0.870. Match to every printed digit again. |
 
@@ -217,6 +226,9 @@ one day earlier in this same file.
 - ~~"3-D core converges, k=0.054, 973 outers"~~ — log says
   `THE MAXIMUM NUMBER OF OUTER ITERATIONS IS REACHED` at 999/1000, then `TEST FAILURE`.
 - ~~"Transient framework ready"~~ — all five transient decks abort. `KINSOL:` has never run.
+  *(Update 2026-09-30: the retraction stands — those five decks still abort and were never
+  fixed. But `KINSOL:` is no longer unrun: `rbmk_kin_probe`/`_ramp`/`_pert` advance 110 time
+  steps on the full core. See "Phase 0 of the transient".)*
 - ~~"`rbmk_cell_dlib99_v2.x2m`, k∞ = 1.050768, is the only legitimate RBMK physics result in
   the repo"~~ — **wrong, and this one was the audit's own error.** That deck carries the
   CANDU-6 cluster from `twlup_proc/TCWU07.c2m` verbatim: pin radii 0.612/0.654, ring radii
@@ -2478,6 +2490,84 @@ thing worth coveting from Julia — autodiff for adjoint and sensitivity work in
 revisiting only if uncertainty analysis becomes the bottleneck.
 
 ---
+## Phase 0 of the transient: what a time step costs — 2026-09-30
+
+Everything built until now was static. This is the first time the model has advanced a time
+step, and the point was to find out what one costs before A8's design is built around a guess.
+
+Three decks, all from one generator (`decks/Donjon/data/gen_kin_probe.py`) that reads
+`rbmk_core_3d_dual.don` so the geometry stays single-sourced: `rbmk_kin_probe` (step form),
+`rbmk_kin_ramp` (the 6-entry ramp form, keeping `MACRO_0`/`SYST_0`), and `rbmk_kin_pert`
+(macrolib rebuilt and ramped every step). Cross sections are still the wrong-on-purpose IAEA
+PWR constants of A2 — this measures the solver, not the reactor.
+
+Two things had to be added to make `KINSOL:` run at all, and both are worth recording because
+neither is documented where a reader would look:
+
+* **`OVERV`, the reciprocal neutron speeds.** `KINXSD.f:152` aborts with `MISSING OVERV DATA`
+  and `MAC:` supplies no default. The probe carries textbook two-group values; A8 will not
+  need them, because `EDI:` writes `OVERV` (`Dragon/src/EDIPXS.f`) and `NCR:` propagates it
+  (`Donjon/src/NCRMAC.f`), so the real speeds arrive from the MULTICOMPO. That path was
+  checked in source before relying on it.
+* **`UNIT` on `TRIVAA:`** (`TRIVAA.f:174`). It only *adds* a unitary weighting matrix, so one
+  system object still serves `FLUD:` as well — no second assembly is needed.
+
+### The measurement
+
+`tools/kin_cost.sh`, regenerating `decks/Donjon/data/kin_cost.txt`. Each variant runs at 10 and
+at 110 steps and the per-step cost is the **difference**, which cancels the fixed setup
+(geometry, tracking, the `FLUD:` eigenvalue solve) exactly rather than estimating it.
+
+| variant | s/step | max RSS | what it is |
+|---|---|---|---|
+| frozen-step | 0.0903 | 90.3 MB | macrolib frozen, 4-entry `KINSOL:` |
+| frozen-ramp | 0.0911 | 104.7 MB | macrolib frozen, 6-entry form |
+| mild-mix4 | 0.0967 | 88.0 MB | bottom inner reflector ramped; power moves 2.4e-4 |
+| **severe-mix1** | **0.4301** | 88.0 MB | fuel absorption ramped; power falls 3200 → 16 MW |
+
+**The finding that matters: a hard transient costs 4.8× a quiet one.** The first two variants
+flatter the solver — with a frozen macrolib `KINSOL:` starts each step from the exact answer and
+converges immediately. Quoting 0.09 s/step would have understated A8 by five-fold. Only the
+severe variant is a usable number, and it is the one the budget should use.
+
+Also measured: the **ramp form costs +14.4 MB and no time at all**, so A8 can use it freely;
+and `TRIVAA:` re-assembly is ~3 ms against `KINSOL:`'s hundreds, so rebuilding the system every
+step — which A8 must do, since its cross sections change every step — is not where the cost is.
+
+### What it means for A8
+
+4 s of transient at 1 ms is 4000 steps ≈ **29 minutes of neutronics**. At the 8–12
+thermal-hydraulic Picard iterations per step that `channel_mphy.x2m` uses, that is **roughly 4
+hours per scenario**, 8 for both bracket variants, plus `THM:` on 1661 channels, which is not
+yet measured. A8 is hours, not days. **Tier B stays parallel rather than urgent**, which is the
+question Phase 0 existed to answer.
+
+Memory never exceeded **105 MB** in any variant, against the ~110 GB budget. The transient is
+not a memory risk; the only component that could be is the Tier B GPU solver, and the arithmetic
+for that is in the plan.
+
+### Two correctness checks, not one
+
+Nothing about the cost would be trustworthy if the kinetics were assembled wrong, so the decks
+check themselves:
+
+1. **The unperturbed transient holds power.** 3200.000 → 3199.550 MW over 110 steps, a drift of
+   1.4e-4 relative — the residual of `FLUD:`'s own `EXTE 1.0E-5` convergence, not a defect.
+2. **The severe transient obeys the prompt-jump relation.** Step 1 takes 3200 → 2674 MW. With
+   the deck's β = 0.007219, P/P₀ = β/(β−ρ) gives ρ = −0.20 $ for that first step, and the
+   power then decays on the precursor timescale rather than collapsing. Both the size of the
+   prompt drop and the shape of what follows are right, which is stronger evidence than the
+   flat-power check alone.
+
+The pre-existing `FLDDIR: FAILURE OF THE NEWTON-RAPHTON ALGORIHTHM` warning appears once in
+these results and once in `rbmk_core_3d_dual.don.result` — it predates the kinetics work and is
+not a regression from it. k = 1.123053 against the static deck's 1.123062, 0.9 pcm apart and
+inside the flux tolerance.
+
+**Not yet established:** every number here is on IAEA PWR constants in an RBMK-shaped box. The
+per-step cost should hold — it is set by the matrix structure, which the real cross sections do
+not change — but the iteration counts could move, so A8 re-measures rather than assuming.
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to
@@ -2520,7 +2610,7 @@ revisiting only if uncertainty analysis becomes the bottleneck.
 
 ---
 
-*Last updated: 2026-09-29 (A6.3 table complete, gate missed at 5-12 %; MCFD 1 shown to lose 31-34 % of absorber worth and to be unable to carry an SPH equivalence at all, while DUAL 1 1 costs 8 %; the thermal-scattering interpolation hypothesis for the WAT residual eliminated by measurement; Unit 4 core geometry and 1661-channel fuel map generated from the sourced map and accepted by DONJON; recommendation recorded against porting out of Fortran). Previously: 2026-09-27 (A6: CPS cells built and verified in both codes; A6.3 gate missed, residual carried as the A′ correction; A6.4 homogenisation exact but neighbour data 7–10 % low, closing via a rod-cell equivalence; A6d Unit 4 channel map sourced by registering two digitisations, all counts closing; fuel COMPO rebuilt on the corrected depletion grid, bracket +1.94 / +2.41 / +2.72 $ at 10.9 MWd/kgU). Previously: 2026-09-26 (2) (project assessment; Tier A reordered: A6 → A6b Xe → A6c Smolensk-3 → A6d initial state → A7–A9). Previously: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the
+*Last updated: 2026-09-30 (Phase 0 of the transient: `KINSOL:` runs on the full core for the first time; a severe step costs 0.430 s against 0.090 s frozen, so A8 is hours not days and Tier B stays parallel; `OVERV` and `TRIVAA: UNIT` found to be undocumented prerequisites). Previously: 2026-09-29 (A6.3 table complete, gate missed at 5-12 %; MCFD 1 shown to lose 31-34 % of absorber worth and to be unable to carry an SPH equivalence at all, while DUAL 1 1 costs 8 %; the thermal-scattering interpolation hypothesis for the WAT residual eliminated by measurement; Unit 4 core geometry and 1661-channel fuel map generated from the sourced map and accepted by DONJON; recommendation recorded against porting out of Fortran). Previously: 2026-09-27 (A6: CPS cells built and verified in both codes; A6.3 gate missed, residual carried as the A′ correction; A6.4 homogenisation exact but neighbour data 7–10 % low, closing via a rod-cell equivalence; A6d Unit 4 channel map sourced by registering two digitisations, all counts closing; fuel COMPO rebuilt on the corrected depletion grid, bracket +1.94 / +2.41 / +2.72 $ at 10.9 MWd/kgU). Previously: 2026-09-26 (2) (project assessment; Tier A reordered: A6 → A6b Xe → A6c Smolensk-3 → A6d initial state → A7–A9). Previously: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the
 bracket straddles prompt criticality at the accident burnup, ~0.6 $ DRAGON vs ~2.7 $ OpenMC;
 OpenMC β_eff 0.006739 confirms DRAGON to −1.3 %). Previously: 2026-09-24 (3) (cell geometry closed against eight new sources; clad OD 13.58;
 k∞ 1.304123 on the pinned library; Unit 4 accident burnup 10.9 MWd/kgU, not 20 — the bracket
