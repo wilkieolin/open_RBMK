@@ -1,0 +1,2 @@
+#!/bin/sh
+cp _CCompoS5 "$1"/../Dragon/compo/ 2>/dev/null

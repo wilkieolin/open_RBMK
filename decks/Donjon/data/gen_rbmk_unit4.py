@@ -50,6 +50,26 @@ NREF = 2                # radial reflector, cells (50 cm) -- ASSUMPTION, see bel
 NZ_ACTIVE = 28          # 28 x 25 cm = 700 cm active height
 NZ_REFL = 2             # axial graphite reflector, planes each end (50 cm)
 
+# SOURCING NOTE, 2026-09-30.  NREF = 2 is too thin and should become 4, in two
+# materials, when the reflector dataset lands (Phase 1b):
+#
+#   [BEH96] section II.B, on Smolensk-3 -- a real RBMK-1000, not a mock-up --
+#   gives the radial reflector as "444 pure graphite columns and an outermost
+#   layer of 156 water-cooled channels", 600 columns in all.  Against this
+#   map's 1888 positions (equivalent radius 24.5 cells) an annular ring holds
+#   ~157 columns at the first ring rising to ~176 at the fourth, so 600 is
+#   between three rings (~490) and four (~666).  The 444/156 split maps onto
+#   three rings of PURE graphite plus one outer ring of WATER-COOLED graphite,
+#   which are different materials and need different cross sections.
+#
+#   TRAP, and the reason NZ_REFL is NOT being changed: [BEH96] and [ALX98] both
+#   say "32 cm of axial graphite reflector above and below the core", in
+#   RBMK-sounding language, and it is tempting.  It is not this reactor.  Both
+#   sentences sit in the CRITICAL FACILITY section -- an 18 x 18 array of
+#   graphite blocks 4.1 m tall holding a 346 cm fuel column ([BEH96] II.A).
+#   Chernobyl Unit 4 has a 700 cm active height.  Do not import that number.
+#   The axial reflector for the power reactor is still unsourced.
+
 # Mixtures.  1 is the only fuel mixture: every fuel channel draws from the same
 # MULTICOMPO and is distinguished by what the fuel map carries for it.
 M_FUEL, M_GRAPH, M_CPS = 1, 2, 3
