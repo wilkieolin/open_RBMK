@@ -2882,8 +2882,17 @@ It is not the input, which is the first thing standing rule 3 would suggest:
 * **not the transverse shape or the explicit mesh** — 4 × 1 and 4 × 2 agree to 10 pcm, and
   `MESHX` present or absent gives bit-identical 0.2070993.
 
-So the geometry, the boundary keywords and the tracking are all correct and the **solution** is
-not. The cause is not yet identified.
+* **not the self-shielding** — a plausible user error, since `USS:` was being run on the same
+  leaking geometry. Closing only the self-shielding geometry and leaving the flux geometry
+  open gives 0.849359 against 0.849315: 4 pcm. Not it.
+
+So the geometry, the boundary keywords, the tracking, the leakage model and the self-shielding
+are all correct and the **solution** is not. The cause is not identified, and the hunt is
+stopped: the fault is avoidable, nothing published depends on it, and the remaining suspect —
+that collision probability mishandles the open boundary where the method of characteristics
+would not — could not be tested, because the MOC path needs the `CTRA NONE` library variant
+and fails with `MCCGF: INVALID TRACKING FILE` without it. That is the first thing to try if
+anyone picks this up.
 
 **What this does and does not affect.** Every DRAGON result this project has published —
 the lattice cell, the void bracket, the CPS supercells, A6.3, A6.4 — is on a **fully reflected**
