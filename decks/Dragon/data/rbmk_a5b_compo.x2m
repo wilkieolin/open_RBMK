@@ -14,8 +14,8 @@
 *
 *  AXES
 *    burnup   IRRA          0 -> 20 MWd/kg at 16.7 MW/t
-*    DCA      VALU REAL     coolant density 0.72 -> 0.02 g/cm3 -- THE VOID AXIS
-*    TF       TEMP MIX 6    fuel temperature -- Doppler
+*    DCA      VALU REAL     coolant density 0.80 -> 0.02 g/cm3 -- THE VOID AXIS
+*    TF       TEMP MIX 6    fuel temperature 530 -> 2000 K -- Doppler
 *    TG       TEMP MIX 5    graphite temperature -- RBMK-specific and large
 *                           (graphite is 89.6 % of the cell)
 *
@@ -34,6 +34,24 @@
 *  (0 -> 2000 as the opening step) and came out 45-75 pcm BELOW dstep25x at every
 *  later node -- EXTR 1 extrapolates from the step history, so a coarse opening
 *  step through the fastest part of the transient biases the whole trajectory.
+*
+*  AXIS ENDS WIDENED 2026-10-01, AND WHY -- measured, not precautionary.
+*  The first version of these axes was built around the lattice cell's NOMINAL
+*  state: coolant 0.72 g/cm3 and fuel 600-2000 K.  Running the A7 coupled core
+*  on it showed that a real core leaves that box at BOTH ends, and that NCR:
+*  has no clamp, so the table has to cover the state or the Picard loop cannot
+*  take its second step (PROGRESS.md "A7b"):
+*
+*    DCA  0.72 was the TOP of the axis, but the channel INLET is subcooled --
+*         265 C at 7.4 MPa is 0.778 g/cm3, denser than "nominal".  Added 0.80.
+*         Pinning at 0.72 instead costs 103 pcm core-wide, an upper bound.
+*    TF   600 K was the FLOOR, but the ends of a low-power channel sit near
+*         coolant temperature; the coupled core asked for 586 K.  A zero-power
+*         fuel node is AT coolant temperature by definition, so this is not
+*         specific to this core.  Added 530 K, below the 538 K inlet.
+*
+*  Cost: the branch tensor goes 7 x 5 x 3 = 105 to 8 x 6 x 3 = 144 per node,
+*  so +37 %.  Paid once, on the rebuild A6b needs anyway.
 *
 *  ON THE VOID AXIS AND ITS UNCERTAINTY.  DRAGON and OpenMC agree on the sign
 *  and the burnup trend of the void coefficient and disagree on its magnitude
@@ -83,8 +101,8 @@ REAL fpwr  :=   16.7 ;  ! MW per tonne initial heavy metal (3200 MWth / 192 t)
 
 INTEGER nbu := 8 ;
 INTEGER ndep := 11 ;
-INTEGER ndc := 7 ;
-INTEGER ntf := 5 ;
+INTEGER ndc := 8 ;
+INTEGER ntf := 6 ;
 INTEGER ntg := 3 ;
 
 DONNEES := UTL: :: CREA 'burn' <<nbu>> =
@@ -96,9 +114,9 @@ DONNEES := UTL: DONNEES :: CREA 'dburn' <<ndep>> =
 DONNEES := UTL: DONNEES :: CREA 'isnode' <<ndep>> =
    1.0  0.0  1.0  0.0  1.0  1.0  1.0  1.0  1.0  0.0  1.0 ;
 DONNEES := UTL: DONNEES :: CREA 'dca' <<ndc>> =
-   0.72  0.60  0.45  0.30  0.15  0.05  0.02 ;
+   0.80  0.72  0.60  0.45  0.30  0.15  0.05  0.02 ;
 DONNEES := UTL: DONNEES :: CREA 'tf' <<ntf>> =
-   600.0  900.0  1200.0  1500.0  2000.0 ;
+   530.0  600.0  900.0  1200.0  1500.0  2000.0 ;
 DONNEES := UTL: DONNEES :: CREA 'tg' <<ntg>> =
    500.0  750.0  900.0 ;
 
