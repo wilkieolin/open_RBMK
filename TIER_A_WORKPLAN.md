@@ -449,6 +449,12 @@ without checking in.** Report:
   **A7 must converge under `DFM 0`:** `THMTRS.f:157` assigns `IDFM = 0` unconditionally, so a
   core converged with drift flux changes void model at t = 0 — unacceptable for a reactor whose
   whole accident is a void feedback. Drift flux is a steady-state sensitivity only.
+  *A7a done 2026-10-01: one channel against [D] p.95 -- outlet temperature 289.47 against
+  289.3, exit quality 16.50 % against a published 19.6 % that lies outside the box [D]'s own
+  power and flow ranges allow. The `THM:` block is now determined except for the flow
+  distribution: `CLUSTER 1.7639e-2 18`, `RADIUS` from the A6.1 cell, `SAHA` (NOT the default
+  Bowring), `DFM 0`, and `HGAP` set explicitly from the sourced 100 um gap. See PROGRESS.md
+  "A7a" and `tools/a7a_check.sh`.*
   Geometry is `CLUSTER <pitch> 18`, not `ASSMB` (`THM.f:460`). Graphite temperature has to be
   supplied from outside: nothing in DONJON computes it, yet the fuel COMPO carries a `TG` axis
   (`rbmk_a5b_compo.x2m:133`, pinned at 750 K today).

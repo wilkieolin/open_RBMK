@@ -149,6 +149,11 @@ Driven entirely by Tier B.
 | `THMDRV` **overwrites its own `SPEED` argument** (sets it from `MFLOW/DCOOL(1)`, the outlet velocity) | `THMDRV.f:266,286`; hand it a scratch copy or Picard iteration 2 silently runs on iteration 1's outlet velocity. `THMTRS` takes `SPDIN` and is safe |
 | `THMINP` has handled the `CHAN <one value per channel>` form since 2018 — only `THM:`'s own parser did not | `THMINP.f:43`; that is why `patches/0001-THM-per-channel-inlet-velocity.patch` is 139 lines and not a rewrite |
 | A source change inside `5.1/` is **invisible to this repo and lost by a submodule update** | `5.1/` is pinned upstream and gitignored; patches live in `patches/` and `tools/apply_patches.sh` reapplies them from `bootstrap.sh` |
+| `THM:`'s default boiling model never reverts to the thermodynamic quality | Bowring (`ISUBM=1`) damps vapour generation by `1/(1+Π)` and `Π` stays positive after the bulk saturates (`THMH2O.f:161`); use `SAHA` (`ISUBM=2`), whose `F2 = (h-h_f)/h_fg` is the energy balance (`THMH2O.f:165`) |
+| `THM:`'s gap correlation implies a much tighter gap than RBMK fuel has | measured against [D] p.95's 2100 C centreline and against bare helium conduction over the sourced 100 um gap, which agree on ~1700-2800 W/m2/K; set `HGAP` explicitly |
+| `SET-PARAM` addresses a fuel-map parameter by **`P-NAME`, not `PARKEY`**, and a `LOCAL` one needs `SAME`/`CHAN`/`BUND` before its value | `RESPAR.f:139-176`; only a `GLOBAL` parameter takes a bare number |
+| `THM:` writes back only into parameters named `T-FUEL`, `D-COOL`, `T-COOL`, `T-SURF`, `P-COOL` | `THM.f:1172-1174`; `NCR:` then reads them by `PARKEY`, which is why the two names differ |
+| `THM:`'s `CLUSTER` is an infinite **triangular** array, so one pitch cannot match an RBMK channel's flow area, hydraulic diameter and heated perimeter | `THM.f:963-971`; match the flow area — measured 2026-10-01, the hydraulic diameter reaches nothing compared once the surface is in nucleate boiling |
 
 ---
 

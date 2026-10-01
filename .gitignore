@@ -85,3 +85,9 @@ decks/Donjon/data/rbmk_unit4_core_*.don
 decks/Donjon/data/rbmk_unit4_core_*.don.access
 decks/Donjon/data/rbmk_unit4_norefl_*.don
 decks/Donjon/data/rbmk_unit4_norefl_*.don.access
+
+# A7a sweep: tools/a7a_check.sh generates one deck per operating point and
+# gap conductance from gen_rbmk_a7a.py.  Only the nominal deck and the result
+# table (a7a_check.txt) are tracked.
+decks/Donjon/data/rbmk_a7a_*.don
+decks/Donjon/data/rbmk_a7a_*.don.access

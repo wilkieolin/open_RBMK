@@ -254,6 +254,17 @@ Access via the per-deck `<name>.access` script, which symlinks `DLIB_99`.
 > four channels. The patch lives in `patches/` because `5.1/` is gitignored, and
 > `tools/apply_patches.sh` reapplies it from `bootstrap.sh`. See "Phase 2b" below.
 
+> **2026-10-01 (7): the first comparison against measurement.** [D] p.95 gives one
+> fuel channel's operating point in full, and it over-determines itself, so A7a
+> prescribes power, flow and inlet state and compares the rest. Outlet temperature
+> **289.47 °C against 289.3**; exit quality **16.50 % against a published 19.6 %** —
+> and 19.6 % lies *outside* the box [D]'s own power and flow ranges allow (15.3–17.8 %),
+> needing 3440 kW, or 27.9 t/h, or an inlet 8 K hotter. The model closes its own energy
+> balance to 1.2 %, so the residual is the source's internal inconsistency, not ours.
+> The centreline gap inverts to a pellet–clad conductance of ~1700 W/m²/K, which bare
+> helium conduction across the sourced 100 µm gap independently puts at 2800 — making
+> `THM:`'s own gap correlation the outlier. See "A7a" below.
+
 ## Validated results
 
 | Item | Result | Status |
@@ -3262,6 +3273,138 @@ Upstream's own reference for that deck, 1143.495, is reproduced at 1143.501.
 * `CWSECT`'s flow area stays scalar, which is correct here: RBMK channels are identical, so
   only the velocity needed a vector.
 
+## A7a: one channel against published operating data — 2026-10-01 (7)
+
+`docs/report.html`'s first known gap is "no comparison against measurement, at any level":
+everything in this project is DRAGON against OpenMC, two codes on the same geometry. [D] p.95
+breaks that, and it does so for the thermal-hydraulics. It gives one channel's operating
+point in full:
+
+| | |
+|---|---|
+| channel power | 3000–3200 kW |
+| coolant flow | 29.5–30.5 t/h |
+| inlet | 79.6 kgf/cm² / 265 °C |
+| outlet | 75.3 kgf/cm² / 289.3 °C |
+| exit quality | **19.6 %** |
+| max coolant velocity | 18.5 m/s |
+| clad surface / clad inner | 295 °C / 323 °C |
+| pellet centreline | 2100 °C |
+| linear rating | 360–385 W/cm |
+
+That set is **over-determined**: given the power, the flow and the inlet state, the exit
+quality and the outlet temperature follow from an energy balance and nothing else. So
+`decks/Donjon/data/gen_rbmk_a7a.py` prescribes power, flow and inlet state on a single
+channel — no neutronics at all, `THM:` reading a power distribution straight off the fuel map
+— and compares the rest. `tools/a7a_check.sh` regenerates everything;
+`decks/Donjon/data/a7a_check.txt` is its output.
+
+A closure check before any calculation: 3100 kW over 700 cm over 18 rods at peak/mean 1.4 is
+**344 W/cm per rod**, against [D]'s own 360–385 W/cm maximum. It sits just below because a
+channel-average model carries no rod-to-rod peaking; a 1.07 factor puts it at 368. Power,
+length and rod count are mutually consistent, with nothing fitted.
+
+### The result
+
+| | quality % | T-out °C | v-max m/s | clad-o °C | clad-i °C | centreline °C |
+|---|---|---|---|---|---|---|
+| model | 16.50 | 289.47 | 14.78 | 304.7 | 353.4 | 1315.8 |
+| [D] p.95 | 19.6 | 289.3 | 18.5 | 295 | 323 | 2100 |
+
+**The outlet temperature is saturation at the stated outlet pressure**, so agreeing to 0.17 K
+confirms the pressure and the steam table and nothing else.
+
+**The quality is the test, and the gap is in [D]'s numbers rather than in the model.** Walking
+the corners of [D]'s own ranges, the quality spans 15.29–17.75 %; 19.6 % lies **outside the
+box its own power and flow allow**. Reaching it needs 3440 kW at 30 t/h, or 3200 kW at
+27.9 t/h, or an inlet about 8 K hotter than the stated 265 °C — an 8–10 % inconsistency in one
+of the three. Meanwhile the model closes against its *own* energy balance to 1.2 %:
+367.5 kJ/kg × 8.333 kg/s = 3063 kW against 3100 prescribed, the residual being node-centred
+versus face-centred enthalpy bookkeeping. So this is a comparison the model passes to the
+precision at which the published set is self-consistent, which is the most that can be
+claimed from it.
+
+### Two traps found on the way, both in `THM:` defaults
+
+**`XFL` under the default boiling model is not the thermodynamic quality.** The first run gave
+7.26 % exit quality where the model's own enthalpy rise demanded 16.4 %, and the model was
+right while the reported number was not. `THM:` defaults to Bowring (`ISUBM = 1`), whose
+subcooled form is `XFL = XFL0 + Q/(ṁ·h_fg·(1+Π))` with
+`Π = ρ_l·c_p·(T_sclad − T_l)/(ρ_g·h_fg)` (`THMH2O.f:161-162`) — and **Π does not go to zero
+when the bulk reaches saturation**, because `TSCLAD` is held at `TSAT + DSAT` above the liquid
+temperature. So the vapour bookkeeping stays permanently below the energy balance.
+Saha–Zuber (`SAHA`, `ISUBM = 2`) is `(F2+F3)/(1+F3)` with `F2 = (h−h_f)/h_fg` the thermodynamic
+quality and `F3` vanishing as the bulk heats (`THMH2O.f:165`), so it reverts to the balance.
+An RBMK channel exits near 20 % quality, far past bulk boiling, so that is the regime that
+matters. Upstream's own `FourChannels.x2m` uses `SAHA`; the default does not.
+
+**`SET-PARAM` addresses a parameter by its `P-NAME`, not its `PARKEY`, and a `LOCAL` one needs
+`SAME`/`CHAN`/`BUND` before its value** (`RESPAR.f:139-176`). Only a `GLOBAL` parameter takes a
+bare number. The two names exist because `THM:` writes back by `P-NAME` — it recognises
+exactly `T-FUEL`, `D-COOL`, `T-COOL`, `T-SURF`, `P-COOL` (`THM.f:1172-1174`) — while `NCR:`
+reads by `PARKEY`, which is the COMPO's own axis name.
+
+### The equivalent pitch: a modelling choice, settled by measurement
+
+`THM:`'s `CLUSTER <pitch> <npins>` models a bundle as an infinite **triangular array**
+(`THM.f:963-971`: a hexagon of three Wigner–Seitz cells, three rod areas subtracted, perimeter
+6πR). An RBMK channel is 18 rods on two rings inside a 4 cm tube around a central carrier
+tube, so one pitch cannot reproduce the flow area, the hydraulic diameter and the heated
+perimeter at once — and not even nearly, because a triangular array has nowhere to put the
+unheated outer annulus or the central tube. Both candidates were derived and **both were run**:
+
+| | pitch | flow area | hydraulic D |
+|---|---|---|---|
+| real channel | — | 22.4271 cm² | 0.8412 cm |
+| `U4A_FIT=area` | 1.7639 cm | 22.4271 (0 %) | 1.1682 (+38.9 %) |
+| `U4A_FIT=dh` | 1.6458 cm | 16.1504 (−28.0 %) | 0.8412 (0 %) |
+
+I argued beforehand that the flow area is the one to match, because it sets the coolant
+enthalpy rise and so the void distribution, the dominant feedback in this reactor, while the
+hydraulic diameter only sets the film coefficient. **The measurement confirms it and goes
+further: the hydraulic diameter does not reach any compared quantity at all.** The clad
+temperatures move by about one degree between the two fits, where D_h differs by 39 %, because
+at this quality the surface is in nucleate boiling and the wall superheat is set by the boiling
+correlation rather than by the single-phase film coefficient. So the bracket costs nothing to
+carry, and `area` is the nominal without a penalty.
+
+### The centreline is a gap-conductance measurement, not a model failure
+
+1315.8 °C against 2100 °C is a 784 K gap, and it is entirely the pellet–clad gap conductance,
+which is in no source we have. Sweeping it:
+
+| HGAP W/m²/K | centreline °C | pellet surface °C |
+|---|---|---|
+| THM: computes it | 1315.8 | 405.2 |
+| 10 000 | 1379.8 | 445.3 |
+| 4 000 | 1595.2 | 583.2 |
+| **2 800** | **1741.3** | 681.7 |
+| 2 000 | 1919.8 | 813.1 |
+| **1 700** | **2019.4** | 894.1 |
+| 1 000 | 2388.2 | 1272.7 |
+
+The quality is untouched by HGAP at every row, as it must be — the gap moves heat from fuel to
+coolant without changing how much arrives — so the quality result and the centreline result
+are independent, and only the centreline depends on the unsourced input.
+
+**And two independent routes agree on the value.** The pellet–clad radial gap is 100 µm, from
+the A6.1 geometry closed against eight sources (pellet OD 11.50, clad ID 11.70 mm). Bare
+conduction across helium at ~700 K, k = 0.28 W/m/K, is h = k/δ = **2800 W/m²/K**. [D]'s 2100 °C
+centreline implies **≈1700 W/m²/K**. Those are the same number to within a factor 1.6, from a
+geometry and a temperature that have nothing to do with each other — while `THM:`'s own
+correlation implies a far tighter gap and is the outlier. So **HGAP should be set explicitly
+for A7**, at a value the sourced geometry supports, rather than left to the correlation.
+
+### What this changes
+
+* A7's `THM:` block is now determined except for the flow distribution: `CLUSTER 1.7639e-2 18`,
+  `RADIUS` from the A6.1 cell, `SAHA`, `DFM 0`, `HGAP` from the gap width.
+* The "no comparison against measurement" gap in `docs/report.html` is narrowed, honestly: the
+  thermal-hydraulics now has one, and it passes at the precision the source permits. The
+  neutronics still has none.
+* `THM:`'s default boiling model is wrong for this application and the default gap correlation
+  is wrong for this fuel. Both are now in the gotcha table.
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to
@@ -3304,7 +3447,7 @@ Upstream's own reference for that deck, 1143.495, is reproduced at 1143.501.
 
 ---
 
-*Last updated: 2026-10-01 (6) (Phase 2b: THM: patched for per-channel inlet velocity -- SPEED CHAN <list> through the existing THMINP, with the scratch copy THMDRV's self-overwrite demands; proved invisible when unused (2 597 833 comparable lines of channel_mphy.x2m, 0 differences) and provably per-channel when used (fuel temperature falls monotonically with velocity across four channels); the patch lives in patches/ because 5.1/ is gitignored, applied idempotently by tools/apply_patches.sh from bootstrap). Previously: 2026-10-01 (5) (gate A6.5 measured: the graphite displacer is worth +2060 pcm against a water column, and the first 1.25 m of rod travel is -175 pcm with a centre-peaked flux but turns POSITIVE, up to +177 pcm, once the axial peak is driven below the mid-plane -- the sign tracks the peak in both directions, so the gate's mechanism is present and conditional exactly as the gate states it; that puts A6b (xenon) and A6d (burnup placement) on the critical path to A8 by measurement). Previously: 2026-10-01 (4) (A6.5: the Unit 4 core deck solves the whole chain for the first time -- NCR: x2 -> MACINI: -> DUAL 1 1 -> FLUD: -> FLPOW: on real cross sections in every mixture, k = 1.018278 reported not asserted, 8.1 s; the stack boundary closes a third sourced count exactly (156 cooled reflector channels); the radial reflector is worth 131 pcm and only 2.6 pcm leaks past it, which closes the Phase 1b question -- the 7152 pcm strip error does not propagate). Previously: 2026-10-01 (3) (Phase 1b: reflector geometry sourced and closed three ways; OpenMC shows DRAGON's OPEN-BOUNDARY solution is wrong by 2-5x here, which retracts the earlier 'diffusion cannot do reflectors' conclusion -- no published result is affected, all are reflected; closing the supercell avoids it and leaves 7152 pcm on a test that over-weights the reflector; SPH fails in seven variants). Previously: 2026-10-01 (superposition test: the A6.4 environment effect is the SPH factor, spanning 1.00-1.56; sub-additive and not a function of the eight-ring count, so a continuous environment axis is viable but weeks of work; two read-out bugs corrected, k-based conclusions unaffected; radial reflector sourced at 3+1 rings from [BEH96]). Previously: 2026-09-30 (2) (A6.4b disproved: no rod-only SPH equivalence can close gate A6.4,
+*Last updated: 2026-10-01 (7) (A7a: one fuel channel against [D] p.95, the project's first comparison against anything but another code -- outlet temperature 289.47 against 289.3, exit quality 16.50 % against a published 19.6 % that lies OUTSIDE the box [D]'s own power and flow ranges allow, so the model closes its own energy balance to 1.2 % and the residual is the source's internal inconsistency; two THM: default traps found (Bowring's XFL never reverts to the thermodynamic quality, SET-PARAM addresses by P-NAME and needs SAME for a LOCAL parameter); the equivalent CLUSTER pitch resolved by measurement, since the hydraulic diameter reaches nothing compared once the surface is boiling; the centreline gap inverted to a gap conductance of ~1700-2800 W/m2/K that the sourced 100 um gap independently supports). Previously: 2026-10-01 (6) (Phase 2b: THM: patched for per-channel inlet velocity -- SPEED CHAN <list> through the existing THMINP, with the scratch copy THMDRV's self-overwrite demands; proved invisible when unused (2 597 833 comparable lines of channel_mphy.x2m, 0 differences) and provably per-channel when used (fuel temperature falls monotonically with velocity across four channels); the patch lives in patches/ because 5.1/ is gitignored, applied idempotently by tools/apply_patches.sh from bootstrap). Previously: 2026-10-01 (5) (gate A6.5 measured: the graphite displacer is worth +2060 pcm against a water column, and the first 1.25 m of rod travel is -175 pcm with a centre-peaked flux but turns POSITIVE, up to +177 pcm, once the axial peak is driven below the mid-plane -- the sign tracks the peak in both directions, so the gate's mechanism is present and conditional exactly as the gate states it; that puts A6b (xenon) and A6d (burnup placement) on the critical path to A8 by measurement). Previously: 2026-10-01 (4) (A6.5: the Unit 4 core deck solves the whole chain for the first time -- NCR: x2 -> MACINI: -> DUAL 1 1 -> FLUD: -> FLPOW: on real cross sections in every mixture, k = 1.018278 reported not asserted, 8.1 s; the stack boundary closes a third sourced count exactly (156 cooled reflector channels); the radial reflector is worth 131 pcm and only 2.6 pcm leaks past it, which closes the Phase 1b question -- the 7152 pcm strip error does not propagate). Previously: 2026-10-01 (3) (Phase 1b: reflector geometry sourced and closed three ways; OpenMC shows DRAGON's OPEN-BOUNDARY solution is wrong by 2-5x here, which retracts the earlier 'diffusion cannot do reflectors' conclusion -- no published result is affected, all are reflected; closing the supercell avoids it and leaves 7152 pcm on a test that over-weights the reflector; SPH fails in seven variants). Previously: 2026-10-01 (superposition test: the A6.4 environment effect is the SPH factor, spanning 1.00-1.56; sub-additive and not a function of the eight-ring count, so a continuous environment axis is viable but weeks of work; two read-out bugs corrected, k-based conclusions unaffected; radial reflector sourced at 3+1 rings from [BEH96]). Previously: 2026-09-30 (2) (A6.4b disproved: no rod-only SPH equivalence can close gate A6.4,
 shown by a ±20 % factor sweep that never reaches the gate; the cause is the rod perturbing its
 neighbours' spectrum by ±3 % at zero burnup, not the rod cell itself; carried as a measured
 one-signed bias). Previously: 2026-09-30 (Phase 0 of the transient: `KINSOL:` runs on the full core for the first time; a severe step costs 0.430 s against 0.090 s frozen, so A8 is hours not days and Tier B stays parallel; `OVERV` and `TRIVAA: UNIT` found to be undocumented prerequisites). Previously: 2026-09-29 (A6.3 table complete, gate missed at 5-12 %; MCFD 1 shown to lose 31-34 % of absorber worth and to be unable to carry an SPH equivalence at all, while DUAL 1 1 costs 8 %; the thermal-scattering interpolation hypothesis for the WAT residual eliminated by measurement; Unit 4 core geometry and 1661-channel fuel map generated from the sourced map and accepted by DONJON; recommendation recorded against porting out of Fortran). Previously: 2026-09-27 (A6: CPS cells built and verified in both codes; A6.3 gate missed, residual carried as the A′ correction; A6.4 homogenisation exact but neighbour data 7–10 % low, closing via a rod-cell equivalence; A6d Unit 4 channel map sourced by registering two digitisations, all counts closing; fuel COMPO rebuilt on the corrected depletion grid, bracket +1.94 / +2.41 / +2.72 $ at 10.9 MWd/kgU). Previously: 2026-09-26 (2) (project assessment; Tier A reordered: A6 → A6b Xe → A6c Smolensk-3 → A6d initial state → A7–A9). Previously: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the

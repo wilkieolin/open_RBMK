@@ -720,11 +720,18 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
   <h2>Known gaps</h2>
   <div class="stack col">
     <ul class="plain">
-      <li><b>No comparison against measurement, at any level.</b> Everything here is verification
+      <li><b>The neutronics has no comparison against measurement.</b> It is verification
         &mdash; two codes, and a third-party benchmark that is itself a code comparison. The one
         candidate measured core-level reference, a cold zero-power start-up at Smolensk-3, is
-        blocked on a 1993&ndash;94 report that is not available online. Until that is found this
-        is a model checked against other models.</li>
+        blocked on a 1993&ndash;94 report that is not available online. Until that is found the
+        neutronics is a model checked against other models.
+        <br><b>The thermal-hydraulics now has one.</b> A published single-channel operating
+        point &mdash; power, flow, inlet state, exit steam quality, outlet temperature, clad and
+        centreline temperatures &mdash; over-determines itself, so the model can be given the
+        first three and asked for the rest. It returns the outlet temperature to 0.2&nbsp;K and
+        the exit quality to 16&nbsp;%, which is as close as the published figures come to
+        agreeing with each other: the quoted quality sits outside the range its own quoted power
+        and flow allow. The model closes its own energy balance to 1.2&nbsp;%.</li>
       <li><b>Boron carbide density is in no source we have found.</b> It is carried at
         2.0&nbsp;g/cm&sup3; with a 1.7&ndash;2.3 bracket, and it is the largest single open input
         for rod worth. It will be reported as a band rather than a number.</li>
@@ -762,6 +769,12 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
         void model does not change discontinuously the moment the transient starts.</li>
       <li><b>Rod types for 32 of the 211 positions are assumed</b>, by elimination from published
         second-stage counts. Recorded per position so the transient can vary them.</li>
+      <li><b>The pellet&ndash;clad gap conductance is in no source we have</b>, and it is what
+        the fuel centreline temperature hangs on &mdash; 1300&nbsp;&deg;C or 2000&nbsp;&deg;C
+        depending on it. Two independent routes put it near 2&nbsp;kW/m&sup2;/K: bare helium
+        conduction across the measured 100&nbsp;&micro;m gap, and inverting the published
+        centreline temperature. The solver's own correlation assumes a far tighter gap and is
+        the outlier, so the value is now set explicitly rather than left to it.</li>
       <li><b>Nothing computes the graphite temperature.</b> The cross-section database has an axis
         for it &mdash; it is a large effect in a graphite-moderated reactor &mdash; but the value
         is pinned at a constant 750&nbsp;K everywhere, because the solver has no conduction model
