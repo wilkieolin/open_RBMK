@@ -141,6 +141,11 @@ Driven entirely by Tier B.
 | Merged volumes live in `MIXTURESVOL`, not `VOLUME` | inside the edition's saved directory |
 | Graphite must actually moderate | check `SCAT` has non-zero σ(1→2) in every moderator mixture |
 | **A DRAGON geometry with an open (`VOID`) boundary gives a wrong solution here** — 2–5× too much leakage, while fully reflected ones are right to 170 pcm. Geometry, boundary keywords, tracking density and leakage model all eliminated; cause unknown. Close the geometry, or verify against OpenMC. | `openmc/slab.py`: a 1 m fuel slab with one vacuum face is 1.198662 ± 69 pcm in OpenMC, 0.849315 in DRAGON |
+| Mixture **0** in a DONJON reactor geometry is a *virtual volume*, and the boundary condition is applied at the **real/virtual interface**, not at the grid edge | `USPMIX.f:52` drops `MAT(IEL)==0`; verified by k being bit-identical for 1, 3 and 5 cells of mixture-0 padding (`tools/u4_leakage.sh`) |
+| `USPLIT:` needs `NREFL + NFUEL` to equal the **highest material index** — no gaps | `@USPLIT: WRONG NUMBER OF REFLECTOR OR FUEL TYPES`; put reflector mixtures first and fuel last, as `1Sap_vs_3Sap.x2m:29` does |
+| `MACINI:` indexes the non-fuel macrolib by **material number**, and demands an `H-FACTOR` block in the combined macrolib | `MACINI.f:274`; so `MACREF`'s `NMIX` is `max(RMIX)` and every index below it must be defined |
+| `NCR:` with a fuel map on the RHS takes `NMIX` from the map (`NCH × NB`), and rejects a smaller explicit one | `NCR.f:127` then `NCR.f:157`; omit `NMIX` on the `TABLE` call |
+| `NCR: … TABLE` can `SET` burnup instead of reading it from the map, with no `INST-BURN` | `NCRRGR.f:717` prints "L_MAP values overwritten by the SET option"; `NCRMAP.f` then reads nothing |
 
 ---
 

@@ -220,6 +220,18 @@ Access via the per-deck `<name>.access` script, which symlinks `DLIB_99`.
 > replicate check and corrected — `OUT: INTG` prints rates, not cross sections — which revises
 > the per-cell numbers of the 09-30 entry but none of its k-based conclusions.
 
+> **2026-10-01 (4): the core solves, and the reflector question closes.**
+> `rbmk_unit4_core.don` runs `GEO:` → `USPLIT:` → `RESINI:` → `NCR:` ×2 → `MACINI:`
+> → `TRIVAT: DUAL 1 1` → `TRIVAA:` → `FLUD:` → `FLPOW:` on the sourced 1888-channel
+> map inside a sourced graphite stack, with real cross sections in every mixture —
+> **k = 1.018278**, reported and not asserted, in 8.1 s. The stack boundary set from
+> [D]'s column count independently reproduces [BEH96]'s **156** water-cooled
+> reflector channels exactly. And the radial reflector turns out to be worth only
+> **131 pcm** in this core with just 2.6 pcm leaking past it, which closes the open
+> question Phase 1b left: the 7152 pcm homogenisation error measured on a
+> 4-fuel/4-reflector strip does not propagate, because the whole band the dataset
+> can move core k in is ~130 pcm wide. See "A6.5" below.
+
 ## Validated results
 
 | Item | Result | Status |
@@ -2923,6 +2935,110 @@ transport solution and drop the explicit reflector nodes.
 (diffusion coefficients 1.14 / 0.79 cm in fuel, ~1.03 / 0.83 in graphite). It is usable, with
 a stated and bounded interface error, and it is no longer a placeholder.
 
+## A6.5: the Unit 4 core solves, and the reflector question closes — 2026-10-01 (4)
+
+`rbmk_unit4_core.don` now runs the whole chain — `GEO:` → `USPLIT:` → `RESINI:` → `NCR:` ×2
+→ `MACINI:` → `TRIVAT: DUAL 1 1` → `TRIVAA:` → `FLUD:` → `FLPOW:` — on the sourced
+1888-channel map inside a sourced graphite stack, with real cross sections in every
+mixture for the first time in the project. **8.1 s, 691 MB peak, 141 outer iterations.**
+
+**k = 1.018278**, reported and not asserted: uniform burnup, all rods withdrawn, no xenon.
+
+### The stack geometry closes a third count, from a source that did not set it
+
+`NREF` went 2 → 4 on [D] p.9 ("боковым отражателем толщиной 1 м"), and the stack is bounded
+by a circle of R = 28.14 cells rather than by dilating the core's staircase outline. Four
+counts now close against each other:
+
+| quantity | source | model |
+|---|---|---|
+| graphite stack columns | [D]: 2488 | 2480 (−0.3 %) |
+| reflector columns | 2488 − 1888 = 600 | 592 (−1.3 %) |
+| water-cooled reflector channels | [BEH96]: 156 | **156** |
+| pure graphite reflector columns | [BEH96]: 444 | 436 (−1.8 %) |
+
+The 156 is the one worth noticing. The radius was fixed by [D]'s column count; the cooled
+ring is defined independently as the stack's **face-connected** outer layer; and that layer
+comes out at exactly 156 columns, which is [BEH96]'s cooled-channel count to the unit.
+Nothing was fitted. (The 8-neighbour perimeter gives 220 and is wrong — a diagonal step is
+1.41 cells.) The inner three rings are depth into the reflector by face dilation, so ring 1
+sits against the core and ring 4 is the cooled skin, matching `_RCompo`'s zone order 5–8.
+
+Two mechanical findings, both now in the gotcha table:
+
+* **Mixture 0 is a virtual volume, and that is the right way to say "not the reactor".**
+  `USPMIX.f:52` drops `MAT(IEL) == 0` from the mixture count, and TRIVAC applies the
+  geometry's boundary condition at the **real/virtual interface**, not at the edge of the
+  rectangular grid. Verified rather than assumed: k is bit-identical for `U4_NPAD` = 1, 3
+  and 5, and changing the outer condition with four reflector rings in place moves k by
+  2.6 pcm while changing it with no reflector moves k by 1111 pcm.
+* **`USPLIT:` requires `NREFL + NFUEL` to equal the highest material index**, so the
+  numbering has to close up when a variant drops the rings — hence reflector mixtures first
+  (`RMIX 1 2 3 4 5`) and fuel last (`FMIX 6`), which is also upstream's convention
+  (`1Sap_vs_3Sap.x2m:29`). Leaving a hole gives
+  `@USPLIT: WRONG NUMBER OF REFLECTOR OR FUEL TYPES`.
+
+### The reflector is worth 131 pcm, and that closes the Phase 1b question
+
+Phase 1b priced the reflector's homogenisation error at 7152 pcm but measured it on four
+fuel zones against four reflector zones, and said so: *"an upper bound on the core-level
+error, not an estimate of it."* The way to get the core-level number was to measure it in
+the core. `tools/u4_leakage.sh` regenerates the table; `decks/Donjon/data/u4_leakage.txt`
+is its output.
+
+| case | k | pcm |
+|---|---|---|
+| 4 graphite rings, VOID at the stack edge | 1.018278 | — |
+| … mirror at the stack edge | 1.018304 | +2.6 |
+| … mirror on the axial faces | 1.018297 | +1.9 |
+| no radial reflector, VOID at the core edge | 1.016965 | −131.3 |
+| … mirror at the core edge | 1.028080 | +980.2 |
+| all four rings = zone 5 (graphite nearest the core) | 1.018317 | +3.9 |
+| all four rings = zone 8 (the cooled one) | 1.017372 | −90.6 |
+| ring order reversed | 1.017398 | −88.0 |
+
+**The radial reflector is worth 131 pcm, and only 2.6 pcm leaks past it.** A metre of
+graphite is already an almost perfect reflector. A *mirror* at the core edge is worth
+1111 pcm — the whole radial leakage — and I spent a while thinking those two numbers
+contradicted each other. They do not: a mirror sets B²ᵣ = 0, while a real reflector only
+extends the effective radius. Diffusion theory with D_r = 0.84 cm and L_r = 54 cm gives a
+reflector saving of 49 cm on a 590 cm radius; with M² = 657 cm² read off the
+mirror-at-core-edge row, that predicts ~155 pcm against the measured 131. The model is
+behaving.
+
+So the band the reflector dataset has to move core k in — from "no reflector at all" to "a
+perfect mirror" — is about **130 pcm wide**, and the 7152 pcm does not propagate. Measured
+rather than argued: collapsing all four rings onto one dataset moves k by **3.9 pcm**, so
+the spectrum-depth resolution `_RCompo` provides is worth almost nothing at core level,
+while putting the cooled ring in the wrong place moves it by 88–91 pcm. **Where the water
+is matters; the depth does not.** What this does *not* bound is a dataset that got graphite
+absorption badly wrong — that would be a sink rather than a reflector and could fall below
+the no-reflector row.
+
+I also talked myself into an axial anomaly on the way and out of it again: making the axial
+faces reflective moves k by 1.9 pcm, which I first read as "no axial leakage", against an
+expected ~1000 pcm. It is neither. The 50 cm axial reflectors are *already there* in every
+case, so that row measures only the difference between vacuum and a mirror **beyond** a
+reflector, not the axial leakage itself. The axial power shape settles it independently:
+peak at K = 16, the exact mid-plane, with an axial peaking of 2.78/1.90 = 1.46 against the
+bare-core cosine's 1.57 — flattened by the reflector, which is what a leaking core looks
+like.
+
+### What the deck is and is not
+
+* **Real:** the outline, the 1888 positions, which hold fuel and which hold CPS, the 25 cm
+  pitch, the stack boundary, the four reflector rings, and the cross sections in all six
+  mixtures (`_ACompo` through `NCR: … TABLE`, `_CCompoWAT`, `_RCompo`).
+* **Flat, pending A6d:** burnup is uniform at 10900 MWd/t, the Unit 4 core average. The
+  per-channel route (`INST-BURN` off the fuel map) is wired and not yet fed, because the
+  burnup *placement* map does not exist. Channel-power peaking is 1.90 max/avg against a
+  design ~1.4 — that gap is the missing burnup flattening, not a model fault.
+* **Not here:** the rods (every CPS channel is a full-height water column), xenon, and any
+  thermal-hydraulic feedback. Gate A6.5's rod-insertion test needs `DEVINI:`/`DSET:` next.
+* Average channel power 1922 kW against 3200 MW / 1661 = 1927 kW, which is normalisation
+  rather than a result. 0.2 % of the power lands outside the 1661 channels, because the
+  reflector mixtures carry a non-zero `H-FACTOR` from their COMPOs.
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to
@@ -2965,7 +3081,7 @@ a stated and bounded interface error, and it is no longer a placeholder.
 
 ---
 
-*Last updated: 2026-10-01 (3) (Phase 1b: reflector geometry sourced and closed three ways; OpenMC shows DRAGON's OPEN-BOUNDARY solution is wrong by 2-5x here, which retracts the earlier 'diffusion cannot do reflectors' conclusion -- no published result is affected, all are reflected; closing the supercell avoids it and leaves 7152 pcm on a test that over-weights the reflector; SPH fails in seven variants). Previously: 2026-10-01 (superposition test: the A6.4 environment effect is the SPH factor, spanning 1.00-1.56; sub-additive and not a function of the eight-ring count, so a continuous environment axis is viable but weeks of work; two read-out bugs corrected, k-based conclusions unaffected; radial reflector sourced at 3+1 rings from [BEH96]). Previously: 2026-09-30 (2) (A6.4b disproved: no rod-only SPH equivalence can close gate A6.4,
+*Last updated: 2026-10-01 (4) (A6.5: the Unit 4 core deck solves the whole chain for the first time -- NCR: x2 -> MACINI: -> DUAL 1 1 -> FLUD: -> FLPOW: on real cross sections in every mixture, k = 1.018278 reported not asserted, 8.1 s; the stack boundary closes a third sourced count exactly (156 cooled reflector channels); the radial reflector is worth 131 pcm and only 2.6 pcm leaks past it, which closes the Phase 1b question -- the 7152 pcm strip error does not propagate). Previously: 2026-10-01 (3) (Phase 1b: reflector geometry sourced and closed three ways; OpenMC shows DRAGON's OPEN-BOUNDARY solution is wrong by 2-5x here, which retracts the earlier 'diffusion cannot do reflectors' conclusion -- no published result is affected, all are reflected; closing the supercell avoids it and leaves 7152 pcm on a test that over-weights the reflector; SPH fails in seven variants). Previously: 2026-10-01 (superposition test: the A6.4 environment effect is the SPH factor, spanning 1.00-1.56; sub-additive and not a function of the eight-ring count, so a continuous environment axis is viable but weeks of work; two read-out bugs corrected, k-based conclusions unaffected; radial reflector sourced at 3+1 rings from [BEH96]). Previously: 2026-09-30 (2) (A6.4b disproved: no rod-only SPH equivalence can close gate A6.4,
 shown by a ±20 % factor sweep that never reaches the gate; the cause is the rod perturbing its
 neighbours' spectrum by ±3 % at zero burnup, not the rod cell itself; carried as a measured
 one-signed bias). Previously: 2026-09-30 (Phase 0 of the transient: `KINSOL:` runs on the full core for the first time; a severe step costs 0.430 s against 0.090 s frozen, so A8 is hours not days and Tier B stays parallel; `OVERV` and `TRIVAA: UNIT` found to be undocumented prerequisites). Previously: 2026-09-29 (A6.3 table complete, gate missed at 5-12 %; MCFD 1 shown to lose 31-34 % of absorber worth and to be unable to carry an SPH equivalence at all, while DUAL 1 1 costs 8 %; the thermal-scattering interpolation hypothesis for the WAT residual eliminated by measurement; Unit 4 core geometry and 1661-channel fuel map generated from the sourced map and accepted by DONJON; recommendation recorded against porting out of Fortran). Previously: 2026-09-27 (A6: CPS cells built and verified in both codes; A6.3 gate missed, residual carried as the A′ correction; A6.4 homogenisation exact but neighbour data 7–10 % low, closing via a rod-cell equivalence; A6d Unit 4 channel map sourced by registering two digitisations, all counts closing; fuel COMPO rebuilt on the corrected depletion grid, bracket +1.94 / +2.41 / +2.72 $ at 10.9 MWd/kgU). Previously: 2026-09-26 (2) (project assessment; Tier A reordered: A6 → A6b Xe → A6c Smolensk-3 → A6d initial state → A7–A9). Previously: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the

@@ -1,0 +1,47 @@
+*----
+*  DIAGNOSTIC.  Print the non-fuel constants the Unit 4 core deck actually
+*  gets: the CPS water column (mix 1) and the four reflector rings (2-5).
+*  Written to settle whether the 129 pcm reflector saving is the data or the
+*  wiring -- axial leakage came out at 2 pcm against 1115 pcm radial, which
+*  cannot both be right.
+*----
+LINKED_LIST MACREF MACFU CCpo RCpo FCpo ;
+SEQ_ASCII   _CCompoWAT :: FILE './_CCompoWAT' ;
+SEQ_ASCII   _RCompo    :: FILE './_RCompo' ;
+SEQ_ASCII   _ACompo    :: FILE './_ACompo' ;
+MODULE      NCR: UTL: DELETE: END: ;
+CCpo := _CCompoWAT ;
+RCpo := _RCompo ;
+FCpo := _ACompo ;
+MACREF := NCR: CCpo RCpo :: EDIT 0 MACRO LINEAR NMIX 5
+  COMPO CCpo 'EDICPS'
+  MIX 1 FROM 5 SET 'burnup' 10900.0 SET 'DCA' 0.72 SET 'TF' 900.0 ENDMIX
+  COMPO RCpo 'EDIREFL'
+  MIX 2 FROM 5 SET 'burnup' 10900.0 SET 'DCA' 0.72 ENDMIX
+  MIX 3 FROM 6 SET 'burnup' 10900.0 SET 'DCA' 0.72 ENDMIX
+  MIX 4 FROM 7 SET 'burnup' 10900.0 SET 'DCA' 0.72 ENDMIX
+  MIX 5 FROM 8 SET 'burnup' 10900.0 SET 'DCA' 0.72 ENDMIX
+  ;
+UTL: MACREF :: STEP UP 'GROUP' STEP AT 1
+  IMPR DIFF * IMPR TOTAL * IMPR NUSIGF * IMPR H-FACTOR * IMPR SIGS00 * ;
+UTL: MACREF :: STEP UP 'GROUP' STEP AT 2
+  IMPR DIFF * IMPR TOTAL * IMPR NUSIGF * IMPR H-FACTOR * IMPR SIGS00 * ;
+*  and the eight _RCompo zones straight through, fuel ones included, so the
+*  zone-order assumption (1-4 fuel, 5-7 graphite, 8 cooled) is checked and
+*  not assumed
+MACFU := NCR: RCpo :: EDIT 0 MACRO LINEAR NMIX 8
+  COMPO RCpo 'EDIREFL'
+  MIX 1 FROM 1 SET 'burnup' 10900.0 SET 'DCA' 0.72 ENDMIX
+  MIX 2 FROM 2 SET 'burnup' 10900.0 SET 'DCA' 0.72 ENDMIX
+  MIX 3 FROM 3 SET 'burnup' 10900.0 SET 'DCA' 0.72 ENDMIX
+  MIX 4 FROM 4 SET 'burnup' 10900.0 SET 'DCA' 0.72 ENDMIX
+  MIX 5 FROM 5 SET 'burnup' 10900.0 SET 'DCA' 0.72 ENDMIX
+  MIX 6 FROM 6 SET 'burnup' 10900.0 SET 'DCA' 0.72 ENDMIX
+  MIX 7 FROM 7 SET 'burnup' 10900.0 SET 'DCA' 0.72 ENDMIX
+  MIX 8 FROM 8 SET 'burnup' 10900.0 SET 'DCA' 0.72 ENDMIX
+  ;
+UTL: MACFU :: STEP UP 'GROUP' STEP AT 1 IMPR DIFF * IMPR TOTAL * IMPR NUSIGF * ;
+UTL: MACFU :: STEP UP 'GROUP' STEP AT 2 IMPR DIFF * IMPR TOTAL * IMPR NUSIGF * ;
+ECHO "rbmk_u4_xsdump completed" ;
+END: ;
+QUIT .

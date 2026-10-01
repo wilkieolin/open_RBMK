@@ -199,13 +199,30 @@ worths within 1 % (the SPH test).
 > in 40 on identical transport). It costs 8 % — 2.11 s against 1.95 s, 56 MB against 39, on the
 > full core — and the two agree to 0.7 pcm where no absorber is present.
 >
+> **Update 2026-10-01: the whole solver chain now runs, and the reflector is in.**
+> The grid went 52 × 52 → **58 × 58 × 32** (107 648 nodes, 79 360 non-virtual) because the
+> reflector went from 2 assumed cells to **4 sourced columns** ([D] p.9, 1 m lateral), bounded
+> by a circle of R = 28.14 cells rather than by dilating the staircase outline. The deck runs
+> `GEO:` → `USPLIT:` → `RESINI:` → `NCR:` ×2 → `MACINI:` → `TRIVAT: DUAL 1 1` → `TRIVAA:` →
+> `FLUD:` → `FLPOW:` in **8.1 s / 691 MB**, with real cross sections in all six mixtures:
+> `_ACompo` through `NCR: … TABLE`, `_CCompoWAT` for the CPS columns, `_RCompo` zones 5–8 for
+> the four rings. **k = 1.018278, reported and not asserted.**
+>
+> The stack boundary closes a third sourced count that did not set it: its face-connected
+> outer layer is **exactly 156 columns**, which is [BEH96]'s water-cooled reflector channel
+> count. And the reflector turns out to be worth only **131 pcm** in this core, with 2.6 pcm
+> leaking past it — so the 7152 pcm homogenisation error Phase 1b measured on a
+> 4-fuel/4-reflector strip does not propagate. `tools/u4_leakage.sh` regenerates that table;
+> see PROGRESS.md "A6.5".
+>
 > **Still missing before the gate can be attempted:**
-> - **reflector cross sections.** The deck carries a marked placeholder, so its k is not a physics
->   result. A reflector dataset is its own job — a 1-D core/reflector transport calculation,
->   homogenised and SPH-corrected; upstream's `Reflector_beavrs` case is the template.
 > - **the rods themselves.** Every CPS channel is currently a full-height water column, i.e. all
->   rods withdrawn, because a rod inserted on today's CPS data is 7–10 % short on worth. Devices
->   wait on A6.4b.
+>   rods withdrawn, because a rod inserted on today's CPS data is 7–10 % short on worth. That
+>   bias is now carried as a measured one-signed correction rather than waiting on A6.4b, so
+>   `DEVINI:`/`DSET:` is the next piece of work and the gate is reachable.
+> - **the burnup placement map** (A6d). Burnup is uniform at 10900 MWd/t, the core average;
+>   channel-power peaking is 1.90 max/avg against a design ~1.4, which is the missing
+>   flattening. The per-channel route (`INST-BURN` off the fuel map) is wired and unfed.
 >
 > Two traps are recorded in the generator rather than left to be rediscovered: CLE-2000 reads
 > columns 1–120 only and reports just `ERROR NUMBER (5000)` (a 52-wide row of 4-character fields

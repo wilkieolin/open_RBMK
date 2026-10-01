@@ -20,16 +20,27 @@ misread as physics once already:
     hold a CPS channel, the 25 cm pitch, and the fuel cross sections (from
     `_ACompo` through NCR:, per channel, at the burnup the fuel map carries).
   * REAL: the CPS water-column cross sections, from `_CCompoWAT`.
-  * PLACEHOLDER: the graphite reflector.  A reflector dataset is its own job
-    (a 1-D core/reflector transport calculation, homogenised and SPH-corrected
-    -- upstream's `Reflector_beavrs` case is the template).  Until that exists
-    this deck carries a clearly-marked stand-in and **its k is not a physics
-    result**.  The gate for this increment is the geometry, the fuel map and
-    the solver, not the eigenvalue.
+  * REAL: the graphite stack boundary and the four reflector rings, from
+    _RCompo zones 5-8.  Measured 2026-10-01: the radial reflector is worth
+    131 pcm in this core and only 2.6 pcm leaks past it, so the 7152 pcm
+    homogenisation error Phase 1b measured on a 4-fuel/4-reflector strip
+    cannot propagate -- the whole band the dataset can move k in is ~130 pcm
+    wide, and collapsing all four rings onto one dataset moves k by 3.9 pcm.
+    tools/u4_leakage.sh regenerates that table.
+  * FLAT, PENDING A6d: the burnup.  Every fuel channel is at 10900 MWd/t, the
+    Unit 4 core average, because the burnup PLACEMENT map does not exist yet.
+    The per-channel route (INST-BURN off the fuel map) is wired but unfed.
+    Channel-power peaking is therefore 1.90 max/avg against a design ~1.4.
   * NOT YET HERE: the rods.  Every CPS channel is modelled as a full-height
     water column, i.e. all rods withdrawn.  Rods arrive as DEVINI:/DSET:
-    devices once A6.4b's rod-cell equivalence lands, because a rod inserted
-    with today's CPS data is 7-10 % short on worth.
+    devices, carrying A6.4's measured one-signed bias: a rod inserted with
+    today's CPS data is 7-10 % short on worth.
+  * NOT YET HERE: xenon, and any thermal-hydraulic feedback.
+
+k FROM THIS DECK IS REPORTED, NOT ASSERTED.  k = 1.018278 as of 2026-10-01
+with the flat burnup, no rods and no xenon.  The gate for this increment is
+that the geometry, the fuel map and the solver chain are right and FLUD:
+converges, not the eigenvalue.
 
 SOLVER.  TRIVAT DUAL 1 1, not the MCFD 1 that A2 chose and TIER_A_WORKPLAN A2.3
 still recommends.  Measured 2026-09-28: MCFD 1 loses 31-34 % of the absorber
@@ -38,15 +49,25 @@ while DUAL 1 1 costs 8 % more wall clock (2.11 s vs 1.95 s) and 17 MB on this
 same geometry, and the two agree to 0.7 pcm when no absorber is present.
 """
 import csv
+import math
 import os
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                     "..", "..", ".."))
 MAP = os.path.join(ROOT, "sources", "derived", "unit4_channel_map.csv")
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rbmk_unit4_core.don")
+# U4_REFL=0 strips the radial reflector -- the stack boundary collapses onto
+# the core outline and the VOID boundary condition applies there.  The pair
+# measures what the reflector is worth in THIS core, which is the number the
+# strip-level interface error (PROGRESS.md, Phase 1b) has to be read against.
+WITH_REFL = os.environ.get("U4_REFL", "1") != "0"
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                   "rbmk_unit4_core.don" if WITH_REFL else "rbmk_unit4_norefl.don")
 
 PITCH = 25.0            # cm, the lattice pitch ([D], closed in the A6.1 sources)
-NREF = 2                # radial reflector, cells (50 cm) -- ASSUMPTION, see below
+NREF = 4                # radial reflector, columns (100 cm) -- [D] p.9, sourced
+NPAD = int(os.environ.get("U4_NPAD", "5"))   # grid padding each side; 5 holds R_STACK
+R_STACK = 28.14         # cells from the centroid: the graphite stack's outer
+                        # radius, set so the column count matches [D]'s 2488
 NZ_ACTIVE = 28          # 28 x 25 cm = 700 cm active height
 NZ_REFL = 2             # axial graphite reflector, planes each end (50 cm)
 
@@ -91,7 +112,21 @@ NZ_REFL = 2             # axial graphite reflector, planes each end (50 cm)
 
 # Mixtures.  1 is the only fuel mixture: every fuel channel draws from the same
 # MULTICOMPO and is distinguished by what the fuel map carries for it.
-M_FUEL, M_GRAPH, M_CPS = 1, 2, 3
+# DONJON mixtures.  The radial reflector is FOUR rings and its constants differ
+# by ring, because the spectrum a metre into graphite is not the spectrum at the
+# core edge -- _RCompo resolves them by depth and it would be wasteful to
+# average that away.  0 is void, outside the stack.
+# Reflector mixtures come FIRST and the fuel LAST, which is upstream's
+# convention (1Sap_vs_3Sap.x2m: RMIX 1 2 3, FMIX 4) and matters: MACINI:
+# indexes the non-fuel macrolib by material number, so MACREF's NMIX is
+# max(RMIX) and leaving a gap at 1 would leave mixture 1 undefined in it.
+# USPLIT: demands NREFL + NFUEL == the highest material index in the geometry
+# (USPLIT.f, "WRONG NUMBER OF REFLECTOR OR FUEL TYPES"), so the numbering has
+# to close up when U4_REFL=0 drops the four rings rather than leaving a hole.
+M_CPS = 1
+M_REFL = [2, 3, 4, 5] if WITH_REFL else []   # ring 1 at the core .. ring 4, cooled
+M_FUEL = 2 + len(M_REFL)
+NMIX = M_FUEL
 FUEL_TYPES = {"FUEL"}
 # Rod, detector and start-up-chamber channels are all water columns with the
 # rods out.  DKEV and KD are not CPS channels, but they are water-filled tubes
@@ -136,25 +171,89 @@ def wrap(cells, indent="  "):
     return "\n".join(out)
 
 
+def rings(g, ni, nj):
+    """Which reflector ring each non-channel stack position belongs to.
+
+    The stack is a cylinder in the vault, so it is bounded by a circle rather
+    than by dilating the core's ragged outline: R_STACK = 28.14 cells gives
+    2480 columns against [D]'s 2488, while four rings of dilation give 2721,
+    because the corners grow faster than the vault allows.
+
+    Inside that circle, two different things decide the ring:
+
+      * ring 4 is the stack's OUTER LAYER -- every column with a FACE
+        neighbour outside the circle.  That is the cooled ring, and it is
+        defined geometrically rather than by depth because the core outline
+        is a staircase: dilating from it puts far too few columns in the
+        outermost shell near the flats and far too many at the corners.
+        THIS CLOSES A THIRD COUNT.  The layer comes out at exactly 156
+        columns, and [BEH96] gives exactly 156 water-cooled reflector
+        channels -- from a source that played no part in fixing R_STACK,
+        which came from [D]'s 2488-column stack and 1 m lateral reflector.
+        The remaining three rings total 436 against [BEH96]'s 444 pure
+        graphite columns, the same 2 % the stack count is low by.
+      * rings 1-3 are depth into the reflector, measured by dilation from the
+        core.  Depth is the variable _RCompo resolves, because it is the
+        spectrum that changes with it.
+
+    Where the reflector is thinner than four columns the outer layer wins: a
+    cooled column is cooled whatever its depth.
+    """
+    core = set(g)
+    if not WITH_REFL:
+        return {}, core
+    ci = cj = (ni - 1) / 2.0
+    stack = {(i, j) for i in range(-NPAD, ni + NPAD)
+             for j in range(-NPAD, nj + NPAD)
+             if math.hypot(i - ci, j - cj) <= R_STACK}
+    # face neighbours, not the 8-neighbourhood: a diagonal step is 1.41 cells
+    # and inflates both the skin (220 columns) and the corners of each shell.
+    nbr = lambda i, j: [(i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)]
+    skin = {q for q in stack - core if any(n not in stack for n in nbr(*q))}
+
+    out, cur = {}, set(core)
+    for step in range(1, NREF):           # depth 1 .. NREF-1
+        new = {n for q in cur for n in nbr(*q)} - cur
+        for q in new & stack:
+            out[q] = step
+        cur |= new
+    for q in stack - core - set(out):     # deeper than NREF-1
+        out[q] = NREF - 1
+    out.update({q: NREF for q in skin})   # the cooled layer overrides depth
+    return out, stack
+
+
 def grid(g, ni, nj, cell, width=3):
     """One radial plane, as DONJON reads it: row j = nj-1 first (y decreasing)."""
     rows = []
-    for j in range(nj + 2 * NREF - 1, -1, -1):
-        row = [f"{cell(g.get((i - NREF, j - NREF))):>{width}d}"
-               for i in range(ni + 2 * NREF)]
+    for j in range(nj + 2 * NPAD - 1, -1, -1):
+        row = [f"{cell(i - NPAD, j - NPAD, g.get((i - NPAD, j - NPAD))):>{width}d}"
+               for i in range(ni + 2 * NPAD)]
         rows.append(wrap(row))
     return "\n".join(rows)
 
 
 def main():
     g, ni, nj = load()
-    nx, ny = ni + 2 * NREF, nj + 2 * NREF
+    ring, stack = rings(g, ni, nj)
+    nx, ny = ni + 2 * NPAD, nj + 2 * NPAD
     nz = NZ_ACTIVE + 2 * NZ_REFL
+    nel = nx * ny * nz
 
-    def core_mix(r):
-        if r is None:
-            return M_GRAPH
-        return M_FUEL if r["type"] in FUEL_TYPES else M_CPS
+    def core_mix(i, j, r):
+        """Active plane: fuel, CPS water column, reflector ring, or nothing."""
+        if r is not None:
+            return M_FUEL if r["type"] in FUEL_TYPES else M_CPS
+        k = ring.get((i, j))
+        return M_REFL[k - 1] if k else 0
+
+    def refl_mix(i, j, r):
+        """Axial reflector plane.  The graphite columns continue unchanged --
+        they are the same columns -- but every channel position loses its fuel
+        and becomes a coolant tube in graphite, which is what the CPS water
+        column already is.  That substitution is an approximation (the real end
+        region has the Zr/steel transition piece in it) and is stated as one."""
+        return M_CPS if r is not None else core_mix(i, j, r)
 
     # the fuel map numbers only the fuel channels, 1..NCOMB, in the same raster
     # order the B-ZONE block is written in
@@ -162,16 +261,16 @@ def main():
     num = {}
     for j in range(ny - 1, -1, -1):
         for i in range(nx):
-            r = g.get((i - NREF, j - NREF))
+            r = g.get((i - NPAD, j - NPAD))
             if r is not None and r["type"] in FUEL_TYPES:
                 nfuel += 1
                 num[(i, j)] = nfuel
 
     active = grid(g, ni, nj, core_mix)
-    refl = grid(g, ni, nj, lambda r: M_GRAPH)
-    fmap_active = grid(g, ni, nj, lambda r: M_FUEL if r is not None
+    refl = grid(g, ni, nj, refl_mix)
+    fmap_active = grid(g, ni, nj, lambda i, j, r: M_FUEL if r is not None
                        and r["type"] in FUEL_TYPES else 0)
-    fmap_refl = grid(g, ni, nj, lambda r: 0)
+    fmap_refl = grid(g, ni, nj, lambda i, j, r: 0)
     # B-ZONE is NOT an nx-by-ny map: RESDRV.f:347-356 reads exactly NCH integers,
     # one per fuel channel, in the order RESPFM.f:74-82 finds them -- ascending
     # flat radial index over the map, which is the order the MIX planes above are
@@ -190,9 +289,9 @@ def main():
     ci = {int(r["i"]): r["col"] for r in g.values()}
     rj = {int(r["j"]): r["row"] for r in g.values()}
     lab = lambda v: f"'{v}'".ljust(5)      # uniform width keeps wrap() honest
-    nxname = "\n".join(wrap([lab(ci.get(i - NREF, "-")) for i in range(nx)],
+    nxname = "\n".join(wrap([lab(ci.get(i - NPAD, "-")) for i in range(nx)],
                             indent="         ").splitlines()).lstrip()
-    nyname = "\n".join(wrap([lab(rj.get(j - NREF, "-")) for j in range(ny - 1, -1, -1)],
+    nyname = "\n".join(wrap([lab(rj.get(j - NPAD, "-")) for j in range(ny - 1, -1, -1)],
                             indent="         ").splitlines()).lstrip()
 
     zedges = [f"{k * PITCH:.1f}" for k in range(nz + 1)]
@@ -215,36 +314,71 @@ def main():
     assert nfuel + ncps == len(g), f"{nfuel} + {ncps} != {len(g)}"
     assert nfuel == 1661, nfuel
 
+    nrefl_col = len(ring)
+    ncol = len(stack)
+    per_ring = [sum(1 for v in ring.values() if v == k + 1) for k in range(NREF)]
+    # [D]: the graphite stack is 2488 columns.  This is a geometric consequence
+    # of R_STACK, not a tuned number -- the radius came from [D]'s 1 m lateral
+    # reflector, and the count is the check on it.
+    if WITH_REFL:
+        assert abs(ncol - 2488) / 2488 < 0.01, \
+            f"{ncol} columns against [D]'s 2488"
+
+    nring = len(M_REFL)
+    tag = "UNIT4" if WITH_REFL else "U4NOREF"
+    stem = os.path.basename(OUT)[:-4]
+    rcpo_arg = " RCpo" if WITH_REFL else ""
+    rcpo_seq = ("\nSEQ_ASCII   _RCompo    :: FILE './_RCompo' ;"
+                if WITH_REFL else "")
+    rcpo_asg = "\nRCpo := _RCompo ;" if WITH_REFL else ""
+    refl_line = (f"{nrefl_col} radial reflector columns in {nring} rings "
+                 f"(mix {M_REFL[0]}..{M_REFL[-1]}), {per_ring} per ring "
+                 f"from the core outward." if WITH_REFL else
+                 "NO RADIAL REFLECTOR (U4_REFL=0): the VOID boundary sits on "
+                 "the core outline.")
+    refl_mixes = ("  COMPO RCpo 'EDIREFL'\n" + "".join(
+        f"  MIX {m} FROM {5 + k} SET 'burnup' 10900.0 SET 'DCA' 0.72 ENDMIX\n"
+        for k, m in enumerate(M_REFL))) if WITH_REFL else ""
+
     deck = f"""*----
 *  CHERNOBYL UNIT 4 CORE (A6.5) -- GENERATED by decks/Donjon/data/gen_rbmk_unit4.py.
 *  Edit the generator, not this file.
 *
-*  {nx} x {ny} x {nz} nodes at {PITCH:.0f} cm: {ni} x {nj} channel positions from
-*  sources/derived/unit4_channel_map.csv, a {NREF}-cell radial graphite reflector,
-*  {NZ_ACTIVE} active planes ({NZ_ACTIVE * PITCH:.0f} cm) and {NZ_REFL} reflector planes each end.
+*  {nx} x {ny} x {nz} nodes at {PITCH:.0f} cm.  {ni} x {nj} channel positions from
+*  sources/derived/unit4_channel_map.csv inside a graphite stack of {ncol}
+*  columns ([D]: 2488), bounded by a circle of radius {R_STACK} cells.  Outside
+*  that circle the mixture is 0 -- a virtual volume (USPMIX.f:52), not graphite.
 *
 *  {nfuel} fuel channels (mix {M_FUEL}), {ncps} CPS/detector channels (mix {M_CPS}),
-*  graphite elsewhere (mix {M_GRAPH}).  Counts asserted by the generator against
-*  [PAV] Table 1 and INSAG-7 pp. 43/103.
+*  {refl_line}
+*  {NZ_ACTIVE} active planes ({NZ_ACTIVE * PITCH:.0f} cm) and {NZ_REFL} reflector planes each end.
 *
-*  THE REFLECTOR CROSS SECTIONS ARE A PLACEHOLDER (see the generator header).
-*  The gate for this deck is that the geometry, the fuel map and the solver are
-*  right and FLUD: converges -- NOT the eigenvalue.  Do not quote k from it.
+*  CROSS SECTIONS.  Fuel from _ACompo, CPS water columns from _CCompoWAT,
+*  reflector rings from _RCompo zones 5..8 (3 graphite + 1 cooled).  All at a
+*  UNIFORM burnup of 10900 MWd/t, the Unit 4 core average: the burnup
+*  PLACEMENT map is still an open A6d item, so a flat field is the honest
+*  stand-in and the per-channel route (INST-BURN off the fuel map) is wired
+*  but not yet fed.
 *
 *  All rods are withdrawn: every CPS channel is a full-height water column.
+*
+*  k FROM THIS DECK IS REPORTED, NOT ASSERTED.  The reflector carries a
+*  measured homogenisation error (PROGRESS.md, Phase 1b) and the burnup is
+*  flat; the gate here is that the geometry, the fuel map and the solver chain
+*  are right and FLUD: converges.
 *----
-LINKED_LIST GEOM GEO2 MATEX FMAP MACREF MACFUEL MACRO MACRO2
-            TRACK SYSTEM FLUX POWER FCpo CCpo ;
+LINKED_LIST GEOM GEO2 MATEX FMAP MACREF MACFUEL MACRO
+            TRACK SYSTEM FLUX POWER FCpo CCpo{rcpo_arg} ;
 SEQ_ASCII   _ACompo    :: FILE './_ACompo' ;
-SEQ_ASCII   _CCompoWAT :: FILE './_CCompoWAT' ;
-MODULE      GEO: MAC: USPLIT: RESINI: NCR: MACINI: TRIVAT: TRIVAA: FLUD:
+SEQ_ASCII   _CCompoWAT :: FILE './_CCompoWAT' ;{rcpo_seq}
+MODULE      GEO: USPLIT: RESINI: NCR: MACINI: TRIVAT: TRIVAA: FLUD:
             FLPOW: GREP: DELETE: END: ;
 REAL keff ;
 
 FCpo := _ACompo ;
-CCpo := _CCompoWAT ;
+CCpo := _CCompoWAT ;{rcpo_asg}
 
-*--- core geometry: one node per channel, VOID outside the reflector
+*--- core geometry: one node per column, mixture 0 outside the graphite stack
 GEOM := GEO: :: CAR3D {nx} {ny} {nz}
   EDIT 0
   X- VOID X+ VOID  Y- VOID Y+ VOID  Z- VOID Z+ VOID
@@ -259,8 +393,9 @@ GEOM := GEO: :: CAR3D {nx} {ny} {nz}
   ;
 
 GEO2 MATEX := USPLIT: GEOM :: EDIT 0
-  NGRP 2 MAXR {nx * ny * nz}
-  NMIX {M_CPS} NREFL 2 RMIX {M_GRAPH} {M_CPS} NFUEL 1 FMIX {M_FUEL} ;
+  NGRP 2 MAXR {nel}
+  NREFL {1 + nring} RMIX {M_CPS} {" ".join(str(m) for m in M_REFL[:nring])}
+  NFUEL 1 FMIX {M_FUEL} ;
 
 *--- the fuel map: {nfuel} channels, numbered in the B-ZONE block below
 FMAP MATEX := RESINI: MATEX ::
@@ -283,7 +418,39 @@ FMAP MATEX := RESINI: MATEX ::
 {bzone}
   ;
 
-ECHO "UNIT4 geometry {nx} x {ny} x {nz}, {nfuel} fuel channels, {ncps} CPS channels" ;
+*--- non-fuel constants: the CPS water column and the four reflector rings.
+*    MACINI: indexes this macrolib by MATERIAL number, so mixture k here is
+*    material k and the order must match RMIX above (1Sap_vs_3Sap.x2m:29).
+MACREF := NCR: CCpo{rcpo_arg} :: EDIT 0 MACRO LINEAR NMIX {1 + nring}
+  COMPO CCpo 'EDICPS'
+  MIX {M_CPS} FROM 5 SET 'burnup' 10900.0 SET 'DCA' 0.72 SET 'TF' 900.0 ENDMIX
+{refl_mixes}  ;
+
+*--- fuel constants, one mixture per bundle.  NMIX is NOT given: with a fuel
+*    map on the RHS, NCR.f:127 sets it from FLMIX = NCH x NB = {nfuel} x {nz}.
+*    'burnup' is SET rather than taken from the map (NCRRGR.f:717 says so in
+*    the printout), because no burnup placement map exists yet.
+MACFUEL := NCR: FCpo FMAP :: EDIT 0 MACRO LINEAR
+  TABLE FCpo 'EDIRBMK'
+  MIX {M_FUEL} SET 'burnup' 10900.0 SET 'DCA' 0.72
+               SET 'TF' 900.0 SET 'TG' 750.0 ENDMIX
+  ;
+
+MACRO MATEX := MACINI: MATEX MACREF MACFUEL :: EDIT 0 ;
+
+TRACK := TRIVAT: GEO2 :: EDIT 0 MAXR {nel} DUAL 1 1 ;
+SYSTEM := TRIVAA: MACRO TRACK :: EDIT 0 ;
+FLUX := FLUD: SYSTEM TRACK :: EDIT 1 ADI 2 EXTE 300 1.0E-6 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>keff<< ;
+ECHO "{tag} KEFF" keff ;
+
+*--- power shape.  PTOT is the nominal thermal rating; the shape, not the
+*    normalisation, is what this increment checks.
+POWER FMAP := FLPOW: FMAP FLUX TRACK MATEX ::
+  EDIT 2 PTOT 3200.0 PRINT DISTR POWER ;
+
+ECHO "UNIT4 geometry {nx} x {ny} x {nz}, {nfuel} fuel, {ncps} CPS, {nrefl_col} reflector" ;
+ECHO "{stem} completed" ;
 END: ;
 QUIT .
 """
@@ -298,12 +465,16 @@ QUIT .
                          "# scratch run directory, as the A6.4 gate decks do.\n"
                          'src="$1"/../Dragon/compo\n'
                          'cp "$src"/_ACompo . || exit 1\n'
-                         'cp "$src"/_CCompoWAT . || exit 1\n')
+                         'cp "$src"/_CCompoWAT . || exit 1\n'
+                         + ('cp "$src"/_RCompo . || exit 1\n' if WITH_REFL else ""))
     os.chmod(acc, 0o755)
     print(f"wrote {os.path.relpath(OUT, ROOT)}")
-    print(f"  grid {nx} x {ny} x {nz} = {nx * ny * nz} nodes, "
+    print(f"  grid {nx} x {ny} x {nz} = {nel} nodes, "
           f"{nx * PITCH:.0f} x {ny * PITCH:.0f} x {nz * PITCH:.0f} cm")
     print(f"  {nfuel} fuel + {ncps} CPS = {len(g)} channels")
+    print(f"  stack {ncol} columns ([D]: 2488), {nrefl_col} reflector, "
+          f"rings {per_ring}")
+    print(f"  non-virtual volumes {ncol * nz} of {nel}")
 
 
 if __name__ == "__main__":

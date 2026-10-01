@@ -401,12 +401,18 @@ without checking in.** Report:
   **Work order: `A6_CPS_PLAN.md`** (started 2026-09-26, on the A′ basis).
   *Status 2026-09-29: A6.1 passed; A6.2 passed; A6.3 gate missed at 5–12 % with the residual
   measured and localised; A6.4 gate failed with the cause identified and A6.4b chosen to close
-  it; A6.5's core exists on the sourced map but has placeholder reflector data and no rods yet.
+  it; A6.5's core exists on the sourced map, with a placeholder reflector and no rods.
   **Superseded 2026-09-30: A6.4b is disproved.** No rod-only SPH factor closes gate A6.4 at any
   value — a ±20 % sweep never brings the worth error within −3.45 % of a 1 % gate — because the
   cause is not the rod cell. The eight fuel cells around it differ from infinite-lattice fuel by
   ±3 % at zero burnup, the rod having perturbed the spectrum across the whole 75 cm supercell.
   Carried as a measured one-signed bias unless A8 proves sensitive; see `A6_CPS_PLAN.md`.
+  **Updated 2026-10-01: A6.5's core now solves the whole chain** — `NCR:` ×2 → `MACINI:` →
+  `TRIVAT: DUAL 1 1` → `TRIVAA:` → `FLUD:` → `FLPOW:` on 58 × 58 × 32 with real cross sections in
+  every mixture, including a sourced 4-column radial reflector from `_RCompo`, in 8.1 s;
+  k = 1.018278, reported not asserted. The radial reflector is worth 131 pcm and only 2.6 pcm
+  leaks past it, which closes the Phase 1b question. Remaining before the A6 gate: rods as
+  `DEVINI:`/`DSET:` devices, carrying the measured bias.
   The "no rod sites" problem above is solved — `gen_rbmk_unit4.py` places all 227 CPS channels
   at their real positions.*
 - **A6b Xenon axis and fuel COMPO rebuild.** Add a Xe branch axis (equilibrium Xe at the branch

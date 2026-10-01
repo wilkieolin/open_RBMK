@@ -71,3 +71,9 @@ sources/*
 !sources/derived/
 *:Zone.Identifier
 openmc/cps_runs/
+
+# A6.5 leakage study: tools/u4_leakage.sh seds these out of the two generated
+# core decks and runs them.  Eight near-identical 70 kB files whose only
+# authority is the script; u4_leakage.txt (tracked) is the result.
+decks/Donjon/data/u4lk_*.don
+decks/Donjon/data/u4lk_*.don.access
