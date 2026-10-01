@@ -140,6 +140,7 @@ Driven entirely by Tier B.
 | SPH cannot correct a `MERG COMP` (single-region) homogenization | `SPHDRV: INVALID NUMBER OF MACRO-REGIONS (9 1)` — needs one region per tracking macro-region |
 | Merged volumes live in `MIXTURESVOL`, not `VOLUME` | inside the edition's saved directory |
 | Graphite must actually moderate | check `SCAT` has non-zero σ(1→2) in every moderator mixture |
+| **A DRAGON geometry with an open (`VOID`) boundary gives a wrong solution here** — 2–5× too much leakage, while fully reflected ones are right to 170 pcm. Geometry, boundary keywords, tracking density and leakage model all eliminated; cause unknown. Close the geometry, or verify against OpenMC. | `openmc/slab.py`: a 1 m fuel slab with one vacuum face is 1.198662 ± 69 pcm in OpenMC, 0.849315 in DRAGON |
 
 ---
 

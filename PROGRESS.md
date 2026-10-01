@@ -2825,19 +2825,20 @@ Two sound ways out, and one that is not.
 A6.4b is closed as a design. The choice between the two survivors is a scoping decision, and
 the honest default until A8 shows sensitivity is the second.
 
-## Phase 1b: the reflector cannot be a homogenised region — 2026-10-01
+## Phase 1b: the reflector, and a DRAGON fault OpenMC caught — 2026-10-01
 
-The plan's one line for this step — "build it as a supercell, SPH-correct it, store it in a
-small COMPO" — **does not work**, and the reason is physics rather than plumbing. Everything
-below regenerates from `openmc/refl.py` and is recorded in `openmc/refl_findings.txt`.
+**This entry supersedes the one committed earlier today (`ca5b4a6`), whose central conclusion
+was wrong.** That entry said diffusion cannot represent a 1 m graphite reflector because it
+lacks a streaming tail, and presented a 14× flux discrepancy as the evidence. The evidence was
+real; the attribution was not. An independent check overturned it, which is what standing rule
+4 exists for. Everything below regenerates from `openmc/refl.py` and `openmc/slab.py`.
 
-### The geometry is now sourced, and three counts close
+### What is solid: the geometry
 
-[D] p.9, primary and explicit: *"Активная зона имеет форму вертикального цилиндра
-эквивалентным диаметром 11,8 и высотой 7 м. Она окружена боковым отражателем толщиной 1 м и
-торцевыми отражателями толщиной по 0,5 м."* — core 11.8 m across and 7 m high, **lateral
-reflector 1 m, end reflectors 0.5 m each**. So `NZ_ACTIVE = 28` and `NZ_REFL = 2` are
-confirmed and `NREF = 2` is **wrong: it is 4**. [D] says the four rows twice.
+[D] p.9, primary: *"Активная зона имеет форму вертикального цилиндра эквивалентным диаметром
+11,8 и высотой 7 м. Она окружена боковым отражателем толщиной 1 м и торцевыми отражателями
+толщиной по 0,5 м."* — core 11.8 m across, 7 m high; **lateral reflector 1 m, end reflectors
+0.5 m each**. `NZ_ACTIVE = 28` and `NZ_REFL = 2` confirmed; **`NREF = 2` is wrong, it is 4**.
 
 | source | count |
 |---|---|
@@ -2846,93 +2847,72 @@ confirmed and `NREF = 2` is **wrong: it is 4**. [D] says the four rows twice.
 | [BEH96] II.B, independently | 444 pure graphite + 156 water-cooled = **600** |
 | 2488 − 1888 (our channel map) | **600** |
 
-So the reflector is four rings in **two materials**. Bounding the stack by a circle at
-R = 28.14 cells reproduces 2488 to 0.3 %; dilating the ragged core outline by four rings gives
-833, 39 % too many, because corners grow faster than the vault allows. Wiring that in takes
-the core grid from 52 × 52 to 58 × 58.
+Four rings, two materials. Bounding the stack by a circle at R = 28.14 cells reproduces 2488 to
+0.3 %; dilating the ragged outline gives 833, 39 % too many. That takes the core grid to 58 × 58.
 
-**A trap, recorded rather than fallen into.** [BEH96] and [ALX98] both say "32 cm of axial
-graphite reflector above and below the core" in thoroughly RBMK-sounding language. It is not
-this reactor — both sentences are in the **critical facility** section, an 18 × 18 array of
-blocks 4.1 m tall holding a 346 cm fuel column. Unit 4 is 700 cm active with 50 cm ends.
+**A trap avoided:** the "32 cm of axial graphite reflector" in [BEH96] and [ALX98] is the **RRC
+critical facility** — 18 × 18 blocks 4.1 m tall, 346 cm fuel column — not a power reactor.
 
-### SPH cannot equivalence it — six variants
+### The finding that matters: DRAGON's open-boundary solution is wrong here
 
-Built as a strip: 4 fuel cells, 3 graphite reflector columns, 1 water-cooled column,
-reflective on the core side and **vacuum** outside the stack, which is what upstream's own
-reflector case uses. The transport runs cleanly (475 s, 737 MB, four states). `SPH:` then
-fails, every way it was asked:
+The reflector supercell needs a vacuum outside the stack, so it was built that way. Its k came
+out far below anything the diffusion model could reproduce, and the first reading of that was
+"diffusion cannot do reflectors". OpenMC says otherwise:
 
-| axis | tried | result |
+| 4 fuel cells, 1 m | reflective | one vacuum face |
 |---|---|---|
-| normalisation | `ASYM 1`, `STD`, `ASYM 8` | all cap at 200 iterations |
-| tolerance | 1e-6 ×200, 1e-4 ×500 | both cap |
-| discretisation | `DUAL 1 1`, `DUAL 3 3`, `DUAL 1 1` on a 5 cm reflector mesh | all cap |
-| | `MCFD 1` | **segfaults**, as on the CPS supercell |
+| **OpenMC** (continuous energy) | 1.316953 ± 0.000611 | **1.198662 ± 0.000691** |
+| DONJON diffusion | 1.305690 | 1.191992 |
+| **DRAGON transport** | 1.314007 | **0.849315** |
 
-with *"negative SPH factor … set to 1.0"* in **every** region of group 1 — a breakdown, not
-slow convergence. (The sweeps are cheap because the deck persists its L_EDIT, so each variant
-costs seconds instead of the 475 s of transport. That trick, learned on the kinetics probe,
-paid for itself twice here.)
+Closed, all three agree to within the known 170 pcm DRAGON/OpenMC lattice offset. Open, OpenMC
+sits with **DONJON**, and DRAGON is 34 000 pcm away. OpenMC's leakage curve against slab
+thickness is smooth and physical — 0.4712, 0.9409, 1.1987, 1.2837 for 1, 2, 4, 8 cells,
+approaching k∞ — while DRAGON reads 0.2071 at one cell and 0.8493 at four.
 
-### Why, measured
+It is not the input, which is the first thing standing rule 3 would suggest:
 
-The unequivalenced dataset is **16 187 pcm** from DRAGON at worst. Three checks localise it.
+* **not the boundary line** — one vacuum face, two, and four give 0.2071, 0.1270, 0.0953:
+  distinct and correctly ordered, so the keywords are applied;
+* **not the geometry or tracking** — NXT reports exact volume 625.0000 cm² and perimeter
+  100.0000 cm, and a fully reflected block reproduces the cell k∞ to 0.1 pcm (1 cell) and
+  3 pcm (4 cells);
+* **not the leakage model** — with and without `B1 SIGS BUCK 0.0`: 0.849336 and 0.849315;
+* **not the tracking density** — `TISO 15 30.0` against `TISO 30 120.0`: 0.849315 and 0.849471;
+* **not the transverse shape or the explicit mesh** — 4 × 1 and 4 × 2 agree to 10 pcm, and
+  `MESHX` present or absent gives bit-identical 0.2070993.
 
-*Not the boundary.* `X+ VOID`, `REFL` and `ZERO` give 1.259789, 1.260002 and 1.259771 — a
-21 pcm spread, where they should differ enormously.
+So the geometry, the boundary keywords and the tracking are all correct and the **solution** is
+not. The cause is not yet identified.
 
-*Not the fuel data.* One fuel zone repeated gives k = 1.306082 against the fuel cell's own
-k∞ = 1.313968, so the homogenisation is sound to −459 pcm. But `fuel4-void` = 1.191992 is
-already **above** the transport full-strip 1.103173 — diffusion keeps neutrons the transport
-solution loses.
+**What this does and does not affect.** Every DRAGON result this project has published —
+the lattice cell, the void bracket, the CPS supercells, A6.3, A6.4 — is on a **fully reflected**
+geometry, the regime where DRAGON agrees with OpenMC to 170 pcm. None of them is touched. What
+it does mean is that **a DRAGON calculation with an open boundary cannot be trusted here until
+this is understood**, and that is now a standing trap.
 
-*It is the flux shape in the reflector.* Comparing the transport flux the COMPO stored against
-the diffusion flux DONJON computes, normalised to zone 1:
+### Where the reflector stands
 
-```
-  group 1 (fast)        1      2      3      4      5      6      7      8
-    transport        1.000  0.948  0.836  0.648  0.296  0.132  0.053  0.016
-    diffusion        1.000  0.941  0.826  0.604  0.191  0.033  0.007  0.001
-    ratio            1.000  1.007  1.013  1.073  1.548  4.013  7.701 14.519
-  group 2 (thermal)
-    ratio            1.000  1.023  1.080  1.100  1.061  1.160  1.471  2.556
-```
+Closing the supercell's outer boundary avoids the fault, and costs little: in diffusion the
+outer face of a 1 m reflector is worth **21 pcm** (`VOID` 1.259789, `REFL` 1.260002, `ZERO`
+1.259771), because the flux there is about 1 % of the core's. On the closed geometry, transport
+gives 1.155893 against diffusion's 1.260055 — **7152 pcm**, down from 16 187 but still large.
 
-**Diffusion under-predicts the fast flux a metre into the reflector by a factor of 14.** In a
-nearly non-absorbing medium far from the source the flux is carried by streaming — the
-least-collided, longest-mean-free-path neutrons — and diffusion has only a single exponential
-decay with no such tail. The thermal group, which is collision-dominated, is far better.
+**SPH will not converge on this problem**, now across seven variants: `ASYM 1`, `STD`,
+`ASYM 8`; tolerance 1e-6 ×200 and 1e-4 ×500; `DUAL 1 1`, `DUAL 3 3`, and `DUAL 1 1` on a 5 cm
+reflector mesh; and once more with the boundary closed, where the unconverged factors corrupt
+the stored cross sections badly enough that the DONJON solve returns NaN. `MCFD 1` segfaults,
+as it does on the CPS supercell. The open boundary was a plausible cause and is now excluded.
 
-Everything else follows from that one fact. The neutrons transport loses into the graphite
-never arrive in the diffusion model, so they stay in the fuel and k comes out 16 000 pcm high.
-No cross-section multiplier can turn exp(−x/L) into a streaming tail, which is why all six SPH
-variants fail and why the factors want to go **negative** — the fit is asking for negative
-absorption to lift the deep flux. It is also why every bundled reflector case upstream is a
-**discontinuity-factor** method (DF-RT, DF-NEM, DF-ANM, ERM-ANM, Koebke) and not an SPH one.
+**The 7152 pcm is measured on a test that over-weights the reflector**: four fuel zones against
+four reflector zones, where the real core is 1661 fuel channels against a four-column skin. It
+is an upper bound on the core-level error, not an estimate of it. The remaining options are to
+measure the core-level effect directly, or to use an albedo boundary derived from the same
+transport solution and drop the explicit reflector nodes.
 
-### What is actually available
-
-Discontinuity factors are **not** open to us: DONJON carries ADF through `ACR:` (APEX/MPO) and
-the NSS nodal solver only, not through the `NCR:` + `TRIVAT:` + `FLUD:` chain this core uses.
-Switching would discard the A6.4 work and the Phase 0 kinetics measurement, which is a far
-larger price than the reflector is worth.
-
-**The route that fits: an albedo boundary.** Drop the explicit reflector nodes and put a
-group-dependent albedo at the core/reflector interface, derived from this same transport
-calculation (`EDIALB.f` exists). That sidesteps the problem entirely, because diffusion is then
-never asked to model the inside of the graphite — only to meet a boundary condition. The
-bisect shows it will behave: diffusion responds correctly to a boundary placed at the fuel
-edge (1.305690 reflective against 1.191992 vacuum, 7300 pcm apart), so an albedo between those
-lands where it should. The cost is that the model has no reflector region, so there is no flux
-there to report — acceptable, since nothing in A7 or A8 needs one.
-
-The axial reflector needs the same treatment, and matters more than the radial one, because
-the positive scram enters from the bottom.
-
-**Status:** `_RCompo` exists and is a valid MULTICOMPO with sane data — diffusion coefficients
-1.14 / 0.79 cm in fuel and ~1.03 / 0.83 in graphite — but it **must not be used as reflector
-node data**. It is kept because the albedo derivation needs exactly this transport solution.
+**Status:** `_RCompo` is rebuilt on the closed geometry with physically sensible constants
+(diffusion coefficients 1.14 / 0.79 cm in fuel, ~1.03 / 0.83 in graphite). It is usable, with
+a stated and bounded interface error, and it is no longer a placeholder.
 
 ## Standing rules
 
@@ -2976,7 +2956,7 @@ node data**. It is kept because the albedo derivation needs exactly this transpo
 
 ---
 
-*Last updated: 2026-10-01 (2) (Phase 1b: the reflector geometry sourced and closed three ways, but SPH fails on it in six variants and the unequivalenced dataset is 16 187 pcm out, because diffusion under-predicts the fast flux 1 m into the graphite by 14x -- a streaming tail it cannot represent; discontinuity factors are unavailable in our solver chain, so the route is an albedo boundary). Previously: 2026-10-01 (superposition test: the A6.4 environment effect is the SPH factor, spanning 1.00-1.56; sub-additive and not a function of the eight-ring count, so a continuous environment axis is viable but weeks of work; two read-out bugs corrected, k-based conclusions unaffected; radial reflector sourced at 3+1 rings from [BEH96]). Previously: 2026-09-30 (2) (A6.4b disproved: no rod-only SPH equivalence can close gate A6.4,
+*Last updated: 2026-10-01 (3) (Phase 1b: reflector geometry sourced and closed three ways; OpenMC shows DRAGON's OPEN-BOUNDARY solution is wrong by 2-5x here, which retracts the earlier 'diffusion cannot do reflectors' conclusion -- no published result is affected, all are reflected; closing the supercell avoids it and leaves 7152 pcm on a test that over-weights the reflector; SPH fails in seven variants). Previously: 2026-10-01 (superposition test: the A6.4 environment effect is the SPH factor, spanning 1.00-1.56; sub-additive and not a function of the eight-ring count, so a continuous environment axis is viable but weeks of work; two read-out bugs corrected, k-based conclusions unaffected; radial reflector sourced at 3+1 rings from [BEH96]). Previously: 2026-09-30 (2) (A6.4b disproved: no rod-only SPH equivalence can close gate A6.4,
 shown by a ±20 % factor sweep that never reaches the gate; the cause is the rod perturbing its
 neighbours' spectrum by ±3 % at zero burnup, not the rod cell itself; carried as a measured
 one-signed bias). Previously: 2026-09-30 (Phase 0 of the transient: `KINSOL:` runs on the full core for the first time; a severe step costs 0.430 s against 0.090 s frozen, so A8 is hours not days and Tier B stays parallel; `OVERV` and `TRIVAA: UNIT` found to be undocumented prerequisites). Previously: 2026-09-29 (A6.3 table complete, gate missed at 5-12 %; MCFD 1 shown to lose 31-34 % of absorber worth and to be unable to carry an SPH equivalence at all, while DUAL 1 1 costs 8 %; the thermal-scattering interpolation hypothesis for the WAT residual eliminated by measurement; Unit 4 core geometry and 1661-channel fuel map generated from the sourced map and accepted by DONJON; recommendation recorded against porting out of Fortran). Previously: 2026-09-27 (A6: CPS cells built and verified in both codes; A6.3 gate missed, residual carried as the A′ correction; A6.4 homogenisation exact but neighbour data 7–10 % low, closing via a rod-cell equivalence; A6d Unit 4 channel map sourced by registering two digitisations, all counts closing; fuel COMPO rebuilt on the corrected depletion grid, bracket +1.94 / +2.41 / +2.72 $ at 10.9 MWd/kgU). Previously: 2026-09-26 (2) (project assessment; Tier A reordered: A6 → A6b Xe → A6c Smolensk-3 → A6d initial state → A7–A9). Previously: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the

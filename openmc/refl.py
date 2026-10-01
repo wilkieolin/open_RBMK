@@ -59,6 +59,16 @@ R_BORE = 5.70               # cm, the 114 mm bore, as the fuel cell ([D] p.11)
 R_BLOCK = 11.00             # cm, RbmkGeo's outer graphite ring
 R_TUBE_O = 3.80             # cm -- OPEN INPUT: Field tube outer radius
 T_WALL = 0.40               # cm -- OPEN INPUT: its wall
+# Outer boundary of the stack.  VOID is physically the honest choice, but
+# DRAGON's open-boundary solution is WRONG in this configuration -- OpenMC
+# puts a 4-cell slab with one vacuum face at 1.198662 +/- 69 pcm against
+# DRAGON's 0.849315, and a single cell at 0.471180 against 0.207099, while
+# every fully reflected case agrees to 170 pcm.  The geometry and tracking
+# check out (volume 625.0000, perimeter 100.0000), so it is the solution.
+# Closing the boundary avoids it, and costs almost nothing: in diffusion the
+# outer face of a 1 m reflector is worth 21 pcm (VOID 1.259789, REFL
+# 1.260002, ZERO 1.259771), because the flux there is ~1 % of the core's.
+BCOUT = os.environ.get("REFL_BCOUT", "REFL")
 T_WREFL = cc.T_CPS          # K, the reflector cooling water; same circuit
                             # temperature as the CPS water, 50 C [D] p.12
 
@@ -158,6 +168,7 @@ def _cooled_cell(r_tube_o=R_TUBE_O, t_wall=T_WALL):
 def refl_geo():
     """RbmkScRefl.c2m: the 4-fuel + 4-reflector strip, coarse and refined."""
     cells = " ".join(["F"] * NFUEL_CELLS + ["G"] * NG_CELLS + ["W"] * NW_CELLS)
+    bcout = BCOUT
     n = NFUEL_CELLS + NG_CELLS + NW_CELLS
     mesh = " ".join(f"{25.0*i:.1f}" for i in range(n + 1))
     ks = [1, 2, 3, 4, 6]
@@ -170,7 +181,7 @@ def refl_geo():
         body += "\n" + _graphite_cell() + "\n" + _cooled_cell()
         return f"""GEO: :: CAR2D {n} 1
   EDIT 0
-  X- REFL X+ VOID  Y- REFL Y+ REFL
+  X- REFL X+ {BCOUT}  Y- REFL Y+ REFL
   MESHX {mesh}  MESHY 0.0 25.0
   CELL {cells}
 {body}
@@ -263,7 +274,7 @@ SEQ_ASCII   _RCompo :: FILE './_RCompo' ;
 *  The L_EDIT of the FIRST state is persisted so SPH options can be tried
 *  against it in seconds instead of re-running the transport each time.
 SEQ_ASCII   _EdiRefl :: FILE './_EdiRefl' ;
-MODULE      LIB: GEO: NXT: USS: ASM: FLU: EVO: EDI: TRIVAT: COMPO: UTL:
+MODULE      LIB: GEO: NXT: USS: ASM: FLU: EVO: EDI: SPH: TRIVAT: COMPO: UTL:
             GREP: DELETE: END: ;
 PROCEDURE   RbmkLib RbmkGeo RbmkReflLib RbmkScRefl ;
 REAL tgnom := 750.0 ;
@@ -304,7 +315,7 @@ SCTRK SCFTRK := NXT: SCFL :: EDIT 0 TITLE 'RF-FL' ALLG BATCH 100 TISO 15 30.0 ;
 *  macro-tracking -- see the note at the equivalence below -- but EDI: still
 *  needs it to know what it is merging onto.
 GEOMAC := GEO: :: CAR2D {NZONE} 1
-  X- REFL X+ VOID  Y- REFL Y+ REFL
+  X- REFL X+ {BCOUT}  Y- REFL Y+ REFL
   MESHX {mesh}  MESHY 0.0 25.0
   MIX {grid} ;
 MTRACK := TRIVAT: GEOMAC :: EDIT 0 MAXR 40 DUAL 1 1 ;
@@ -336,7 +347,8 @@ GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
 ECHO "REFLTAB" {bu} {dca} kinf ;
 EDIOBJ := EDI: LIBSS SCTRK FLUX SCFL SYS GEOMAC ::
   EDIT 0 MERG CELL NXT COND 0.625 GOLVER MGEO GEOMAC SAVE ON EDIREFL ;
-{persist}*  NO SPH.  Not an oversight -- it does not work here, and that is measured.
+{persist}*  NO SPH, and not for want of trying.  Seven variants, all capping at the
+*  iteration limit:
 *  Six variants were tried against this very edit object (rbmk_refl_sph.x2m
 *  and rbmk_refl_sph2.x2m, both kept):
 *      normalisation   ASYM 1 / STD / ASYM 8        all cap at 200
@@ -361,8 +373,10 @@ EDIOBJ := EDI: LIBSS SCTRK FLUX SCFL SYS GEOMAC ::
 *  FLUD: chain this core uses, and switching would discard the A6.4 work and
 *  the Phase 0 kinetics result.  So this dataset ships UNEQUIVALENCED: honest
 *  flux-weighted constants, resolved by depth, and a stated interface error.
-*  The principled next step is an albedo boundary derived from this same
-*  transport solution (EDIALB.f exists), not more SPH.
+*  Retried once more with the boundary CLOSED (BCOUT = REFL), in case the
+*  open face was the cause.  It is not: still capped at 200, and the
+*  unconverged factors corrupt the stored cross sections badly enough that
+*  the DONJON solve returns NaN.  That is seven variants now.  No SPH.
 EVALUATE tend := {bu} fpwr / ;
 COMPO := COMPO: COMPO EDIOBJ BURNUP LIBRARY ::
   EDIT 0 STEP UP 'EDIREFL' 'DCA' {dca} SET <<tend>> DAY ;
@@ -418,8 +432,10 @@ def write():
 # The gate: what does shipping without an equivalence cost?
 # ---------------------------------------------------------------------------
 
-DRAGON_K = {(0.0, 0.72): 1.103173, (0.0, 0.02): 1.067525,
-            (10900.0, 0.72): 0.9104365, (10900.0, 0.02): 0.8902680}
+# Transport k of the strip, X+ REFL (BCOUT).  The earlier VOID numbers
+# (1.103173, 1.067525, 0.910436, 0.890268) are NOT usable: OpenMC shows
+# DRAGON's open-boundary solution is wrong by 2-5x in this configuration.
+DRAGON_K = {(0.0, 0.72): 1.155893}
 
 
 def check_deck():
@@ -445,7 +461,7 @@ MODULE      NCR: GEO: TRIVAT: TRIVAA: FLUD: OUT: UTL: GREP: DELETE: END: ;
 REAL kk ;
 RCpo := _RCompo ;
 GEOM := GEO: :: CAR2D {NZONE} 1
-  X- REFL X+ VOID  Y- REFL Y+ REFL
+  X- REFL X+ {BCOUT}  Y- REFL Y+ REFL
   MESHX {mesh}  MESHY 0.0 25.0
   MIX {grid} ;
 TRACK := TRIVAT: GEOM :: EDIT 0 MAXR 40 DUAL 1 1 ;"""]

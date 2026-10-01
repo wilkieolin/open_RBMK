@@ -459,6 +459,7 @@ without checking in.** Report:
 | `XENON:` is equilibrium-only | `XENCAL.f` |
 | Moderator mixtures need non-zero σ(1→2) | check every `SCAT` line |
 | Isotope names | `Zr90`, `C12_GR`, `Nb93`, `He4` |
+| **`VOID` boundaries in DRAGON are not trustworthy here** (2–5× over-leakage; reflected geometries are fine) | `openmc/slab.py`, 2026-10-01 |
 
 ## If you get stuck
 

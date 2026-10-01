@@ -1,0 +1,253 @@
+<?xml version='1.0' encoding='utf-8'?>
+<model>
+  <materials>
+    <material id="1" name="coolant H2O" temperature="573.0">
+      <density units="sum"/>
+      <nuclide name="H1" ao="0.04813599999999999"/>
+      <nuclide name="O16" ao="0.024067999999999996"/>
+      <sab name="c_H_in_H2O"/>
+    </material>
+    <material id="2" name="pressure tube Zr-2.5Nb" temperature="573.0">
+      <density units="sum"/>
+      <nuclide name="Zr90" ao="0.021689"/>
+      <nuclide name="Zr91" ao="0.0047299"/>
+      <nuclide name="Zr92" ao="0.0072298"/>
+      <nuclide name="Zr94" ao="0.0073267"/>
+      <nuclide name="Zr96" ao="0.0011804"/>
+      <nuclide name="Nb93" ao="0.0010614"/>
+    </material>
+    <material id="3" name="He fill gas" temperature="573.0">
+      <density units="sum"/>
+      <nuclide name="He4" ao="1.281e-05"/>
+    </material>
+    <material id="4" name="graphite rings" temperature="750.0">
+      <density units="sum"/>
+      <nuclide name="C12" ao="0.082726"/>
+      <sab name="c_Graphite_10p"/>
+    </material>
+    <material id="5" name="graphite block" temperature="750.0">
+      <density units="sum"/>
+      <nuclide name="C12" ao="0.082726"/>
+      <sab name="c_Graphite_10p"/>
+    </material>
+    <material id="6" name="UO2 inner ring" depletable="true" temperature="900.0">
+      <density units="sum"/>
+      <nuclide name="U235" ao="0.00046975"/>
+      <nuclide name="U238" ao="0.0227272"/>
+      <nuclide name="O16" ao="0.046394"/>
+    </material>
+    <material id="7" name="UO2 outer ring" depletable="true" temperature="900.0">
+      <density units="sum"/>
+      <nuclide name="U235" ao="0.00046975"/>
+      <nuclide name="U238" ao="0.0227272"/>
+      <nuclide name="O16" ao="0.046394"/>
+    </material>
+    <material id="8" name="clad Zr-1Nb" temperature="600.0">
+      <density units="sum"/>
+      <nuclide name="Zr90" ao="0.022024"/>
+      <nuclide name="Zr91" ao="0.0048029"/>
+      <nuclide name="Zr92" ao="0.0073412"/>
+      <nuclide name="Zr94" ao="0.0074397"/>
+      <nuclide name="Zr96" ao="0.0011986"/>
+      <nuclide name="Nb93" ao="0.00042456"/>
+    </material>
+    <material id="9" name="carrier Zr-1Nb" temperature="573.0">
+      <density units="sum"/>
+      <nuclide name="Zr90" ao="0.022024"/>
+      <nuclide name="Zr91" ao="0.0048029"/>
+      <nuclide name="Zr92" ao="0.0073412"/>
+      <nuclide name="Zr94" ao="0.0074397"/>
+      <nuclide name="Zr96" ao="0.0011986"/>
+      <nuclide name="Nb93" ao="0.00042456"/>
+    </material>
+  </materials>
+  <geometry>
+    <cell id="163" name="carrier rod" material="9" region="-175" universe="7"/>
+    <cell id="164" name="carrier annulus" material="1" region="175 -176" temperature="573.0" universe="7"/>
+    <cell id="165" name="central tube" material="9" region="176 -177" universe="7"/>
+    <cell id="166" name="hole0" material="3" region="-178" universe="7"/>
+    <cell id="167" name="pellet0" material="6" region="178 -179" universe="7"/>
+    <cell id="168" name="gap0" material="3" region="179 -180" universe="7"/>
+    <cell id="169" name="clad0" material="8" region="180 -181" universe="7"/>
+    <cell id="170" name="hole1" material="3" region="-182" universe="7"/>
+    <cell id="171" name="pellet1" material="6" region="182 -183" universe="7"/>
+    <cell id="172" name="gap1" material="3" region="183 -184" universe="7"/>
+    <cell id="173" name="clad1" material="8" region="184 -185" universe="7"/>
+    <cell id="174" name="hole2" material="3" region="-186" universe="7"/>
+    <cell id="175" name="pellet2" material="6" region="186 -187" universe="7"/>
+    <cell id="176" name="gap2" material="3" region="187 -188" universe="7"/>
+    <cell id="177" name="clad2" material="8" region="188 -189" universe="7"/>
+    <cell id="178" name="hole3" material="3" region="-190" universe="7"/>
+    <cell id="179" name="pellet3" material="6" region="190 -191" universe="7"/>
+    <cell id="180" name="gap3" material="3" region="191 -192" universe="7"/>
+    <cell id="181" name="clad3" material="8" region="192 -193" universe="7"/>
+    <cell id="182" name="hole4" material="3" region="-194" universe="7"/>
+    <cell id="183" name="pellet4" material="6" region="194 -195" universe="7"/>
+    <cell id="184" name="gap4" material="3" region="195 -196" universe="7"/>
+    <cell id="185" name="clad4" material="8" region="196 -197" universe="7"/>
+    <cell id="186" name="hole5" material="3" region="-198" universe="7"/>
+    <cell id="187" name="pellet5" material="6" region="198 -199" universe="7"/>
+    <cell id="188" name="gap5" material="3" region="199 -200" universe="7"/>
+    <cell id="189" name="clad5" material="8" region="200 -201" universe="7"/>
+    <cell id="190" name="hole6" material="3" region="-202" universe="7"/>
+    <cell id="191" name="pellet6" material="7" region="202 -203" universe="7"/>
+    <cell id="192" name="gap6" material="3" region="203 -204" universe="7"/>
+    <cell id="193" name="clad6" material="8" region="204 -205" universe="7"/>
+    <cell id="194" name="hole7" material="3" region="-206" universe="7"/>
+    <cell id="195" name="pellet7" material="7" region="206 -207" universe="7"/>
+    <cell id="196" name="gap7" material="3" region="207 -208" universe="7"/>
+    <cell id="197" name="clad7" material="8" region="208 -209" universe="7"/>
+    <cell id="198" name="hole8" material="3" region="-210" universe="7"/>
+    <cell id="199" name="pellet8" material="7" region="210 -211" universe="7"/>
+    <cell id="200" name="gap8" material="3" region="211 -212" universe="7"/>
+    <cell id="201" name="clad8" material="8" region="212 -213" universe="7"/>
+    <cell id="202" name="hole9" material="3" region="-214" universe="7"/>
+    <cell id="203" name="pellet9" material="7" region="214 -215" universe="7"/>
+    <cell id="204" name="gap9" material="3" region="215 -216" universe="7"/>
+    <cell id="205" name="clad9" material="8" region="216 -217" universe="7"/>
+    <cell id="206" name="hole10" material="3" region="-218" universe="7"/>
+    <cell id="207" name="pellet10" material="7" region="218 -219" universe="7"/>
+    <cell id="208" name="gap10" material="3" region="219 -220" universe="7"/>
+    <cell id="209" name="clad10" material="8" region="220 -221" universe="7"/>
+    <cell id="210" name="hole11" material="3" region="-222" universe="7"/>
+    <cell id="211" name="pellet11" material="7" region="222 -223" universe="7"/>
+    <cell id="212" name="gap11" material="3" region="223 -224" universe="7"/>
+    <cell id="213" name="clad11" material="8" region="224 -225" universe="7"/>
+    <cell id="214" name="hole12" material="3" region="-226" universe="7"/>
+    <cell id="215" name="pellet12" material="7" region="226 -227" universe="7"/>
+    <cell id="216" name="gap12" material="3" region="227 -228" universe="7"/>
+    <cell id="217" name="clad12" material="8" region="228 -229" universe="7"/>
+    <cell id="218" name="hole13" material="3" region="-230" universe="7"/>
+    <cell id="219" name="pellet13" material="7" region="230 -231" universe="7"/>
+    <cell id="220" name="gap13" material="3" region="231 -232" universe="7"/>
+    <cell id="221" name="clad13" material="8" region="232 -233" universe="7"/>
+    <cell id="222" name="hole14" material="3" region="-234" universe="7"/>
+    <cell id="223" name="pellet14" material="7" region="234 -235" universe="7"/>
+    <cell id="224" name="gap14" material="3" region="235 -236" universe="7"/>
+    <cell id="225" name="clad14" material="8" region="236 -237" universe="7"/>
+    <cell id="226" name="hole15" material="3" region="-238" universe="7"/>
+    <cell id="227" name="pellet15" material="7" region="238 -239" universe="7"/>
+    <cell id="228" name="gap15" material="3" region="239 -240" universe="7"/>
+    <cell id="229" name="clad15" material="8" region="240 -241" universe="7"/>
+    <cell id="230" name="hole16" material="3" region="-242" universe="7"/>
+    <cell id="231" name="pellet16" material="7" region="242 -243" universe="7"/>
+    <cell id="232" name="gap16" material="3" region="243 -244" universe="7"/>
+    <cell id="233" name="clad16" material="8" region="244 -245" universe="7"/>
+    <cell id="234" name="hole17" material="3" region="-246" universe="7"/>
+    <cell id="235" name="pellet17" material="7" region="246 -247" universe="7"/>
+    <cell id="236" name="gap17" material="3" region="247 -248" universe="7"/>
+    <cell id="237" name="clad17" material="8" region="248 -249" universe="7"/>
+    <cell id="238" name="coolant" material="1" region="-171 177 181 185 189 193 197 201 205 209 213 217 221 225 229 233 237 241 245 249" temperature="573.0" universe="7"/>
+    <cell id="239" name="pressure tube" material="2" region="171 -172" universe="7"/>
+    <cell id="240" name="gas clearance" material="3" region="172 -173" universe="7"/>
+    <cell id="241" name="graphite rings" material="4" region="173 -174" universe="7"/>
+    <cell id="242" name="graphite block" material="5" region="174" universe="7"/>
+    <cell id="243" fill="8" region="250 -251 252 -253 254 -255" universe="9"/>
+    <lattice id="8">
+      <pitch>25.0 25.0</pitch>
+      <dimension>4 1</dimension>
+      <lower_left>0.0 -12.5</lower_left>
+      <universes>
+7 7 7 7 </universes>
+    </lattice>
+    <surface id="171" type="z-cylinder" coeffs="0.0 0.0 4.0"/>
+    <surface id="172" type="z-cylinder" coeffs="0.0 0.0 4.4"/>
+    <surface id="173" type="z-cylinder" coeffs="0.0 0.0 4.55"/>
+    <surface id="174" type="z-cylinder" coeffs="0.0 0.0 5.7"/>
+    <surface id="175" type="z-cylinder" coeffs="0.0 0.0 0.6"/>
+    <surface id="176" type="z-cylinder" coeffs="0.0 0.0 0.625"/>
+    <surface id="177" type="z-cylinder" coeffs="0.0 0.0 0.75"/>
+    <surface id="178" type="z-cylinder" coeffs="1.6 0.0 0.1"/>
+    <surface id="179" type="z-cylinder" coeffs="1.6 0.0 0.575"/>
+    <surface id="180" type="z-cylinder" coeffs="1.6 0.0 0.585"/>
+    <surface id="181" type="z-cylinder" coeffs="1.6 0.0 0.679"/>
+    <surface id="182" type="z-cylinder" coeffs="0.8000000000000003 1.3856406460551018 0.1"/>
+    <surface id="183" type="z-cylinder" coeffs="0.8000000000000003 1.3856406460551018 0.575"/>
+    <surface id="184" type="z-cylinder" coeffs="0.8000000000000003 1.3856406460551018 0.585"/>
+    <surface id="185" type="z-cylinder" coeffs="0.8000000000000003 1.3856406460551018 0.679"/>
+    <surface id="186" type="z-cylinder" coeffs="-0.7999999999999997 1.385640646055102 0.1"/>
+    <surface id="187" type="z-cylinder" coeffs="-0.7999999999999997 1.385640646055102 0.575"/>
+    <surface id="188" type="z-cylinder" coeffs="-0.7999999999999997 1.385640646055102 0.585"/>
+    <surface id="189" type="z-cylinder" coeffs="-0.7999999999999997 1.385640646055102 0.679"/>
+    <surface id="190" type="z-cylinder" coeffs="-1.6 1.9594348786357652e-16 0.1"/>
+    <surface id="191" type="z-cylinder" coeffs="-1.6 1.9594348786357652e-16 0.575"/>
+    <surface id="192" type="z-cylinder" coeffs="-1.6 1.9594348786357652e-16 0.585"/>
+    <surface id="193" type="z-cylinder" coeffs="-1.6 1.9594348786357652e-16 0.679"/>
+    <surface id="194" type="z-cylinder" coeffs="-0.8000000000000007 -1.3856406460551014 0.1"/>
+    <surface id="195" type="z-cylinder" coeffs="-0.8000000000000007 -1.3856406460551014 0.575"/>
+    <surface id="196" type="z-cylinder" coeffs="-0.8000000000000007 -1.3856406460551014 0.585"/>
+    <surface id="197" type="z-cylinder" coeffs="-0.8000000000000007 -1.3856406460551014 0.679"/>
+    <surface id="198" type="z-cylinder" coeffs="0.8000000000000003 -1.3856406460551018 0.1"/>
+    <surface id="199" type="z-cylinder" coeffs="0.8000000000000003 -1.3856406460551018 0.575"/>
+    <surface id="200" type="z-cylinder" coeffs="0.8000000000000003 -1.3856406460551018 0.585"/>
+    <surface id="201" type="z-cylinder" coeffs="0.8000000000000003 -1.3856406460551018 0.679"/>
+    <surface id="202" type="z-cylinder" coeffs="2.9943703726422837 0.8023378786035912 0.1"/>
+    <surface id="203" type="z-cylinder" coeffs="2.9943703726422837 0.8023378786035912 0.575"/>
+    <surface id="204" type="z-cylinder" coeffs="2.9943703726422837 0.8023378786035912 0.585"/>
+    <surface id="205" type="z-cylinder" coeffs="2.9943703726422837 0.8023378786035912 0.679"/>
+    <surface id="206" type="z-cylinder" coeffs="2.192031871745898 2.1920301716103667 0.1"/>
+    <surface id="207" type="z-cylinder" coeffs="2.192031871745898 2.1920301716103667 0.575"/>
+    <surface id="208" type="z-cylinder" coeffs="2.192031871745898 2.1920301716103667 0.585"/>
+    <surface id="209" type="z-cylinder" coeffs="2.192031871745898 2.1920301716103667 0.679"/>
+    <surface id="210" type="z-cylinder" coeffs="0.802340201031917 2.9943697503494895 0.1"/>
+    <surface id="211" type="z-cylinder" coeffs="0.802340201031917 2.9943697503494895 0.575"/>
+    <surface id="212" type="z-cylinder" coeffs="0.802340201031917 2.9943697503494895 0.585"/>
+    <surface id="213" type="z-cylinder" coeffs="0.802340201031917 2.9943697503494895 0.679"/>
+    <surface id="214" type="z-cylinder" coeffs="-0.8023378786035906 2.994370372642284 0.1"/>
+    <surface id="215" type="z-cylinder" coeffs="-0.8023378786035906 2.994370372642284 0.575"/>
+    <surface id="216" type="z-cylinder" coeffs="-0.8023378786035906 2.994370372642284 0.585"/>
+    <surface id="217" type="z-cylinder" coeffs="-0.8023378786035906 2.994370372642284 0.679"/>
+    <surface id="218" type="z-cylinder" coeffs="-2.192030171610366 2.192031871745899 0.1"/>
+    <surface id="219" type="z-cylinder" coeffs="-2.192030171610366 2.192031871745899 0.575"/>
+    <surface id="220" type="z-cylinder" coeffs="-2.192030171610366 2.192031871745899 0.585"/>
+    <surface id="221" type="z-cylinder" coeffs="-2.192030171610366 2.192031871745899 0.679"/>
+    <surface id="222" type="z-cylinder" coeffs="-2.9943697503494895 0.8023402010319172 0.1"/>
+    <surface id="223" type="z-cylinder" coeffs="-2.9943697503494895 0.8023402010319172 0.575"/>
+    <surface id="224" type="z-cylinder" coeffs="-2.9943697503494895 0.8023402010319172 0.585"/>
+    <surface id="225" type="z-cylinder" coeffs="-2.9943697503494895 0.8023402010319172 0.679"/>
+    <surface id="226" type="z-cylinder" coeffs="-2.994370372642284 -0.8023378786035905 0.1"/>
+    <surface id="227" type="z-cylinder" coeffs="-2.994370372642284 -0.8023378786035905 0.575"/>
+    <surface id="228" type="z-cylinder" coeffs="-2.994370372642284 -0.8023378786035905 0.585"/>
+    <surface id="229" type="z-cylinder" coeffs="-2.994370372642284 -0.8023378786035905 0.679"/>
+    <surface id="230" type="z-cylinder" coeffs="-2.1920318717458995 -2.192030171610366 0.1"/>
+    <surface id="231" type="z-cylinder" coeffs="-2.1920318717458995 -2.192030171610366 0.575"/>
+    <surface id="232" type="z-cylinder" coeffs="-2.1920318717458995 -2.192030171610366 0.585"/>
+    <surface id="233" type="z-cylinder" coeffs="-2.1920318717458995 -2.192030171610366 0.679"/>
+    <surface id="234" type="z-cylinder" coeffs="-0.8023402010319187 -2.994369750349489 0.1"/>
+    <surface id="235" type="z-cylinder" coeffs="-0.8023402010319187 -2.994369750349489 0.575"/>
+    <surface id="236" type="z-cylinder" coeffs="-0.8023402010319187 -2.994369750349489 0.585"/>
+    <surface id="237" type="z-cylinder" coeffs="-0.8023402010319187 -2.994369750349489 0.679"/>
+    <surface id="238" type="z-cylinder" coeffs="0.8023378786035903 -2.994370372642284 0.1"/>
+    <surface id="239" type="z-cylinder" coeffs="0.8023378786035903 -2.994370372642284 0.575"/>
+    <surface id="240" type="z-cylinder" coeffs="0.8023378786035903 -2.994370372642284 0.585"/>
+    <surface id="241" type="z-cylinder" coeffs="0.8023378786035903 -2.994370372642284 0.679"/>
+    <surface id="242" type="z-cylinder" coeffs="2.1920301716103667 -2.192031871745898 0.1"/>
+    <surface id="243" type="z-cylinder" coeffs="2.1920301716103667 -2.192031871745898 0.575"/>
+    <surface id="244" type="z-cylinder" coeffs="2.1920301716103667 -2.192031871745898 0.585"/>
+    <surface id="245" type="z-cylinder" coeffs="2.1920301716103667 -2.192031871745898 0.679"/>
+    <surface id="246" type="z-cylinder" coeffs="2.9943697503494886 -0.8023402010319189 0.1"/>
+    <surface id="247" type="z-cylinder" coeffs="2.9943697503494886 -0.8023402010319189 0.575"/>
+    <surface id="248" type="z-cylinder" coeffs="2.9943697503494886 -0.8023402010319189 0.585"/>
+    <surface id="249" type="z-cylinder" coeffs="2.9943697503494886 -0.8023402010319189 0.679"/>
+    <surface id="250" type="x-plane" boundary="reflective" coeffs="0.0"/>
+    <surface id="251" type="x-plane" boundary="vacuum" coeffs="100.0"/>
+    <surface id="252" type="y-plane" boundary="reflective" coeffs="-12.5"/>
+    <surface id="253" type="y-plane" boundary="reflective" coeffs="12.5"/>
+    <surface id="254" type="z-plane" boundary="reflective" coeffs="-0.5"/>
+    <surface id="255" type="z-plane" boundary="reflective" coeffs="0.5"/>
+  </geometry>
+  <settings>
+    <run_mode>eigenvalue</run_mode>
+    <particles>20000</particles>
+    <batches>120</batches>
+    <inactive>25</inactive>
+    <source type="independent" strength="1.0" particle="neutron">
+      <space type="box">
+        <parameters>0.0 -12.5 -0.5 100.0 12.5 0.5</parameters>
+      </space>
+    </source>
+    <seed>1</seed>
+    <temperature_method>interpolation</temperature_method>
+    <temperature_range>250.0 2100.0</temperature_range>
+  </settings>
+  </model>
