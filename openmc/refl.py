@@ -213,8 +213,11 @@ QUIT .
 # The DRAGON deck
 # ---------------------------------------------------------------------------
 
-REFL_BUS = [0.0, 10900.0]       # fresh, and the Unit 4 core average
-REFL_DCAS = [0.72, 0.02]        # nominal and drained: measures the sensitivity
+REFL_BUS = [float(x) for x in
+            os.environ.get("REFL_BUS", "0,10900").split(",")]
+REFL_DCAS = [float(x) for x in
+             os.environ.get("REFL_DCAS", "0.72,0.02").split(",")]
+# defaults: fresh and the Unit 4 core average; nominal and drained coolant
 NZONE = NFUEL_CELLS + NG_CELLS + NW_CELLS
 
 
@@ -226,12 +229,17 @@ def refl_deck(bus=None, dcas=None, t_grefl=T_GREFL):
     burnup and coolant density, and nobody has measured how much.  Two burnups
     and two densities make that a result rather than an assumption.
 
-    `FLU: TYPE K` with no B1: the slab leaks through its X+ VOID face, so the
-    leakage is explicit in the geometry and a buckling model on top of it would
-    be counting the same thing twice.  (The CPS supercells use B1 BUCK 0.0
-    because they are fully reflected and have no leakage at all; there the
-    zero-buckling B1 is only a flag to make COMPO: keep GOLVER's DIFF.  Check
-    DIFF survives here -- if it does not, that is what the flag was for.)
+    `FLU: TYPE K B1 SIGS BUCK 0.0`.  The first attempt left the B1 out, on the
+    argument that the slab already leaks through its X+ VOID face so a buckling
+    model would count that twice.  It aborted in SPH with "UNABLE TO COMPUTE
+    DIFFUSION COEFFICIENTS": `SPHEQU.f:186` refuses the transport-diffusion
+    equivalence unless a leakage calculation has run, because that is where the
+    homogenised diffusion coefficients come from.  So the zero-buckling B1 the
+    CPS decks carry is exactly that flag, and it is needed here too.
+    BUCK 0.0 adds no leakage term, so the flux is still the real transport flux
+    of the leaking slab -- which is checkable, and is checked: k of the first
+    state must stay at 1.103197, the value the no-B1 run produced before it
+    aborted.
     """
     bus = bus or REFL_BUS
     dcas = dcas or REFL_DCAS
@@ -252,7 +260,10 @@ LINKED_LIST LIBRARY LIBSS GEOSS GEOFL TRKSS TRK SYS FLUX BURNUP
             SCSS SCFL SCTRKSS SCTRK EDIOBJ GEOMAC MTRACK COMPO ;
 SEQ_BINARY  FTRKSS FTRK SCFTRKSS SCFTRK ;
 SEQ_ASCII   _RCompo :: FILE './_RCompo' ;
-MODULE      LIB: GEO: NXT: USS: ASM: FLU: EVO: EDI: SPH: TRIVAT: COMPO: UTL:
+*  The L_EDIT of the FIRST state is persisted so SPH options can be tried
+*  against it in seconds instead of re-running the transport each time.
+SEQ_ASCII   _EdiRefl :: FILE './_EdiRefl' ;
+MODULE      LIB: GEO: NXT: USS: ASM: FLU: EVO: EDI: TRIVAT: COMPO: UTL:
             GREP: DELETE: END: ;
 PROCEDURE   RbmkLib RbmkGeo RbmkReflLib RbmkScRefl ;
 REAL tgnom := 750.0 ;
@@ -288,9 +299,10 @@ SCSS SCFL := RbmkScRefl :: 1 ;
 SCTRKSS SCFTRKSS := NXT: SCSS :: EDIT 0 TITLE 'RF-SS' ALLG BATCH 100 TISO 8 15.0 ;
 SCTRK SCFTRK := NXT: SCFL :: EDIT 0 TITLE 'RF-FL' ALLG BATCH 100 TISO 15 30.0 ;
 
-*  Macro-geometry for SPH: one homogeneous 25 cm node per column, as the core
-*  has, on the SAME DUAL 1 1 the core must use (A6.4: MCFD cannot carry a
-*  converged SPH equivalence and loses a third of the absorber worth).
+*  Macro-geometry for EDI:'s homogenisation: one 25 cm node per column, as the
+*  core has, and on the DUAL 1 1 the core must use.  It is no longer an SPH
+*  macro-tracking -- see the note at the equivalence below -- but EDI: still
+*  needs it to know what it is merging onto.
 GEOMAC := GEO: :: CAR2D {NZONE} 1
   X- REFL X+ VOID  Y- REFL Y+ REFL
   MESHX {mesh}  MESHY 0.0 25.0
@@ -306,25 +318,51 @@ COMPO := COMPO: ::
   PARA 'DCA' VALU REAL
   INIT
   ;""")
+    first = True
     for bu in bus:
         istep = cc.BU_NODES.index(bu) + 1
         for dca in dcas:
             burn = "" if bu == 0.0 else \
                 f"LIBRARY := LIB: LIBRARY BURNUP :: EDIT 0 BURN {istep} MIX 6 MIX 7 ;\n"
+            persist = "_EdiRefl := EDIOBJ ;\n" if first else ""
+            first = False
             L.append(f"""
 LIBRARY := RbmkLib :: {dca} 900.0 <<tgnom>> <<tcool>> ;
 {burn}LIBRARY := RbmkReflLib LIBRARY :: <<tgrefl>> <<rhogr>> ;
 LIBSS := USS: LIBRARY SCTRKSS SCFTRKSS :: EDIT 0 PASS 2 MAXST 300 ;
 SYS := ASM: LIBSS SCTRK SCFTRK :: EDIT 0 ;
-FLUX := FLU: LIBSS SCTRK SYS :: TYPE K EXTE 1.0E-6 ;
+FLUX := FLU: LIBSS SCTRK SYS :: TYPE K B1 SIGS BUCK 0.0 EXTE 1.0E-6 ;
 GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
 ECHO "REFLTAB" {bu} {dca} kinf ;
 EDIOBJ := EDI: LIBSS SCTRK FLUX SCFL SYS GEOMAC ::
   EDIT 0 MERG CELL NXT COND 0.625 GOLVER MGEO GEOMAC SAVE ON EDIREFL ;
-*  ASYM 1: normalise on the fuel cell farthest from the reflector, so the
-*  reflector zones carry the whole correction and the core's own fuel data
-*  (which is uncorrected) stays consistent with zone 1.
-EDIOBJ := SPH: EDIOBJ MTRACK :: EDIT 1 ASYM 1 ITER 1.0E-6 200 ;
+{persist}*  NO SPH.  Not an oversight -- it does not work here, and that is measured.
+*  Six variants were tried against this very edit object (rbmk_refl_sph.x2m
+*  and rbmk_refl_sph2.x2m, both kept):
+*      normalisation   ASYM 1 / STD / ASYM 8        all cap at 200
+*      tolerance       1.0E-6 x200 / 1.0E-4 x500    both cap
+*      discretisation  DUAL 1 1 / DUAL 3 3 /
+*                      DUAL 1 1 on a 5 cm mesh      all cap
+*      MCFD 1                                       SEGFAULTS, as it does on
+*                                                   the CPS supercell
+*  with "negative SPH factor ... set to 1.0" in every region of group 1 under
+*  ASYM 1 -- a breakdown of the equivalence, not slow convergence.
+*
+*  The common factor is the VACUUM boundary, and that is the diagnosis: a
+*  diffusion calculation cannot reproduce a forward-peaked transport leakage
+*  at a free surface for ANY choice of cross-section multipliers, because the
+*  mismatch is in the boundary condition and not in the cross sections.  It is
+*  why normalisation and mesh make no difference, why the factors want to go
+*  negative, and why every bundled reflector case upstream is a DISCONTINUITY
+*  FACTOR method (DF-RT, DF-NEM, DF-ANM, ERM-ANM, Koebke) and not an SPH one.
+*
+*  Discontinuity factors are not open to us: DONJON carries ADF only through
+*  ACR: (APEX/MPO) and the NSS nodal solver, not through the NCR: + TRIVAT: +
+*  FLUD: chain this core uses, and switching would discard the A6.4 work and
+*  the Phase 0 kinetics result.  So this dataset ships UNEQUIVALENCED: honest
+*  flux-weighted constants, resolved by depth, and a stated interface error.
+*  The principled next step is an albedo boundary derived from this same
+*  transport solution (EDIALB.f exists), not more SPH.
 EVALUATE tend := {bu} fpwr / ;
 COMPO := COMPO: COMPO EDIOBJ BURNUP LIBRARY ::
   EDIT 0 STEP UP 'EDIREFL' 'DCA' {dca} SET <<tend>> DAY ;
@@ -344,7 +382,9 @@ QUIT .
 
 
 SAVE_HOOK = """#!/bin/sh
-cp _RCompo "$1"/../Dragon/compo/ 2>/dev/null
+for f in _RCompo _EdiRefl; do
+  cp $f "$1"/../Dragon/compo/ 2>/dev/null
+done
 """
 
 
@@ -372,5 +412,105 @@ def write():
           f"{NW_CELLS} cooled)")
 
 
+
+
+# ---------------------------------------------------------------------------
+# The gate: what does shipping without an equivalence cost?
+# ---------------------------------------------------------------------------
+
+DRAGON_K = {(0.0, 0.72): 1.103173, (0.0, 0.02): 1.067525,
+            (10900.0, 0.72): 0.9104365, (10900.0, 0.02): 0.8902680}
+
+
+def check_deck():
+    """Rebuild the same strip in DONJON from _RCompo and compare k with DRAGON.
+
+    This is the honest price of an unequivalenced reflector.  SPH exists to
+    make a diffusion calculation reproduce the transport one; with no SPH, the
+    difference between these two numbers IS the homogenisation error, and it
+    is better measured than argued about.  Same geometry, same DUAL 1 1, same
+    vacuum boundary -- only the physics model differs.
+    """
+    mesh = " ".join(f"{25.0*i:.1f}" for i in range(NZONE + 1))
+    grid = " ".join(str(m) for m in range(1, NZONE + 1))
+    L = [f"""*----
+*  PHASE 1b GATE -- the unequivalenced reflector, priced.
+*  GENERATED by openmc/refl.py.  Edit the generator, not this file.
+*  DONJON on the homogenised {NZONE}-zone strip against DRAGON's transport k
+*  for the same strip.  No SPH anywhere, by necessity -- see rbmk_refl.x2m.
+*----
+LINKED_LIST RCpo MACRO OUTM GEOM TRACK SYSTEM FLUX ;
+SEQ_ASCII   _RCompo :: FILE './_RCompo' ;
+MODULE      NCR: GEO: TRIVAT: TRIVAA: FLUD: OUT: UTL: GREP: DELETE: END: ;
+REAL kk ;
+RCpo := _RCompo ;
+GEOM := GEO: :: CAR2D {NZONE} 1
+  X- REFL X+ VOID  Y- REFL Y+ REFL
+  MESHX {mesh}  MESHY 0.0 25.0
+  MIX {grid} ;
+TRACK := TRIVAT: GEOM :: EDIT 0 MAXR 40 DUAL 1 1 ;"""]
+    for bu in REFL_BUS:
+        for dca in REFL_DCAS:
+            rows = "".join(
+                f"  MIX {m} FROM {m} SET 'burnup' {bu} SET 'DCA' {dca} ENDMIX\n"
+                for m in range(1, NZONE + 1))
+            L.append(f"""
+MACRO := NCR: RCpo :: EDIT 0 MACRO LINEAR NMIX {NZONE}
+  COMPO RCpo 'EDIREFL'
+{rows}  ;
+SYSTEM := TRIVAA: MACRO TRACK :: EDIT 0 ;
+FLUX := FLUD: SYSTEM TRACK :: EDIT 0 EXTE 1.0E-7 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kk<< ;
+ECHO "RCHK" {bu} {dca} kk ;
+*  Which zone is which?  EDI: MERG CELL's raster order is not documented and
+*  this strip, unlike the 5 x 5, has no symmetry to make the question moot.
+*  Fuel zones have NUSIGF > 0 and reflector zones have none, so the printout
+*  settles it rather than an assumption doing so.
+OUTM := OUT: FLUX TRACK MACRO GEOM :: EDIT 2 INTG MIX ;
+*  FLUX-INTG here is the TRANSPORT flux the COMPO stored; OUT: above
+*  printed the DIFFUSION one.  Comparing the two shapes says whether a
+*  k discrepancy is a model difference or a data-transfer fault.
+UTL: MACRO :: STEP UP 'GROUP' STEP AT 1 IMPR FLUX-INTG * IMPR NUSIGF * ;
+UTL: MACRO :: STEP UP 'GROUP' STEP AT 2 IMPR FLUX-INTG * IMPR NUSIGF * ;
+MACRO SYSTEM FLUX OUTM := DELETE: MACRO SYSTEM FLUX OUTM ;""")
+    L.append('ECHO "rbmk_refl_chk completed" ;\nEND: ;\nQUIT .\n')
+    return "\n".join(L)
+
+
+def check():
+    import re
+    import subprocess
+    name = "rbmk_refl_chk"
+    p = os.path.join(DON, name + ".don")
+    open(p, "w").write(check_deck())
+    a = p + ".access"
+    open(a, "w").write('#!/bin/sh\ncp "$1"/../Dragon/compo/_RCompo . || exit 1\n')
+    os.chmod(a, 0o755)
+    subprocess.run([os.path.join(ROOT, "tools", "link_decks.sh")],
+                   check=True, capture_output=True)
+    run = os.path.join(ROOT, "5.1", "Donjon")
+    res = os.path.join(run, "Linux_aarch64", name + ".don.result")
+    if os.path.exists(res):
+        os.remove(res)
+    subprocess.run(["./rdonjon", name + ".don"], cwd=run, check=True,
+                   capture_output=True)
+    txt = open(res, errors="replace").read()
+    if "rbmk_refl_chk completed" not in txt:
+        sys.exit(f"refl: the check deck did not complete -- see {res}")
+    print(f"{'bu':>8} {'dca':>5} {'DRAGON k':>10} {'DONJON k':>10} "
+          f"{'diff/pcm':>9}")
+    worst = 0.0
+    for m in re.finditer(r">\|RCHK\s+([\d.eE+-]+)\s+([\d.eE+-]+)\s+([\d.eE+-]+)", txt):
+        bu, dca, k = (float(x) for x in m.groups())
+        kd = DRAGON_K[(bu, dca)]
+        d = (1 / kd - 1 / k) * 1e5
+        worst = max(worst, abs(d))
+        print(f"{bu:8.0f} {dca:5.2f} {kd:10.6f} {k:10.6f} {d:9.0f}")
+    print(f"\n  worst |difference| = {worst:.0f} pcm")
+    print("  That is the price of no equivalence, and it is a measurement, not")
+    print("  an estimate.  For scale: the A6.3 residual is carried at +60 to")
+    print("  +1107 pcm and the A/A'/B void bracket spans about 13 %.")
+
+
 if __name__ == "__main__":
-    write()
+    {"write": write, "check": check}[sys.argv[1] if len(sys.argv) > 1 else "write"]()

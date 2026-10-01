@@ -1,0 +1,39 @@
+# Phase 1b reflector findings -- 2026-10-01T15:56Z
+# Regenerate: refl.py write | rdragon rbmk_refl.x2m | refl.py check
+#   SPH sweeps: rbmk_refl_sph.x2m, rbmk_refl_sph2.x2m
+
+## DRAGON transport k, 4F+3G+1W strip, X- REFL / X+ VOID
+   bu      dca        k
+    0     0.72   1.103173
+    0     0.02   1.067525
+10900     0.72   0.910436
+10900     0.02   0.890268
+
+## SPH equivalence: SIX variants, all fail
+   ASYM 1 / STD / ASYM 8        all cap at 200 iterations
+   ITER 1.0E-6 x200 / 1.0E-4 x500  both cap
+   DUAL 1 1 / DUAL 3 3 / DUAL 1 1 on a 5 cm reflector mesh  all cap
+   MCFD 1                       SEGFAULTS (as on the CPS supercell)
+   'negative SPH factor ... set to 1.0' in every group-1 region
+
+## DONJON diffusion on the same homogenised data
+   X+ VOID 1.259789   X+ REFL 1.260002   X+ ZERO 1.259771
+   -> 21 pcm across boundary conditions: the discrepancy is NOT the boundary
+   worst |DONJON - DRAGON| = 16187 pcm
+
+## Bisect
+   zone1x4-refl  1.306082   vs the fuel cell's own k-inf 1.313968 (-459 pcm)
+   fuel4-refl    1.305690
+   fuel4-void    1.191992   already ABOVE the transport full-strip 1.103173
+   all8-void     1.259789
+   -> the fuel homogenisation is sound; the error is in the reflector
+
+## The cause: zone flux shape, normalised to zone 1
+   group 1 (fast)        1      2      3      4      5      6      7      8
+     transport        1.000  0.948  0.836  0.648  0.296  0.132  0.053  0.016
+     diffusion        1.000  0.941  0.826  0.604  0.191  0.033  0.007  0.001
+     ratio            1.000  1.007  1.013  1.073  1.548  4.013  7.701 14.519
+   group 2 (thermal)
+     transport        1.000  0.964  0.903  0.836  0.887  0.727  0.493  0.212
+     diffusion        1.000  0.942  0.836  0.760  0.836  0.626  0.335  0.083
+     ratio            1.000  1.023  1.080  1.100  1.061  1.160  1.471  2.556

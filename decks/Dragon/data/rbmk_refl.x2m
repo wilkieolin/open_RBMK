@@ -14,7 +14,10 @@ LINKED_LIST LIBRARY LIBSS GEOSS GEOFL TRKSS TRK SYS FLUX BURNUP
             SCSS SCFL SCTRKSS SCTRK EDIOBJ GEOMAC MTRACK COMPO ;
 SEQ_BINARY  FTRKSS FTRK SCFTRKSS SCFTRK ;
 SEQ_ASCII   _RCompo :: FILE './_RCompo' ;
-MODULE      LIB: GEO: NXT: USS: ASM: FLU: EVO: EDI: SPH: TRIVAT: COMPO: UTL:
+*  The L_EDIT of the FIRST state is persisted so SPH options can be tried
+*  against it in seconds instead of re-running the transport each time.
+SEQ_ASCII   _EdiRefl :: FILE './_EdiRefl' ;
+MODULE      LIB: GEO: NXT: USS: ASM: FLU: EVO: EDI: TRIVAT: COMPO: UTL:
             GREP: DELETE: END: ;
 PROCEDURE   RbmkLib RbmkGeo RbmkReflLib RbmkScRefl ;
 REAL tgnom := 750.0 ;
@@ -89,9 +92,10 @@ SCSS SCFL := RbmkScRefl :: 1 ;
 SCTRKSS SCFTRKSS := NXT: SCSS :: EDIT 0 TITLE 'RF-SS' ALLG BATCH 100 TISO 8 15.0 ;
 SCTRK SCFTRK := NXT: SCFL :: EDIT 0 TITLE 'RF-FL' ALLG BATCH 100 TISO 15 30.0 ;
 
-*  Macro-geometry for SPH: one homogeneous 25 cm node per column, as the core
-*  has, on the SAME DUAL 1 1 the core must use (A6.4: MCFD cannot carry a
-*  converged SPH equivalence and loses a third of the absorber worth).
+*  Macro-geometry for EDI:'s homogenisation: one 25 cm node per column, as the
+*  core has, and on the DUAL 1 1 the core must use.  It is no longer an SPH
+*  macro-tracking -- see the note at the equivalence below -- but EDI: still
+*  needs it to know what it is merging onto.
 GEOMAC := GEO: :: CAR2D 8 1
   X- REFL X+ VOID  Y- REFL Y+ REFL
   MESHX 0.0 25.0 50.0 75.0 100.0 125.0 150.0 175.0 200.0  MESHY 0.0 25.0
@@ -112,15 +116,39 @@ LIBRARY := RbmkLib :: 0.72 900.0 <<tgnom>> <<tcool>> ;
 LIBRARY := RbmkReflLib LIBRARY :: <<tgrefl>> <<rhogr>> ;
 LIBSS := USS: LIBRARY SCTRKSS SCFTRKSS :: EDIT 0 PASS 2 MAXST 300 ;
 SYS := ASM: LIBSS SCTRK SCFTRK :: EDIT 0 ;
-FLUX := FLU: LIBSS SCTRK SYS :: TYPE K EXTE 1.0E-6 ;
+FLUX := FLU: LIBSS SCTRK SYS :: TYPE K B1 SIGS BUCK 0.0 EXTE 1.0E-6 ;
 GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
 ECHO "REFLTAB" 0.0 0.72 kinf ;
 EDIOBJ := EDI: LIBSS SCTRK FLUX SCFL SYS GEOMAC ::
   EDIT 0 MERG CELL NXT COND 0.625 GOLVER MGEO GEOMAC SAVE ON EDIREFL ;
-*  ASYM 1: normalise on the fuel cell farthest from the reflector, so the
-*  reflector zones carry the whole correction and the core's own fuel data
-*  (which is uncorrected) stays consistent with zone 1.
-EDIOBJ := SPH: EDIOBJ MTRACK :: EDIT 1 ASYM 1 ITER 1.0E-6 200 ;
+_EdiRefl := EDIOBJ ;
+*  NO SPH.  Not an oversight -- it does not work here, and that is measured.
+*  Six variants were tried against this very edit object (rbmk_refl_sph.x2m
+*  and rbmk_refl_sph2.x2m, both kept):
+*      normalisation   ASYM 1 / STD / ASYM 8        all cap at 200
+*      tolerance       1.0E-6 x200 / 1.0E-4 x500    both cap
+*      discretisation  DUAL 1 1 / DUAL 3 3 /
+*                      DUAL 1 1 on a 5 cm mesh      all cap
+*      MCFD 1                                       SEGFAULTS, as it does on
+*                                                   the CPS supercell
+*  with "negative SPH factor ... set to 1.0" in every region of group 1 under
+*  ASYM 1 -- a breakdown of the equivalence, not slow convergence.
+*
+*  The common factor is the VACUUM boundary, and that is the diagnosis: a
+*  diffusion calculation cannot reproduce a forward-peaked transport leakage
+*  at a free surface for ANY choice of cross-section multipliers, because the
+*  mismatch is in the boundary condition and not in the cross sections.  It is
+*  why normalisation and mesh make no difference, why the factors want to go
+*  negative, and why every bundled reflector case upstream is a DISCONTINUITY
+*  FACTOR method (DF-RT, DF-NEM, DF-ANM, ERM-ANM, Koebke) and not an SPH one.
+*
+*  Discontinuity factors are not open to us: DONJON carries ADF only through
+*  ACR: (APEX/MPO) and the NSS nodal solver, not through the NCR: + TRIVAT: +
+*  FLUD: chain this core uses, and switching would discard the A6.4 work and
+*  the Phase 0 kinetics result.  So this dataset ships UNEQUIVALENCED: honest
+*  flux-weighted constants, resolved by depth, and a stated interface error.
+*  The principled next step is an albedo boundary derived from this same
+*  transport solution (EDIALB.f exists), not more SPH.
 EVALUATE tend := 0.0 fpwr / ;
 COMPO := COMPO: COMPO EDIOBJ BURNUP LIBRARY ::
   EDIT 0 STEP UP 'EDIREFL' 'DCA' 0.72 SET <<tend>> DAY ;
@@ -130,15 +158,38 @@ LIBRARY := RbmkLib :: 0.02 900.0 <<tgnom>> <<tcool>> ;
 LIBRARY := RbmkReflLib LIBRARY :: <<tgrefl>> <<rhogr>> ;
 LIBSS := USS: LIBRARY SCTRKSS SCFTRKSS :: EDIT 0 PASS 2 MAXST 300 ;
 SYS := ASM: LIBSS SCTRK SCFTRK :: EDIT 0 ;
-FLUX := FLU: LIBSS SCTRK SYS :: TYPE K EXTE 1.0E-6 ;
+FLUX := FLU: LIBSS SCTRK SYS :: TYPE K B1 SIGS BUCK 0.0 EXTE 1.0E-6 ;
 GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
 ECHO "REFLTAB" 0.0 0.02 kinf ;
 EDIOBJ := EDI: LIBSS SCTRK FLUX SCFL SYS GEOMAC ::
   EDIT 0 MERG CELL NXT COND 0.625 GOLVER MGEO GEOMAC SAVE ON EDIREFL ;
-*  ASYM 1: normalise on the fuel cell farthest from the reflector, so the
-*  reflector zones carry the whole correction and the core's own fuel data
-*  (which is uncorrected) stays consistent with zone 1.
-EDIOBJ := SPH: EDIOBJ MTRACK :: EDIT 1 ASYM 1 ITER 1.0E-6 200 ;
+*  NO SPH.  Not an oversight -- it does not work here, and that is measured.
+*  Six variants were tried against this very edit object (rbmk_refl_sph.x2m
+*  and rbmk_refl_sph2.x2m, both kept):
+*      normalisation   ASYM 1 / STD / ASYM 8        all cap at 200
+*      tolerance       1.0E-6 x200 / 1.0E-4 x500    both cap
+*      discretisation  DUAL 1 1 / DUAL 3 3 /
+*                      DUAL 1 1 on a 5 cm mesh      all cap
+*      MCFD 1                                       SEGFAULTS, as it does on
+*                                                   the CPS supercell
+*  with "negative SPH factor ... set to 1.0" in every region of group 1 under
+*  ASYM 1 -- a breakdown of the equivalence, not slow convergence.
+*
+*  The common factor is the VACUUM boundary, and that is the diagnosis: a
+*  diffusion calculation cannot reproduce a forward-peaked transport leakage
+*  at a free surface for ANY choice of cross-section multipliers, because the
+*  mismatch is in the boundary condition and not in the cross sections.  It is
+*  why normalisation and mesh make no difference, why the factors want to go
+*  negative, and why every bundled reflector case upstream is a DISCONTINUITY
+*  FACTOR method (DF-RT, DF-NEM, DF-ANM, ERM-ANM, Koebke) and not an SPH one.
+*
+*  Discontinuity factors are not open to us: DONJON carries ADF only through
+*  ACR: (APEX/MPO) and the NSS nodal solver, not through the NCR: + TRIVAT: +
+*  FLUD: chain this core uses, and switching would discard the A6.4 work and
+*  the Phase 0 kinetics result.  So this dataset ships UNEQUIVALENCED: honest
+*  flux-weighted constants, resolved by depth, and a stated interface error.
+*  The principled next step is an albedo boundary derived from this same
+*  transport solution (EDIALB.f exists), not more SPH.
 EVALUATE tend := 0.0 fpwr / ;
 COMPO := COMPO: COMPO EDIOBJ BURNUP LIBRARY ::
   EDIT 0 STEP UP 'EDIREFL' 'DCA' 0.02 SET <<tend>> DAY ;
@@ -149,15 +200,38 @@ LIBRARY := LIB: LIBRARY BURNUP :: EDIT 0 BURN 8 MIX 6 MIX 7 ;
 LIBRARY := RbmkReflLib LIBRARY :: <<tgrefl>> <<rhogr>> ;
 LIBSS := USS: LIBRARY SCTRKSS SCFTRKSS :: EDIT 0 PASS 2 MAXST 300 ;
 SYS := ASM: LIBSS SCTRK SCFTRK :: EDIT 0 ;
-FLUX := FLU: LIBSS SCTRK SYS :: TYPE K EXTE 1.0E-6 ;
+FLUX := FLU: LIBSS SCTRK SYS :: TYPE K B1 SIGS BUCK 0.0 EXTE 1.0E-6 ;
 GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
 ECHO "REFLTAB" 10900.0 0.72 kinf ;
 EDIOBJ := EDI: LIBSS SCTRK FLUX SCFL SYS GEOMAC ::
   EDIT 0 MERG CELL NXT COND 0.625 GOLVER MGEO GEOMAC SAVE ON EDIREFL ;
-*  ASYM 1: normalise on the fuel cell farthest from the reflector, so the
-*  reflector zones carry the whole correction and the core's own fuel data
-*  (which is uncorrected) stays consistent with zone 1.
-EDIOBJ := SPH: EDIOBJ MTRACK :: EDIT 1 ASYM 1 ITER 1.0E-6 200 ;
+*  NO SPH.  Not an oversight -- it does not work here, and that is measured.
+*  Six variants were tried against this very edit object (rbmk_refl_sph.x2m
+*  and rbmk_refl_sph2.x2m, both kept):
+*      normalisation   ASYM 1 / STD / ASYM 8        all cap at 200
+*      tolerance       1.0E-6 x200 / 1.0E-4 x500    both cap
+*      discretisation  DUAL 1 1 / DUAL 3 3 /
+*                      DUAL 1 1 on a 5 cm mesh      all cap
+*      MCFD 1                                       SEGFAULTS, as it does on
+*                                                   the CPS supercell
+*  with "negative SPH factor ... set to 1.0" in every region of group 1 under
+*  ASYM 1 -- a breakdown of the equivalence, not slow convergence.
+*
+*  The common factor is the VACUUM boundary, and that is the diagnosis: a
+*  diffusion calculation cannot reproduce a forward-peaked transport leakage
+*  at a free surface for ANY choice of cross-section multipliers, because the
+*  mismatch is in the boundary condition and not in the cross sections.  It is
+*  why normalisation and mesh make no difference, why the factors want to go
+*  negative, and why every bundled reflector case upstream is a DISCONTINUITY
+*  FACTOR method (DF-RT, DF-NEM, DF-ANM, ERM-ANM, Koebke) and not an SPH one.
+*
+*  Discontinuity factors are not open to us: DONJON carries ADF only through
+*  ACR: (APEX/MPO) and the NSS nodal solver, not through the NCR: + TRIVAT: +
+*  FLUD: chain this core uses, and switching would discard the A6.4 work and
+*  the Phase 0 kinetics result.  So this dataset ships UNEQUIVALENCED: honest
+*  flux-weighted constants, resolved by depth, and a stated interface error.
+*  The principled next step is an albedo boundary derived from this same
+*  transport solution (EDIALB.f exists), not more SPH.
 EVALUATE tend := 10900.0 fpwr / ;
 COMPO := COMPO: COMPO EDIOBJ BURNUP LIBRARY ::
   EDIT 0 STEP UP 'EDIREFL' 'DCA' 0.72 SET <<tend>> DAY ;
@@ -168,15 +242,38 @@ LIBRARY := LIB: LIBRARY BURNUP :: EDIT 0 BURN 8 MIX 6 MIX 7 ;
 LIBRARY := RbmkReflLib LIBRARY :: <<tgrefl>> <<rhogr>> ;
 LIBSS := USS: LIBRARY SCTRKSS SCFTRKSS :: EDIT 0 PASS 2 MAXST 300 ;
 SYS := ASM: LIBSS SCTRK SCFTRK :: EDIT 0 ;
-FLUX := FLU: LIBSS SCTRK SYS :: TYPE K EXTE 1.0E-6 ;
+FLUX := FLU: LIBSS SCTRK SYS :: TYPE K B1 SIGS BUCK 0.0 EXTE 1.0E-6 ;
 GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
 ECHO "REFLTAB" 10900.0 0.02 kinf ;
 EDIOBJ := EDI: LIBSS SCTRK FLUX SCFL SYS GEOMAC ::
   EDIT 0 MERG CELL NXT COND 0.625 GOLVER MGEO GEOMAC SAVE ON EDIREFL ;
-*  ASYM 1: normalise on the fuel cell farthest from the reflector, so the
-*  reflector zones carry the whole correction and the core's own fuel data
-*  (which is uncorrected) stays consistent with zone 1.
-EDIOBJ := SPH: EDIOBJ MTRACK :: EDIT 1 ASYM 1 ITER 1.0E-6 200 ;
+*  NO SPH.  Not an oversight -- it does not work here, and that is measured.
+*  Six variants were tried against this very edit object (rbmk_refl_sph.x2m
+*  and rbmk_refl_sph2.x2m, both kept):
+*      normalisation   ASYM 1 / STD / ASYM 8        all cap at 200
+*      tolerance       1.0E-6 x200 / 1.0E-4 x500    both cap
+*      discretisation  DUAL 1 1 / DUAL 3 3 /
+*                      DUAL 1 1 on a 5 cm mesh      all cap
+*      MCFD 1                                       SEGFAULTS, as it does on
+*                                                   the CPS supercell
+*  with "negative SPH factor ... set to 1.0" in every region of group 1 under
+*  ASYM 1 -- a breakdown of the equivalence, not slow convergence.
+*
+*  The common factor is the VACUUM boundary, and that is the diagnosis: a
+*  diffusion calculation cannot reproduce a forward-peaked transport leakage
+*  at a free surface for ANY choice of cross-section multipliers, because the
+*  mismatch is in the boundary condition and not in the cross sections.  It is
+*  why normalisation and mesh make no difference, why the factors want to go
+*  negative, and why every bundled reflector case upstream is a DISCONTINUITY
+*  FACTOR method (DF-RT, DF-NEM, DF-ANM, ERM-ANM, Koebke) and not an SPH one.
+*
+*  Discontinuity factors are not open to us: DONJON carries ADF only through
+*  ACR: (APEX/MPO) and the NSS nodal solver, not through the NCR: + TRIVAT: +
+*  FLUD: chain this core uses, and switching would discard the A6.4 work and
+*  the Phase 0 kinetics result.  So this dataset ships UNEQUIVALENCED: honest
+*  flux-weighted constants, resolved by depth, and a stated interface error.
+*  The principled next step is an albedo boundary derived from this same
+*  transport solution (EDIALB.f exists), not more SPH.
 EVALUATE tend := 10900.0 fpwr / ;
 COMPO := COMPO: COMPO EDIOBJ BURNUP LIBRARY ::
   EDIT 0 STEP UP 'EDIREFL' 'DCA' 0.02 SET <<tend>> DAY ;

@@ -1,0 +1,2 @@
+#!/bin/sh
+cp "$1"/../Dragon/compo/_EdiRefl . || exit 1
