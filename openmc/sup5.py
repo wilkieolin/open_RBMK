@@ -40,6 +40,7 @@ corrupt the result.  That is the reason for this placement, not aesthetics.
 Fresh fuel only.  A6.4 item 3 showed the whole effect is present at zero
 burnup, so depletion would add an hour and nothing else.
 """
+import math
 import os
 import re
 import subprocess
@@ -155,6 +156,11 @@ LINKED_LIST LIBRARY LIBSS GEOSS GEOFL TRKSS TRK SYS FLUX EDIOBJ
             CGEOSS CGEOFL CTRKSS CTRK CSYS CFLUX GEOMAC COMPO ;
 SEQ_BINARY  FTRKSS FTRK CFTRKSS CFTRK ;
 SEQ_ASCII   _CCompoS5 :: FILE './_CCompoS5' ;
+*  The L_EDIT is persisted too.  The physics above costs ~18 minutes and the
+*  book-keeping below cost a whole run once already (COMPO.f:477 wants a
+*  depletion object for SET .. DAY).  With the edit on disk, any further
+*  iteration on the COMPO or the read-out is seconds.
+SEQ_ASCII   _EdiS5    :: FILE './_EdiS5' ;
 MODULE      LIB: GEO: NXT: USS: ASM: FLU: EDI: COMPO: GREP: DELETE: END: ;
 PROCEDURE   RbmkLib RbmkGeo RbmkCpsLib RbmkSc5{STYPE} ;
 REAL tgnom := 750.0 ;
@@ -196,17 +202,23 @@ GEOMAC := GEO: :: CAR2D {N} {N}
   MIX
 {grid}
   ;
+*  EDIT 3 so the homogenised constants are printed as well as stored -- a
+*  second, independent route to the same numbers if the COMPO path misbehaves.
 EDIOBJ := EDI: LIBSS TRK FLUX GEOFL SYS GEOMAC ::
-  EDIT 0 MERG CELL NXT COND 0.625 GOLVER MGEO GEOMAC SAVE ON EDIS5 ;
+  EDIT 3 MERG CELL NXT COND 0.625 GOLVER MGEO GEOMAC SAVE ON EDIS5 ;
+_EdiS5 := EDIOBJ ;
 
+*  One state, so one axis and NO burnup: 'burnup' IRRA is filled from a
+*  depletion object, and SET <t> DAY demands one (COMPO.f:477).  There is no
+*  depletion in this deck and asking for either aborts after the 18 minutes
+*  of physics have already been spent.
 COMPO := COMPO: ::
   EDIT 1 STEP UP 'EDIS5' MAXCAL 3
   COMM 'A6.4 superposition test, {N}x{N}, CPS at {CPS_AT}' ENDC
-  PARA 'burnup' IRRA
   PARA 'DCA' VALU REAL
   INIT ;
 COMPO := COMPO: COMPO EDIOBJ LIBRARY ::
-  EDIT 0 STEP UP 'EDIS5' 'DCA' 0.72 SET 0.0 DAY ;
+  EDIT 0 STEP UP 'EDIS5' 'DCA' 0.72 ;
 _CCompoS5 := COMPO ;
 
 ECHO "rbmk_cps_sup5 completed" ;
@@ -224,7 +236,8 @@ def write():
         os.remove(a)
     os.symlink("../../common/rbmk.access", a)
     sv = os.path.join(DATA, "rbmk_cps_sup5.save")
-    open(sv, "w").write("#!/bin/sh\ncp _CCompoS5 \"$1\"/../Dragon/compo/ 2>/dev/null\n")
+    open(sv, "w").write("#!/bin/sh\nfor f in _CCompoS5 _EdiS5; do\n"
+                    "  cp $f \"$1\"/../Dragon/compo/ 2>/dev/null\ndone\n")
     os.chmod(sv, 0o755)
     for f in (os.path.join(PROC, f"RbmkSc5{STYPE}.c2m"), p):
         over = [i + 1 for i, l in enumerate(open(f).read().splitlines()) if len(l) > 120]
@@ -236,8 +249,6 @@ def write():
         print(f"   cell {i},{j}  mix {i*N+j+1:2d}  {v}")
 
 
-if __name__ == "__main__":
-    write()
 
 
 # ---------------------------------------------------------------------------
@@ -257,8 +268,11 @@ def donjon_deck():
     """
     grid = "\n".join("  " + " ".join(f"{i*N+j+1:3d}" for j in range(N))
                      for i in range(N))
+    ref = "\n".join(
+        f"  MIX {m} FROM 1 SET 'burnup' 0.0 SET 'DCA' 0.72 SET 'TF' 900.0"
+        f" SET 'TG' 750.0 ENDMIX" for m in range(1, NM + 1))
     s5 = "\n".join(
-        f"  MIX {m} FROM {m} SET 'burnup' 0.0 SET 'DCA' 0.72 ENDMIX"
+        f"  MIX {m} FROM {m} SET 'DCA' 0.72 ENDMIX"
         for m in range(1, NM + 1))
     mesh = " ".join(f"{25.0*i:.1f}" for i in range(N + 1))
     return f"""*----
@@ -266,8 +280,13 @@ def donjon_deck():
 *  Prints the {NM} cell constants of the {N}x{N} supercell and, separately, the
 *  infinite-lattice fuel cell from the fuel COMPO, through the same OUT: path.
 *----
-LINKED_LIST SCpo FCpo MS5 MREF OUTM GEOM GEOR TRACK TRKR SYSTEM FLUX ;
+LINKED_LIST SCpo FCpo MS5 MREF OUTM GEOM TRACK SYSTEM FLUX ;
 SEQ_ASCII   _CCompoS5 :: FILE './_CCompoS5' ;
+*  The L_EDIT is persisted too.  The physics above costs ~18 minutes and the
+*  book-keeping below cost a whole run once already (COMPO.f:477 wants a
+*  depletion object for SET .. DAY).  With the edit on disk, any further
+*  iteration on the COMPO or the read-out is seconds.
+SEQ_ASCII   _EdiS5    :: FILE './_EdiS5' ;
 SEQ_ASCII   _ACompo   :: FILE './_ACompo' ;
 MODULE      NCR: GEO: TRIVAT: TRIVAA: FLUD: OUT: GREP: DELETE: END: ;
 REAL kk ;
@@ -291,21 +310,21 @@ ECHO "SUP5OUT S5" kk ;
 OUTM := OUT: FLUX TRACK MS5 GEOM :: EDIT 2 INTG MIX ;
 OUTM SYSTEM FLUX := DELETE: OUTM SYSTEM FLUX ;
 
-*--- the infinite-lattice reference, on its own one-cell geometry
-GEOR := GEO: :: CAR2D 1 1
-  X- REFL X+ REFL Y- REFL Y+ REFL
-  MESHX 0.0 25.0 MESHY 0.0 25.0
-  MIX 1 ;
-TRKR := TRIVAT: GEOR :: EDIT 0 MAXR 4 DUAL 1 1 ;
-MREF := NCR: FCpo :: EDIT 0 MACRO LINEAR NMIX 1
+*--- the infinite-lattice reference.  SAME geometry, SAME tracking, same OUT:
+*    path -- only the data differs: every one of the 25 mixtures is the fuel
+*    COMPO's single infinite-lattice cell.  Two reasons for doing it this way
+*    rather than on a 1x1 geometry.  First, TRIVAT: DUAL 1 1 on a 1x1 mesh is
+*    degenerate and leaves no 'MUX' block for TRIVAA:.  Second, 25 mixtures
+*    that are identical by construction must read back identical, so the
+*    spread across them measures the read-out path itself.
+MREF := NCR: FCpo :: EDIT 0 MACRO LINEAR NMIX {NM}
   COMPO FCpo 'EDIRBMK'
-  MIX 1 FROM 1 SET 'burnup' 0.0 SET 'DCA' 0.72 SET 'TF' 900.0
-        SET 'TG' 750.0 ENDMIX ;
-SYSTEM := TRIVAA: MREF TRKR :: EDIT 0 ;
-FLUX := FLUD: SYSTEM TRKR :: EDIT 0 EXTE 1.0E-7 ;
+{ref}  ;
+SYSTEM := TRIVAA: MREF TRACK :: EDIT 0 ;
+FLUX := FLUD: SYSTEM TRACK :: EDIT 0 EXTE 1.0E-7 ;
 GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kk<< ;
 ECHO "SUP5OUT REF" kk ;
-OUTM := OUT: FLUX TRKR MREF GEOR :: EDIT 2 INTG MIX ;
+OUTM := OUT: FLUX TRACK MREF GEOM :: EDIT 2 INTG MIX ;
 
 ECHO "rbmk_cps_sup5_out completed" ;
 END: ;
@@ -340,7 +359,7 @@ def analyse():
     # two INTG blocks: the 25-cell supercell, then the 1-cell reference
     blocks, cur, grp = [], None, None
     for ln in open(res, errors="replace"):
-        if "REACTION RATE CALCULATION" in ln:
+        if "OUTAUX: REACTION RATE CALCULATION" in ln:
             cur = {}
             blocks.append(cur)
             continue
@@ -351,7 +370,15 @@ def analyse():
         m = a64b.ROW.match(ln)
         if m and cur is not None:
             c = ln.split()
-            cur[(int(c[0]), grp)] = (float(c[3]), float(c[4]))   # NTOT0, SIGW00
+            # OUT: INTG prints RATES, not cross sections: column 3 is the
+            # zone's integral of Sigma*phi and column 2 is its integral of
+            # phi.  Dividing recovers the flux-weighted cross section, which
+            # is the quantity that is a property of the material rather than
+            # of the flux shape.  Verified against a64b: the same mixture
+            # read through both pipelines gives 0.3665 vs 0.3664 after the
+            # division, and 6.018 vs 2.016 before it.
+            phi = float(c[2])
+            cur[(int(c[0]), grp)] = (float(c[3]) / phi, float(c[4]) / phi)
     if len(blocks) != 2:
         sys.exit(f"sup5: expected 2 INTG blocks, got {len(blocks)} -- see {res}")
     s5, ref = blocks
@@ -409,3 +436,73 @@ def analyse():
     print("\n  The replicate spreads above are the internal consistency check:")
     print("  cells with identical environments must agree, and they are not")
     print("  constrained to -- nothing in the calculation imposes the symmetry.")
+
+
+# ---------------------------------------------------------------------------
+# Part 2: the SPH factors, which is where the environment effect actually lives
+# ---------------------------------------------------------------------------
+
+SPH_RESULT = os.path.join(ROOT, "5.1", "Dragon", "Linux_aarch64",
+                          "rbmk_cps_sup5sph.result")
+
+
+def sph_factors(path=SPH_RESULT):
+    """The converged SPH factors of the 5 x 5, from rbmk_cps_sup5sph.x2m."""
+    f = {}
+    for m, g, v in re.findall(r"SPH\(\s*(\d+),\s*(\d+)\)=\s*([\d.]+)",
+                              open(path, errors="replace").read()):
+        f[(int(m), int(g))] = float(v)      # later tables overwrite earlier
+    if len(f) != NM * 2:
+        sys.exit(f"sup5: parsed {len(f)} SPH factors, expected {NM * 2}")
+    return f
+
+
+def torus(a, b):
+    """Distance on the periodic 5 x 5, in cell pitches."""
+    d = [min(abs(a[k] - b[k]), N - abs(a[k] - b[k])) for k in (0, 1)]
+    return math.hypot(*d)
+
+
+def analyse_sph():
+    f = sph_factors()
+    cnt = ring_counts()
+    print("SPH factor map, group 1   (R marks a CPS channel)\n")
+    for i in range(N):
+        print("   " + "".join(
+            (f" R{f[(i*N+j+1,1)]:5.2f}" if (i, j) in CPS_AT
+             else f"  {f[(i*N+j+1,1)]:5.2f}") for j in range(N)))
+
+    rows = []
+    for (i, j), rc in sorted(cnt.items()):
+        m = i * N + j + 1
+        ds = [torus((i, j), c) for c in CPS_AT]
+        rows.append(dict(cell=(i, j), m=m, ring=rc, dnear=min(ds),
+                         inv=sum(1.0 / d ** 2 for d in ds),
+                         g1=f[(m, 1)], g2=f[(m, 2)]))
+
+    print(f"\n{'cell':>7} {'mix':>4} {'ring(o,d)':>10} {'d_near':>7} "
+          f"{'sum 1/d^2':>10} {'SPH g1':>8} {'SPH g2':>8}")
+    for r in sorted(rows, key=lambda r: (r["dnear"], r["inv"])):
+        print(f"{str(r['cell']):>7} {r['m']:4d} {str(r['ring']):>10} "
+              f"{r['dnear']:7.3f} {r['inv']:10.4f} {r['g1']:8.5f} {r['g2']:8.5f}")
+
+    # Which environment descriptor actually determines the factor?  A good one
+    # puts cells with equal descriptor at equal SPH; the within-class spread is
+    # the whole test, and nothing in the calculation imposes it.
+    print(f"\n  {'descriptor':>14} {'classes':>8} {'worst within-class spread':>27}")
+    for name, key in (("eight-ring", lambda r: sum(r["ring"])),
+                      ("nearest d", lambda r: round(r["dnear"], 3)),
+                      ("sum 1/d^2", lambda r: round(r["inv"], 3))):
+        cls = {}
+        for r in rows:
+            cls.setdefault(key(r), []).append(r["g1"])
+        w = max(max(v) - min(v) for v in cls.values())
+        print(f"  {name:>14} {len(cls):8d} {w:27.4f}")
+    span = max(r["g1"] for r in rows) - min(r["g1"] for r in rows)
+    print(f"\n  total span of the fuel-cell factors, group 1: {span:.4f}")
+    print("  (the core discards all of these and uses 1.0 for every fuel cell)")
+
+
+if __name__ == "__main__":
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "write"
+    {"write": write, "analyse": analyse, "sph": analyse_sph}[cmd]()

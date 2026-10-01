@@ -1,0 +1,4 @@
+#!/bin/sh
+src="$1"/../Dragon/compo
+cp "$src"/_CCompoS5 . || exit 1
+cp "$src"/_ACompo . || exit 1

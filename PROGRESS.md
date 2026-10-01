@@ -207,6 +207,18 @@ Access via the per-deck `<name>.access` script, which symlinks `DLIB_99`.
 > infinite-lattice fuel by ±3 % at zero burnup**, because the rod perturbs the spectrum across
 > the whole 75 cm supercell. Fitting four factors to one worth would hit the gate and was not
 > done. Carried as a measured one-signed bias, mechanism named.
+>
+> **2026-10-01: the environment effect is the SPH factor, and the eight-ring is the wrong
+> handle on it.** A 5 x 5 supercell with two CPS channels, holding cells with 0, 1 and 2
+> neighbours in one calculation. Raw homogenisation barely moves (<0.3 %); the 3-5 % is the
+> **SPH factor**, which the core discards and which spans **1.00 to 1.56** across a realistic
+> environment — far wider than the 3 x 3 can show, since all eight of its fuel cells touch the
+> rod. The effect is **sub-additive** (increment ratios 0.64 / 0.55) and **not a function of the
+> eight-ring count** (within-class spread 0.2471 against a 0.5590 total span); a
+> distance-weighted scalar separates every class to 0.0003, so a continuous axis is viable but
+> needs a validated descriptor. Weeks, not days. Two bugs in the read-out path were caught by a
+> replicate check and corrected — `OUT: INTG` prints rates, not cross sections — which revises
+> the per-cell numbers of the 09-30 entry but none of its k-based conclusions.
 
 ## Validated results
 
@@ -2718,6 +2730,82 @@ using it in the core means rebuilding the fuel COMPO on the 3 × 3 supercell at 
 **expect a core-level k bias**: the same substitution moves the supercell k by 38–484 pcm
 depending on state, and it applies to 82 % of the core's fuel, so A7's eigenvalue carries it.
 
+### 5. Two corrections to item 3, found by the superposition test — 2026-10-01
+
+Item 3's per-cell numbers above are **wrong**, and the explanation attached to them was a
+rationalisation of a bug. Both were caught by a replicate consistency check in
+`openmc/sup5.py` — cells that are identical by construction disagreed, and nothing in the
+calculation forces them to agree, so the disagreement had to be mine. The k-based results
+(items 1, 2, 4, and the whole worth table) are **unaffected**: they never went through this path,
+and re-running `a64b.py worths` with the fixed parser reproduces ABS −3.24/+2.84, DSP
+−9.10/−6.72, VOID −10.56/−8.48 exactly.
+
+* **`OUT: INTG` prints reaction rates, not cross sections.** Column 3 is the zone's ∫Σφ and
+  column 2 its ∫φ; the cross section is the quotient. Comparing the raw column compares flux
+  shapes. Verified by reading one mixture through both pipelines: 6.018 against 2.016 before
+  the division, 0.3665 against 0.3664 after it.
+* **A stray-row match.** The row pattern also matched plain integer grids printed elsewhere in
+  the listing, silently overwriting real zones that shared an index. The pattern now requires
+  eight E-format fields.
+
+Redone properly, the neighbour cross sections differ by **+0.1 to +0.5 % at the corner and
+−2.9 to +5.2 % at the edge** — the cell *next to* the rod is the perturbed one, which is the
+sensible ordering and the opposite of what item 3 claims. `NTOT0` and `SIGW00` still shift
+together (+0.201 vs +0.207), and that now reads correctly as the signature of a **multiplicative
+SPH factor** rather than of reshaped cross sections.
+
+### 6. Where the environment effect actually lives, and whether it is additive
+
+A 5 × 5 supercell with CPS channels at (1,1) and (3,3) — one geometry holding cells with 0, 1
+and 2 CPS neighbours, so every comparison is internal. The CPS sit on the diagonal because
+{(1,1),(3,3)} is transpose-symmetric, which makes the classification immune to guessing
+`EDI: MERG CELL`'s raster order wrong. 1057 s, peak 5.0 GB. Two consistency checks passed
+before anything was read from it: the single cell gives k∞ = **1.313968**, the recorded A3
+production value exactly, and the fuel COMPO round-trips it to 0.4 pcm.
+
+**The raw homogenisation barely moves.** With no SPH anywhere, the fuel cells' two-group
+constants sit within **0.3 %** of infinite-lattice fuel regardless of environment. So the 3–5 %
+measured above is not homogenisation — it is the **SPH factor**, which is exactly what the core
+discards.
+
+Running `SPH:` on the saved edit object (seconds, because the deck persists its L_EDIT):
+
+```
+SPH factor map, group 1   (R marks a CPS channel)
+      1.53   1.56   1.31   1.09   1.00
+      1.56 R 1.75   1.45   1.16   1.09
+      1.31   1.45   1.46   1.45   1.31
+      1.09   1.16   1.45 R 1.75   1.56
+      1.00   1.09   1.31   1.56   1.53
+```
+
+**Three findings.**
+
+1. **Not additive.** The increment for two diagonal neighbours against twice the increment for
+   one gives ratios of **0.64 (group 1) and 0.55 (group 2)** — strongly sub-additive. A linear
+   environment axis would overcount.
+2. **The eight-ring count is the wrong descriptor**, which is the more important result.
+   Grouping the cells by it leaves a within-class spread of **0.2471** against a total span of
+   0.5590 — it explains under half the variation. Nearest-neighbour distance is no better
+   (0.2158). A distance-weighted scalar, Σ1/d² over the CPS channels, separates all eight
+   classes with a worst within-class spread of **0.0003**. So the factor *is* a smooth function
+   of a low-dimensional geometric descriptor — just not the one the plan assumed. Σ1/d² is not
+   yet shown to be the *physical* parameter: it is non-monotonic here, so it may be separating
+   the classes by arithmetic coincidence, and it needs a second rod arrangement to confirm.
+3. **The corrections are far larger than the 3 × 3 suggests.** Fuel-cell factors span **1.00 to
+   1.56** in a realistic environment, and the core sets every one of them to 1.0. The 3 × 3
+   supercell cannot show this, because every one of its eight fuel cells touches the rod; its
+   factors span only ~5 %. **This weakens item 4's estimate** that three of the nine points are
+   recoverable by using `_CCompoWAT`'s fuel: those cells are all rod-adjacent, whereas 17.7 % of
+   core channels have no CPS neighbour at all and many more sit further out than any cell the
+   3 × 3 contains.
+
+**What it means for the scope.** The continuous-environment axis is viable in principle — the
+factor is smooth and low-dimensional — but it is weeks, not days: the descriptor needs
+validating on at least two more rod arrangements, it is sub-additive so no simple scaling
+works, and the core-side plumbing follows. Against a 6–7 % residual that sits inside bands
+already being carried, that is not the next thing to build.
+
 ### Where this leaves A6.4
 
 Two sound ways out, and one that is not.
@@ -2779,7 +2867,7 @@ the honest default until A8 shows sensitivity is the second.
 
 ---
 
-*Last updated: 2026-09-30 (2) (A6.4b disproved: no rod-only SPH equivalence can close gate A6.4,
+*Last updated: 2026-10-01 (superposition test: the A6.4 environment effect is the SPH factor, spanning 1.00-1.56; sub-additive and not a function of the eight-ring count, so a continuous environment axis is viable but weeks of work; two read-out bugs corrected, k-based conclusions unaffected; radial reflector sourced at 3+1 rings from [BEH96]). Previously: 2026-09-30 (2) (A6.4b disproved: no rod-only SPH equivalence can close gate A6.4,
 shown by a ±20 % factor sweep that never reaches the gate; the cause is the rod perturbing its
 neighbours' spectrum by ±3 % at zero burnup, not the rod cell itself; carried as a measured
 one-signed bias). Previously: 2026-09-30 (Phase 0 of the transient: `KINSOL:` runs on the full core for the first time; a severe step costs 0.430 s against 0.090 s frozen, so A8 is hours not days and Tier B stays parallel; `OVERV` and `TRIVAA: UNIT` found to be undocumented prerequisites). Previously: 2026-09-29 (A6.3 table complete, gate missed at 5-12 %; MCFD 1 shown to lose 31-34 % of absorber worth and to be unable to carry an SPH equivalence at all, while DUAL 1 1 costs 8 %; the thermal-scattering interpolation hypothesis for the WAT residual eliminated by measurement; Unit 4 core geometry and 1661-channel fuel map generated from the sourced map and accepted by DONJON; recommendation recorded against porting out of Fortran). Previously: 2026-09-27 (A6: CPS cells built and verified in both codes; A6.3 gate missed, residual carried as the A′ correction; A6.4 homogenisation exact but neighbour data 7–10 % low, closing via a rod-cell equivalence; A6d Unit 4 channel map sourced by registering two digitisations, all counts closing; fuel COMPO rebuilt on the corrected depletion grid, bracket +1.94 / +2.41 / +2.72 $ at 10.9 MWd/kgU). Previously: 2026-09-26 (2) (project assessment; Tier A reordered: A6 → A6b Xe → A6c Smolensk-3 → A6d initial state → A7–A9). Previously: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the

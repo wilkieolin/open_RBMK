@@ -199,7 +199,13 @@ cp "$src"/_CCompoWAT . || exit 1
 MARK = re.compile(r">\|A64B (REF|TRI t\d+) +([\d.eE+-]+) +([\d.eE+-]+) +"
                   r"([\d.eE+-]+) +([\d.eE+-]+)")
 GRP = re.compile(r"^ G R O U P   :\s+(\d+)")
-ROW = re.compile(r"^\s+(\d+)\s+([\d.eE+-]+)\s+([\d.eE+-]+)")
+# A data row of an OUT: INTG table: an integer zone index followed by at least
+# eight E-format numbers (VOLUME FLUX-INTG NTOT0 SIGW00 NUSIGF NFTOT H-FACTOR
+# OVERV CHI).  The E-format requirement matters: without it this also matches
+# plain integer grids printed elsewhere in the listing, which silently
+# OVERWRITE real zones that happen to share an index.  That bug was found by
+# the replicate check in openmc/sup5.py on 2026-10-01.
+ROW = re.compile(r"^\s+(\d+)((?:\s+[-+]?\d*\.\d+[eE][-+]?\d+){8,})\s*$")
 
 
 def parse(path):

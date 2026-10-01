@@ -1,2 +1,4 @@
 #!/bin/sh
-cp _CCompoS5 "$1"/../Dragon/compo/ 2>/dev/null
+for f in _CCompoS5 _EdiS5; do
+  cp $f "$1"/../Dragon/compo/ 2>/dev/null
+done
