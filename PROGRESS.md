@@ -276,6 +276,16 @@ Access via the per-deck `<name>.access` script, which symlinks `DLIB_99`.
 > modelling error and neither has a deck-level workaround; both are one more value on
 > an existing axis, and both now belong to the A6b rebuild. See "A7b" below.
 
+> **2026-10-01 (9): A6b gets smaller, and the rebuild is running.** The xenon
+> *axis* is not needed: Xe135 and I135 are already in the stored `MICR` list, and
+> `NCRLIB.f:268` replaces a stored density with a user one before rebuilding the
+> embedded macrolib — so a xenon field costs a `MICRO` clause from the core side and no
+> rebuild, which is what the COMPO was deliberately built for. That leaves A6b's COMPO
+> work as just the two axis widenings A7b found, and the **1152-point rebuild carrying
+> them is running** (~10 h), with the working 840-point database preserved. Also
+> measured so nobody repeats it: DRAGON's `-p` buys nothing here — 118.15 s at one
+> thread against 118.18 s at eight, bit-identical. See "A6b scoped down" below.
+
 ## Validated results
 
 | Item | Result | Status |
@@ -3493,6 +3503,63 @@ question reopens when the `DCA` axis reaches the inlet.
 * Cost: 42.6 s for four coupled passes on 58×58×32, peak 829 MB. A full A7 convergence is
   therefore about a minute and a half, and A8's per-step cost measured in Phase 0 stands.
 
+## A6b scoped down, and the COMPO rebuild launched — 2026-10-01 (9)
+
+### The xenon axis is not needed, and the COMPO was built that way on purpose
+
+A6b has carried "add a Xe branch axis" since the roadmap was written, and gate A6.5 made it
+urgent by showing A8 needs a bottom-skewed axial flux. But `rbmk_a5b_compo.x2m`'s own header
+says xenon was deliberately left off the axes, and it is right: the `MICR 31` list stored in
+every COMPO node includes **Xe135 and I135**, so the densities can be set from the core side.
+
+Verified in source rather than assumed. `NCR:` with a *microlib* output takes
+`MICRO ONLY 'Xe135' <n>`, and `NCRLIB.f:268` does `IF(LUSER) DENS1(ISO,ICAL)=CONC(IBM,KSO1)` —
+the user concentration **replaces** the stored density — after which `NCRLIB.f:533-538` rebuilds
+the embedded macrolib from those densities through `SPHEMB`. So a xenon field costs a `MICRO`
+clause and `STEP UP "MACROLIB"`, interpolated at every other axis point, with **no rebuild**.
+
+The approximation it carries, stated: the stored *microscopic* cross sections were self-shielded
+at the stored xenon, so changing the density does not re-shield the other isotopes. Xenon is a
+strong thermal absorber with its resonance at 0.08 eV, so it does perturb the spectrum. That is
+precisely the check the original A6b plan already specified — "A6b checks that route against a
+DRAGON branch with the xenon removed" — so the verification exists and only the axis is dropped.
+
+**So A6b's COMPO work is now just the two axis widenings from A7b**, and the rebuild below is
+all of it.
+
+### The rebuild is running
+
+Launched 2026-10-01 15:37 local, `rdragon -c custom -p 1 rbmk_a5b_compo.x2m`, log in
+`decks/Donjon/data/../Dragon/data/a5b_rebuild.log`. **1152 branch points** (8 burnup nodes ×
+8 DCA × 6 TF × 3 TG) against the previous 840. The record for 630 points is 5 h 21 min
+CPU-contended, so expect **≈10 h**.
+
+The working 840-point database is preserved as `5.1/Dragon/compo/_ACompo_pre_axis_20261001`
+before the `.save` hook overwrites `_ACompo`, alongside the two earlier generations.
+
+**Gates to check when it lands**, all of which the deck already prints:
+* `A5BREF` k∞ at the nominal state unchanged against the current `_ACompo` — the reference
+  depletion is untouched by the axis change, so any movement is a regression.
+* `A5BTAB` rows at 0.80 g/cm³ and 530 K exist and are finite at every burnup node.
+* Round trip and off-grid interpolation back within A5b's gates (≤ 10 / ≤ 30 pcm) via
+  `rbmk_a5b_verify.don` and `rbmk_a5b_offgrid.x2m`.
+* Then `tools/a7b_check.sh` with `U4_VOIDFB=1` — the fully coupled loop, which is the whole
+  reason for the widening.
+
+### `-p` does nothing for this workload
+
+Worth recording before anyone spends a day on it: the smoke deck takes **118.15 s at `-p 1`
+and 118.18 s at `-p 8`**, with bit-identical `A5BTAB` rows. DRAGON's OpenMP regions are not
+where this deck spends its time — the tracking is done once up front and `USS:`/`ASM:`/`FLU:`
+per branch run serially. So a 10 h rebuild cannot be shortened by threads, and the honest way
+to parallelise it would be to split the burnup nodes across processes, which the deck's
+sequential depletion does not allow.
+
+The partner GB10 (`spark`) was considered and rejected for this one: it is reachable with
+DRAGON built, but its tree sits ten commits back at `a07157f` with the 630-point `_ACompo`, so
+using it means syncing the decks and the library and shipping a 152 MB artefact home — against
+a local run that occupies 1 of 20 cores and blocks nothing.
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to
@@ -3535,7 +3602,7 @@ question reopens when the `DCA` axis reaches the inlet.
 
 ---
 
-*Last updated: 2026-10-01 (8) (A7b: the coupled Picard loop runs and converges geometrically at r = 0.40, Doppler feedback worth -240 pcm, extrapolated k = 1.036471 -- and then stops because the A5b MULTICOMPO's branch axes are too narrow for a real core at BOTH ends: DCA tops out at 0.72 g/cm3 where the subcooled inlet is 0.778, and TF floors at 600 K where a low-power channel end sits at 586 K; both are one more value on an existing axis and both go into the A6b rebuild, with the DCA pin priced at 103 pcm upper bound). Previously: 2026-10-01 (7) (A7a: one fuel channel against [D] p.95, the project's first comparison against anything but another code -- outlet temperature 289.47 against 289.3, exit quality 16.50 % against a published 19.6 % that lies OUTSIDE the box [D]'s own power and flow ranges allow, so the model closes its own energy balance to 1.2 % and the residual is the source's internal inconsistency; two THM: default traps found (Bowring's XFL never reverts to the thermodynamic quality, SET-PARAM addresses by P-NAME and needs SAME for a LOCAL parameter); the equivalent CLUSTER pitch resolved by measurement, since the hydraulic diameter reaches nothing compared once the surface is boiling; the centreline gap inverted to a gap conductance of ~1700-2800 W/m2/K that the sourced 100 um gap independently supports). Previously: 2026-10-01 (6) (Phase 2b: THM: patched for per-channel inlet velocity -- SPEED CHAN <list> through the existing THMINP, with the scratch copy THMDRV's self-overwrite demands; proved invisible when unused (2 597 833 comparable lines of channel_mphy.x2m, 0 differences) and provably per-channel when used (fuel temperature falls monotonically with velocity across four channels); the patch lives in patches/ because 5.1/ is gitignored, applied idempotently by tools/apply_patches.sh from bootstrap). Previously: 2026-10-01 (5) (gate A6.5 measured: the graphite displacer is worth +2060 pcm against a water column, and the first 1.25 m of rod travel is -175 pcm with a centre-peaked flux but turns POSITIVE, up to +177 pcm, once the axial peak is driven below the mid-plane -- the sign tracks the peak in both directions, so the gate's mechanism is present and conditional exactly as the gate states it; that puts A6b (xenon) and A6d (burnup placement) on the critical path to A8 by measurement). Previously: 2026-10-01 (4) (A6.5: the Unit 4 core deck solves the whole chain for the first time -- NCR: x2 -> MACINI: -> DUAL 1 1 -> FLUD: -> FLPOW: on real cross sections in every mixture, k = 1.018278 reported not asserted, 8.1 s; the stack boundary closes a third sourced count exactly (156 cooled reflector channels); the radial reflector is worth 131 pcm and only 2.6 pcm leaks past it, which closes the Phase 1b question -- the 7152 pcm strip error does not propagate). Previously: 2026-10-01 (3) (Phase 1b: reflector geometry sourced and closed three ways; OpenMC shows DRAGON's OPEN-BOUNDARY solution is wrong by 2-5x here, which retracts the earlier 'diffusion cannot do reflectors' conclusion -- no published result is affected, all are reflected; closing the supercell avoids it and leaves 7152 pcm on a test that over-weights the reflector; SPH fails in seven variants). Previously: 2026-10-01 (superposition test: the A6.4 environment effect is the SPH factor, spanning 1.00-1.56; sub-additive and not a function of the eight-ring count, so a continuous environment axis is viable but weeks of work; two read-out bugs corrected, k-based conclusions unaffected; radial reflector sourced at 3+1 rings from [BEH96]). Previously: 2026-09-30 (2) (A6.4b disproved: no rod-only SPH equivalence can close gate A6.4,
+*Last updated: 2026-10-01 (9) (A6b scoped down and the COMPO rebuild launched: the xenon AXIS turns out not to be needed at all -- Xe135 and I135 are in the stored MICR list and NCRLIB.f:268 lets NCR: MICRO replace their densities before rebuilding the embedded macrolib, so a xenon field costs a clause and no rebuild -- which leaves A6b's COMPO work as just the two A7b axis widenings; 1152-point rebuild running, ~10 h, with the working 840-point database preserved; DRAGON's -p does nothing for this deck, 118.15 s at 1 thread against 118.18 s at 8). Previously: 2026-10-01 (8) (A7b: the coupled Picard loop runs and converges geometrically at r = 0.40, Doppler feedback worth -240 pcm, extrapolated k = 1.036471 -- and then stops because the A5b MULTICOMPO's branch axes are too narrow for a real core at BOTH ends: DCA tops out at 0.72 g/cm3 where the subcooled inlet is 0.778, and TF floors at 600 K where a low-power channel end sits at 586 K; both are one more value on an existing axis and both go into the A6b rebuild, with the DCA pin priced at 103 pcm upper bound). Previously: 2026-10-01 (7) (A7a: one fuel channel against [D] p.95, the project's first comparison against anything but another code -- outlet temperature 289.47 against 289.3, exit quality 16.50 % against a published 19.6 % that lies OUTSIDE the box [D]'s own power and flow ranges allow, so the model closes its own energy balance to 1.2 % and the residual is the source's internal inconsistency; two THM: default traps found (Bowring's XFL never reverts to the thermodynamic quality, SET-PARAM addresses by P-NAME and needs SAME for a LOCAL parameter); the equivalent CLUSTER pitch resolved by measurement, since the hydraulic diameter reaches nothing compared once the surface is boiling; the centreline gap inverted to a gap conductance of ~1700-2800 W/m2/K that the sourced 100 um gap independently supports). Previously: 2026-10-01 (6) (Phase 2b: THM: patched for per-channel inlet velocity -- SPEED CHAN <list> through the existing THMINP, with the scratch copy THMDRV's self-overwrite demands; proved invisible when unused (2 597 833 comparable lines of channel_mphy.x2m, 0 differences) and provably per-channel when used (fuel temperature falls monotonically with velocity across four channels); the patch lives in patches/ because 5.1/ is gitignored, applied idempotently by tools/apply_patches.sh from bootstrap). Previously: 2026-10-01 (5) (gate A6.5 measured: the graphite displacer is worth +2060 pcm against a water column, and the first 1.25 m of rod travel is -175 pcm with a centre-peaked flux but turns POSITIVE, up to +177 pcm, once the axial peak is driven below the mid-plane -- the sign tracks the peak in both directions, so the gate's mechanism is present and conditional exactly as the gate states it; that puts A6b (xenon) and A6d (burnup placement) on the critical path to A8 by measurement). Previously: 2026-10-01 (4) (A6.5: the Unit 4 core deck solves the whole chain for the first time -- NCR: x2 -> MACINI: -> DUAL 1 1 -> FLUD: -> FLPOW: on real cross sections in every mixture, k = 1.018278 reported not asserted, 8.1 s; the stack boundary closes a third sourced count exactly (156 cooled reflector channels); the radial reflector is worth 131 pcm and only 2.6 pcm leaks past it, which closes the Phase 1b question -- the 7152 pcm strip error does not propagate). Previously: 2026-10-01 (3) (Phase 1b: reflector geometry sourced and closed three ways; OpenMC shows DRAGON's OPEN-BOUNDARY solution is wrong by 2-5x here, which retracts the earlier 'diffusion cannot do reflectors' conclusion -- no published result is affected, all are reflected; closing the supercell avoids it and leaves 7152 pcm on a test that over-weights the reflector; SPH fails in seven variants). Previously: 2026-10-01 (superposition test: the A6.4 environment effect is the SPH factor, spanning 1.00-1.56; sub-additive and not a function of the eight-ring count, so a continuous environment axis is viable but weeks of work; two read-out bugs corrected, k-based conclusions unaffected; radial reflector sourced at 3+1 rings from [BEH96]). Previously: 2026-09-30 (2) (A6.4b disproved: no rod-only SPH equivalence can close gate A6.4,
 shown by a ±20 % factor sweep that never reaches the gate; the cause is the rod perturbing its
 neighbours' spectrum by ±3 % at zero burnup, not the rod cell itself; carried as a measured
 one-signed bias). Previously: 2026-09-30 (Phase 0 of the transient: `KINSOL:` runs on the full core for the first time; a severe step costs 0.430 s against 0.090 s frozen, so A8 is hours not days and Tier B stays parallel; `OVERV` and `TRIVAA: UNIT` found to be undocumented prerequisites). Previously: 2026-09-29 (A6.3 table complete, gate missed at 5-12 %; MCFD 1 shown to lose 31-34 % of absorber worth and to be unable to carry an SPH equivalence at all, while DUAL 1 1 costs 8 %; the thermal-scattering interpolation hypothesis for the WAT residual eliminated by measurement; Unit 4 core geometry and 1661-channel fuel map generated from the sourced map and accepted by DONJON; recommendation recorded against porting out of Fortran). Previously: 2026-09-27 (A6: CPS cells built and verified in both codes; A6.3 gate missed, residual carried as the A′ correction; A6.4 homogenisation exact but neighbour data 7–10 % low, closing via a rod-cell equivalence; A6d Unit 4 channel map sourced by registering two digitisations, all counts closing; fuel COMPO rebuilt on the corrected depletion grid, bracket +1.94 / +2.41 / +2.72 $ at 10.9 MWd/kgU). Previously: 2026-09-26 (2) (project assessment; Tier A reordered: A6 → A6b Xe → A6c Smolensk-3 → A6d initial state → A7–A9). Previously: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the

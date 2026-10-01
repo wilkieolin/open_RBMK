@@ -431,7 +431,15 @@ without checking in.** Report:
   no clamp, so there is no deck-level workaround. Add **~0.80 g/cm3** to `dcalist`
   (`rbmk_a5b_compo.x2m:99`, 7 values, so one more is 1/7 of the branch tensor) and **~530 K**
   below the `TF` floor. Pinning `DCA` instead costs 103 pcm core-wide, an upper bound.
-  Then: add a Xe branch axis (equilibrium Xe at the branch
+  **The Xe AXIS is superseded, 2026-10-01.** Xe135 and I135 are already in the COMPO's stored
+  `MICR 31` list, and `NCRLIB.f:268` replaces a stored isotope density with a user-supplied one
+  before `SPHEMB` rebuilds the embedded macrolib (`NCRLIB.f:533-538`). So a xenon field is a
+  `MICRO ONLY 'Xe135' <n>` clause on the core side plus `STEP UP "MACROLIB"`, interpolated at
+  every other axis point, with NO rebuild -- which is what `rbmk_a5b_compo.x2m`'s header said
+  the design intent was. It does not re-self-shield at the new xenon, which is exactly the
+  approximation A6b's own plan already says to check against a DRAGON branch with xenon
+  removed. So A6b's COMPO work is the two axis widenings above and nothing else.
+  *Superseded text follows.* Add a Xe branch axis (equilibrium Xe at the branch
   power, plus a zero-Xe and a peak-Xe point) and switch depletion to `EVO: EXTR 1` with
   ≤ 2.5 MWd/kg steps; test that combination against `rbmk_meth_dstep125` first. Gates as A5b
   (≤ 10 / ≤ 30 pcm), plus an OpenMC check of the Xe worth at 10.9 MWd/kgU.
