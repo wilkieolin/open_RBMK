@@ -1,0 +1,6 @@
+#!/bin/sh
+# Same inputs as upstream's FourChannels.access: this deck is derived from it.
+if [ $# = 0 ]; then echo "usage: rbmk_thm_chan.access directory" 1>&2; exit 1; fi
+ln -s "$1"/data/FourChannels_proc/macfme5 . || exit 1
+ln -s "$1"/data/FourChannels_proc/fnat . || exit 1
+ln -s "$1"/data/FourChannels_proc/rnat . || exit 1

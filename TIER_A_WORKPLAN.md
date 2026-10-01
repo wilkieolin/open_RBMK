@@ -443,6 +443,15 @@ without checking in.** Report:
   Record a range for every uncertain input; A8 runs its sensitivity over them.
 - **A7 Steady-state coupling.** `NCR:` + `THM:` Picard loop to a critical 3200 MWth core.
   Reference: `Donjon/data/channel_mphy.x2m` steady section.
+  *Prerequisite done 2026-10-01: `THM:` now takes per-channel inlet flow,
+  `SPEED CHAN <list>` (`patches/0001-THM-per-channel-inlet-velocity.patch`, verified by
+  `tools/thm_chan_check.sh` and `tools/thm_chan_regress.sh`).*
+  **A7 must converge under `DFM 0`:** `THMTRS.f:157` assigns `IDFM = 0` unconditionally, so a
+  core converged with drift flux changes void model at t = 0 — unacceptable for a reactor whose
+  whole accident is a void feedback. Drift flux is a steady-state sensitivity only.
+  Geometry is `CLUSTER <pitch> 18`, not `ASSMB` (`THM.f:460`). Graphite temperature has to be
+  supplied from outside: nothing in DONJON computes it, yet the fuel COMPO carries a `TG` axis
+  (`rbmk_a5b_compo.x2m:133`, pinned at 750 K today).
 - **A8 Reference AZ-5 transient.** Starts from the A6d state; runs under bracket variants A′
   and B (`openmc/void_bracket.corrections`); stops at a sourced fuel-failure criterion;
   compared, not tuned, with INSAG-7 Appendix II's three reconstructions. `INIKIN:` → time loop → `DSET:` → `MACINI:` → `NEWMAC:` →

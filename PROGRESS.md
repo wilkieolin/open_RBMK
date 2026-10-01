@@ -244,6 +244,16 @@ Access via the per-deck `<name>.access` script, which symlinks `DLIB_99`.
 > (burnup placement)** on the critical path to A8 by measurement rather than
 > preference: they are what supplies the tilt for real. See "Gate A6.5" below.
 
+> **2026-10-01 (6): `THM:` takes per-channel flow.** `SPEED CHAN <one value per
+> channel>` now works, routed through the `THMINP` reader that has handled that form
+> for `NB-FUEL` since 2018. The drivers were already per-channel, so the patch is the
+> parser, a stored vector, and the one scratch copy `THMDRV`'s self-overwrite demands.
+> Proved **invisible when unused** — 2 597 833 comparable lines of upstream's
+> `channel_mphy.x2m`, zero differences — and **provably per-channel when used**: fuel
+> temperature falls monotonically from 933.8 K at 4 m/s to 908.9 K at 12 m/s across
+> four channels. The patch lives in `patches/` because `5.1/` is gitignored, and
+> `tools/apply_patches.sh` reapplies it from `bootstrap.sh`. See "Phase 2b" below.
+
 ## Validated results
 
 | Item | Result | Status |
@@ -3165,6 +3175,93 @@ pcm and the sweep are not biased by it.
   the obstacle to work out.
 * The 01:23 rod pattern itself, which is A8's initial state, not A6's.
 
+## Phase 2b: `THM:` patched for per-channel inlet flow — 2026-10-01 (6)
+
+An RBMK has 1661 independently-valved fuel channels and the 01:23 state is defined partly by
+their flow distribution, but `THM:` accepted only one inlet velocity for the whole core.
+It now accepts `SPEED CHAN <one value per channel>`.
+
+**The patch is small because the source survey was right.** `THMDRV` and `THMTRS` are both
+already called inside `DO 175 ICH` (`THM.f:995`, `THM.f:1102`) with the velocity as a scalar
+argument *for that channel*; the single-velocity limitation lived entirely in the parser.
+So the change is: a `VSPEED(NCH)` array beside `FNFUCST`, the `SPEED` keyword routed through
+the existing `THMINP` (which has handled both the scalar and the `CHAN` list form since
+2018 — `THMINP.f:43`), a `SPEED-CH` record on the THM object, and one scratch copy.
+
+**The scratch copy was the whole risk, and the survey called it.** `THMDRV` *overwrites* its
+`SPEED` argument — `THMDRV.f:266,286` assign it from `MFLOW/DCOOL(1)`, i.e. the outlet
+velocity. Passing `VSPEED(ICH)` straight in would leave Picard iteration 2 running on
+iteration 1's outlet velocity, silently and with no error message. `THMTRS` takes the value
+as `SPDIN` and never writes it, so there the stored element goes in directly.
+
+Two smaller decisions, both recorded in the patch:
+
+* A THM object written before the patch has no `SPEED-CH` record, so a restore falls back to
+  the scalar `STATE(4)` — which is exactly what `SPEED-CH` holds for a scalar input anyway.
+* `STATE(4)` is now the channel mean, so the printed "COOLANT VELOCITY IN M/S" is unchanged
+  for any scalar input. The zero-velocity check gained a per-channel form: a channel with no
+  fuel is skipped by the drivers and is allowed to be zero, any other is an abort naming it.
+
+### Where the patch lives, because `5.1/` is gitignored
+
+A source edit made directly in the submodule is invisible to this repo and is destroyed by a
+fresh clone or a `git submodule update --force`. So the canonical copy is
+`patches/0001-THM-per-channel-inlet-velocity.patch`, applied by `tools/apply_patches.sh`
+(idempotent — it detects an already-applied patch by a reverse dry-run and skips it, and
+refuses rather than guessing if the upstream file has moved under it).
+`tools/bootstrap.sh` now runs it as step 3a. Verified by round trip: reverted `THM.f` to
+upstream, reapplied from the patch, rebuilt, re-ran both checks.
+
+### Verification: invisible when unused, and provably per-channel when used
+
+**The regression.** `tools/thm_chan_regress.sh` runs upstream's `channel_mphy.x2m` — the only
+bundled deck that couples `THM:` to `KINSOL:` — and compares the *whole listing*, not just the
+reported numbers, against a stored digest. Excluding timing and memory-usage lines, which are
+not reproducible: **2 597 833 comparable lines, 0 differences**, and the pre- and post-patch
+digests are the same string, `f9f3849d…`.
+
+(The reference digest had to be computed twice. The first one was taken with a narrower noise
+filter than the script's own, so the script reported a failure over nothing but which timing
+lines were excluded. The digest and the filter have to travel together: the stored file now
+carries its provenance, and `--save <listing>` digests the archived pre-patch run with the
+same code the check uses. The 0-difference line-by-line comparison was unaffected and is what
+established the result independently.) All 65 355 of the deck's own
+echo lines are identical too, and its own non-regression assert still passes. The one thing
+that did move was `EQU:`'s reported memory usage, 5120 → 5280 words, which is `VSPEED` and
+`SPEED-CH` being there.
+
+**The proof.** `decks/Donjon/data/rbmk_thm_chan.x2m` (ours, derived from upstream's
+`FourChannels.x2m`, the smallest bundled deck that drives `THM:` with a `CLUSTER` geometry)
+runs three `THM:` initialisations on one converged power distribution, differing only in how
+the inlet velocity is given. `tools/thm_chan_check.sh` drives it and asserts the result.
+
+| case | max fuel T | per-channel mean fuel T |
+|---|---|---|
+| scalar `SPEED 8.0436` | 1143.501 | 921.438 921.427 921.427 921.436 |
+| `SPEED CHAN` ×4 at 8.0436 | 1143.501 | — |
+| `SPEED CHAN 4 6 10 12` | 1172.245 | 933.767 927.298 915.276 908.948 |
+
+Scalar and uniform-`CHAN` agree with **delta = 0.000000e+00**. The graded case moves the
+answer by 28.7 K. And the per-channel temperatures fall **monotonically** with velocity —
+933.8 K at 4 m/s down to 908.9 K at 12 m/s, a 24.8 K spread — which is what separates "the
+vector reached the per-channel driver, element by element, in the right order" from "the
+vector was averaged somewhere and the mean happened to move". The scalar case is uniform
+across channels to 0.011 K, as a symmetric four-channel core should be.
+
+Upstream's own reference for that deck, 1143.495, is reproduced at 1143.501.
+
+### Still open for A7
+
+* **Transient `THM:` is HEM-only** regardless of the per-channel flow: `THMTRS.f:157` assigns
+  `IDFM = 0` unconditionally, after `DFM` has been read. A core converged with `DFM 1` and
+  then stepped changes void model at t = 0, which is unacceptable for a reactor whose whole
+  accident is a void feedback — so **A7 must converge under `DFM 0`**, with drift flux carried
+  as a steady-state sensitivity. Unchanged by this patch; recorded again because it now
+  governs A7's setup.
+* The channel flows themselves, from the A6d state.
+* `CWSECT`'s flow area stays scalar, which is correct here: RBMK channels are identical, so
+  only the velocity needed a vector.
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to
@@ -3207,7 +3304,7 @@ pcm and the sweep are not biased by it.
 
 ---
 
-*Last updated: 2026-10-01 (5) (gate A6.5 measured: the graphite displacer is worth +2060 pcm against a water column, and the first 1.25 m of rod travel is -175 pcm with a centre-peaked flux but turns POSITIVE, up to +177 pcm, once the axial peak is driven below the mid-plane -- the sign tracks the peak in both directions, so the gate's mechanism is present and conditional exactly as the gate states it; that puts A6b (xenon) and A6d (burnup placement) on the critical path to A8 by measurement). Previously: 2026-10-01 (4) (A6.5: the Unit 4 core deck solves the whole chain for the first time -- NCR: x2 -> MACINI: -> DUAL 1 1 -> FLUD: -> FLPOW: on real cross sections in every mixture, k = 1.018278 reported not asserted, 8.1 s; the stack boundary closes a third sourced count exactly (156 cooled reflector channels); the radial reflector is worth 131 pcm and only 2.6 pcm leaks past it, which closes the Phase 1b question -- the 7152 pcm strip error does not propagate). Previously: 2026-10-01 (3) (Phase 1b: reflector geometry sourced and closed three ways; OpenMC shows DRAGON's OPEN-BOUNDARY solution is wrong by 2-5x here, which retracts the earlier 'diffusion cannot do reflectors' conclusion -- no published result is affected, all are reflected; closing the supercell avoids it and leaves 7152 pcm on a test that over-weights the reflector; SPH fails in seven variants). Previously: 2026-10-01 (superposition test: the A6.4 environment effect is the SPH factor, spanning 1.00-1.56; sub-additive and not a function of the eight-ring count, so a continuous environment axis is viable but weeks of work; two read-out bugs corrected, k-based conclusions unaffected; radial reflector sourced at 3+1 rings from [BEH96]). Previously: 2026-09-30 (2) (A6.4b disproved: no rod-only SPH equivalence can close gate A6.4,
+*Last updated: 2026-10-01 (6) (Phase 2b: THM: patched for per-channel inlet velocity -- SPEED CHAN <list> through the existing THMINP, with the scratch copy THMDRV's self-overwrite demands; proved invisible when unused (2 597 833 comparable lines of channel_mphy.x2m, 0 differences) and provably per-channel when used (fuel temperature falls monotonically with velocity across four channels); the patch lives in patches/ because 5.1/ is gitignored, applied idempotently by tools/apply_patches.sh from bootstrap). Previously: 2026-10-01 (5) (gate A6.5 measured: the graphite displacer is worth +2060 pcm against a water column, and the first 1.25 m of rod travel is -175 pcm with a centre-peaked flux but turns POSITIVE, up to +177 pcm, once the axial peak is driven below the mid-plane -- the sign tracks the peak in both directions, so the gate's mechanism is present and conditional exactly as the gate states it; that puts A6b (xenon) and A6d (burnup placement) on the critical path to A8 by measurement). Previously: 2026-10-01 (4) (A6.5: the Unit 4 core deck solves the whole chain for the first time -- NCR: x2 -> MACINI: -> DUAL 1 1 -> FLUD: -> FLPOW: on real cross sections in every mixture, k = 1.018278 reported not asserted, 8.1 s; the stack boundary closes a third sourced count exactly (156 cooled reflector channels); the radial reflector is worth 131 pcm and only 2.6 pcm leaks past it, which closes the Phase 1b question -- the 7152 pcm strip error does not propagate). Previously: 2026-10-01 (3) (Phase 1b: reflector geometry sourced and closed three ways; OpenMC shows DRAGON's OPEN-BOUNDARY solution is wrong by 2-5x here, which retracts the earlier 'diffusion cannot do reflectors' conclusion -- no published result is affected, all are reflected; closing the supercell avoids it and leaves 7152 pcm on a test that over-weights the reflector; SPH fails in seven variants). Previously: 2026-10-01 (superposition test: the A6.4 environment effect is the SPH factor, spanning 1.00-1.56; sub-additive and not a function of the eight-ring count, so a continuous environment axis is viable but weeks of work; two read-out bugs corrected, k-based conclusions unaffected; radial reflector sourced at 3+1 rings from [BEH96]). Previously: 2026-09-30 (2) (A6.4b disproved: no rod-only SPH equivalence can close gate A6.4,
 shown by a ±20 % factor sweep that never reaches the gate; the cause is the rod perturbing its
 neighbours' spectrum by ±3 % at zero burnup, not the rod cell itself; carried as a measured
 one-signed bias). Previously: 2026-09-30 (Phase 0 of the transient: `KINSOL:` runs on the full core for the first time; a severe step costs 0.430 s against 0.090 s frozen, so A8 is hours not days and Tier B stays parallel; `OVERV` and `TRIVAA: UNIT` found to be undocumented prerequisites). Previously: 2026-09-29 (A6.3 table complete, gate missed at 5-12 %; MCFD 1 shown to lose 31-34 % of absorber worth and to be unable to carry an SPH equivalence at all, while DUAL 1 1 costs 8 %; the thermal-scattering interpolation hypothesis for the WAT residual eliminated by measurement; Unit 4 core geometry and 1661-channel fuel map generated from the sourced map and accepted by DONJON; recommendation recorded against porting out of Fortran). Previously: 2026-09-27 (A6: CPS cells built and verified in both codes; A6.3 gate missed, residual carried as the A′ correction; A6.4 homogenisation exact but neighbour data 7–10 % low, closing via a rod-cell equivalence; A6d Unit 4 channel map sourced by registering two digitisations, all counts closing; fuel COMPO rebuilt on the corrected depletion grid, bracket +1.94 / +2.41 / +2.72 $ at 10.9 MWd/kgU). Previously: 2026-09-26 (2) (project assessment; Tier A reordered: A6 → A6b Xe → A6c Smolensk-3 → A6d initial state → A7–A9). Previously: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the

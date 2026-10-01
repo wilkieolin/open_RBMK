@@ -24,7 +24,7 @@ done
 
 step() { echo; echo "=== $* ==="; }
 
-step "1/5  submodules"
+step "1/6  submodules"
 # 5.1 is the DRAGON5/DONJON5 monorepo and `libraries` is ~6 GB of draglibs.
 # Both are public on git.oecd-nea.org over HTTPS -- no account or key.  Prompts
 # are disabled so a wrong (SSH or nonexistent) URL fails here instead of
@@ -36,13 +36,18 @@ if ! GIT_TERMINAL_PROMPT=0 git submodule update --init --recursive; then
     exit 1
 fi
 
-step "2/5  decks -> submodule"
+step "2/6  decks -> submodule"
 ./tools/link_decks.sh
 
-step "3/5  libraries hygiene"
+step "3a/6 local patches to the vendored 5.1 tree"
+# 5.1 is gitignored and pinned upstream, so our source changes live in
+# patches/ and have to be reapplied after any submodule update.
+./tools/apply_patches.sh
+
+step "3b/6 libraries hygiene"
 ./tools/tidy_libraries.sh
 
-step "4/5  build DRAGON5/DONJON5"
+step "4/6  build DRAGON5/DONJON5"
 if [ -x "5.1/Dragon/bin/${DRAGON_ARCH}/Dragon" ]; then
     echo "already built for ${DRAGON_ARCH}"
 else
@@ -50,7 +55,7 @@ else
 fi
 
 if [ "$WANT_OPENMC" = 1 ]; then
-    step "5/5  OpenMC"
+    step "5/6  OpenMC"
     ./tools/fetch_openmc_data.sh viii.1
     if [ -x .venv-openmc/bin/python ]; then
         echo "venv already present"
@@ -61,7 +66,7 @@ if [ "$WANT_OPENMC" = 1 ]; then
     fi
     .venv-openmc/bin/python -c "import openmc; print('openmc', openmc.__version__)"
 else
-    step "5/5  OpenMC -- skipped (--no-openmc)"
+    step "5/6  OpenMC -- skipped (--no-openmc)"
 fi
 
 cat <<'DONE'

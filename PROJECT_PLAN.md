@@ -146,6 +146,9 @@ Driven entirely by Tier B.
 | `MACINI:` indexes the non-fuel macrolib by **material number**, and demands an `H-FACTOR` block in the combined macrolib | `MACINI.f:274`; so `MACREF`'s `NMIX` is `max(RMIX)` and every index below it must be defined |
 | `NCR:` with a fuel map on the RHS takes `NMIX` from the map (`NCH × NB`), and rejects a smaller explicit one | `NCR.f:127` then `NCR.f:157`; omit `NMIX` on the `TABLE` call |
 | `NCR: … TABLE` can `SET` burnup instead of reading it from the map, with no `INST-BURN` | `NCRRGR.f:717` prints "L_MAP values overwritten by the SET option"; `NCRMAP.f` then reads nothing |
+| `THMDRV` **overwrites its own `SPEED` argument** (sets it from `MFLOW/DCOOL(1)`, the outlet velocity) | `THMDRV.f:266,286`; hand it a scratch copy or Picard iteration 2 silently runs on iteration 1's outlet velocity. `THMTRS` takes `SPDIN` and is safe |
+| `THMINP` has handled the `CHAN <one value per channel>` form since 2018 — only `THM:`'s own parser did not | `THMINP.f:43`; that is why `patches/0001-THM-per-channel-inlet-velocity.patch` is 139 lines and not a rewrite |
+| A source change inside `5.1/` is **invisible to this repo and lost by a submodule update** | `5.1/` is pinned upstream and gitignored; patches live in `patches/` and `tools/apply_patches.sh` reapplies them from `bootstrap.sh` |
 
 ---
 

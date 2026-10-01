@@ -652,15 +652,21 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
 
   <ol class="steps">
     <li>
-      <span class="sid">A6</span><span class="sh">Finish the control rods</span>
-      <span class="sb">The channel physics is built and checked against Monte Carlo, and the core
-        now has all 227 rod and detector positions at their real coordinates. Two things stand
-        between that and a rod that can move: the neighbour-data error above, which costs
-        7&ndash;10&nbsp;% of exactly the positive worth this gate is about, and a graphite
-        reflector dataset, which the core currently fakes.</span>
-      <span class="sg"><b>Gate:</b> inserting the displacer alone from below gives <em>positive</em>
-        reactivity, with a bottom-skewed axial flux. Stronger than the void coefficient, because it
-        does not depend on the width of the bracket.</span>
+      <span class="sid">A6</span><span class="sh">Control rods &mdash; gate measured</span>
+      <span class="sb">The core now solves end to end on real cross sections in every material:
+        1661 fuel channels, 227 rod and detector positions, and a sourced one-metre graphite
+        reflector. The rods are modelled as they are built &mdash; five metres of boron carbide,
+        a 1.25&nbsp;m water gap, and a 4.5&nbsp;m graphite displacer below it &mdash; and that
+        geometry checks itself: with the rod fully withdrawn the displacer and its two water gaps
+        fill the seven-metre core exactly, to the centimetre, from three lengths quoted
+        separately.</span>
+      <span class="sg"><b>Gate result:</b> the displacer is worth <b>+2060&nbsp;pcm</b> against a
+        water column. The first 1.25&nbsp;m of rod travel &mdash; the displacer alone &mdash; is
+        <b>&minus;175&nbsp;pcm</b> in a core with a centre-peaked axial flux, and turns
+        <b>positive, to +177&nbsp;pcm</b>, once the flux is skewed toward the bottom; tilt it back
+        up and it goes negative again. So the mechanism is in the model and conditional exactly as
+        the gate words it, and the condition is now a measured criterion rather than a
+        caveat.</span>
     </li>
     <li>
       <span class="sid">A7</span><span class="sh">Steady coupled core at 3200 MW</span>
@@ -725,8 +731,23 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
       <li><b>Homogenised rod data is 7&ndash;10&nbsp;% short</b> on the displacer and
         drained-channel worths once the surrounding fuel carries ordinary infinite-lattice data.
         The cause is identified and the fix designed; it is the current blocker.</li>
-      <li><b>The graphite reflector is a placeholder.</b> The core deck runs, but its
-        eigenvalue is not a physics result until a reflector dataset exists.</li>
+      <li><b>The graphite reflector is built, and turns out barely to matter.</b> It was a
+        placeholder; it is now four rings of transport-homogenised graphite out to a stack
+        boundary set from the published column count &mdash; whose outer layer independently
+        reproduces the published count of 156 water-cooled reflector channels, exactly. Measured
+        in the core, the whole radial reflector is worth 131&nbsp;pcm and only 2.6&nbsp;pcm leaks
+        past it, so the large homogenisation error measured on a small test strip cannot
+        propagate: the entire band the dataset can move core k in is about 130&nbsp;pcm wide.</li>
+      <li><b>Burnup is uniform across the core.</b> Every channel sits at the core-average
+        10.9&nbsp;MWd/kgU, because no source gives where the fresh and spent fuel actually was.
+        Channel power peaking comes out at 1.90 against a design figure near 1.4, and that gap is
+        the missing burnup flattening. It also matters more than it looks: the positive-displacer
+        result above needs a bottom-skewed axial flux, and burnup placement is one of the two
+        things that produce one.</li>
+      <li><b>The control-rod stroke is unsourced.</b> A five-metre absorber cannot cover a
+        seven-metre core, so <i>which</i> five metres it covers when fully inserted changes the
+        all-rods-in worth. The displacer results do not depend on it; the full-insertion figure
+        does.</li>
       <li><b>Xenon is not yet a database axis.</b> The operating-margin story before the accident
         is a transient-xenon story, and Unit&nbsp;4 was heavily poisoned at 01:23.</li>
       <li><b>The deterministic method is 5&ndash;12&nbsp;% low</b> on the control-rod section
@@ -736,9 +757,15 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
         it cancels in the comparison and is wrong in both.</li>
       <li><b>Transient thermal-hydraulics is homogeneous-flow only.</b> The drift-flux model is
         available at steady state but hardcoded off in the transient path. For a positive-void
-        reactor that is a real caveat, and the error needs bounding.</li>
+        reactor that is a real caveat, and the error needs bounding. The consequence has been
+        taken: the steady coupled core will be converged with drift flux <i>off</i>, so that the
+        void model does not change discontinuously the moment the transient starts.</li>
       <li><b>Rod types for 32 of the 211 positions are assumed</b>, by elimination from published
         second-stage counts. Recorded per position so the transient can vary them.</li>
+      <li><b>Nothing computes the graphite temperature.</b> The cross-section database has an axis
+        for it &mdash; it is a large effect in a graphite-moderated reactor &mdash; but the value
+        is pinned at a constant 750&nbsp;K everywhere, because the solver has no conduction model
+        for the moderator. It has to be supplied from outside.</li>
     </ul>
   </div>
 </section>
@@ -769,7 +796,7 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
 </section>
 
 <footer>
-  <div>Generated 2026-09-24 from the project record. Full working notes, including every failed
+  <div>Generated 2026-10-01 from the project record. Full working notes, including every failed
     attempt and the source-code line references behind each finding, are in <code>PROGRESS.md</code>;
     the roadmap is in <code>PROJECT_PLAN.md</code> and <code>TIER_A_WORKPLAN.md</code>.</div>
   <div>Codes: DRAGON5 / DONJON5 v5.1.0 (&Eacute;cole Polytechnique de Montr&eacute;al) and OpenMC 0.16.1,

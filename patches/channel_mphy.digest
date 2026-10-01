@@ -1,0 +1,8 @@
+# sha256 and line count of channel_mphy.x2m's listing, excluding the
+# timing and memory-usage lines this script's filter drops.  Produced from
+# the PRE-PATCH run on 2026-10-01, before
+# patches/0001-THM-per-channel-inlet-velocity.patch was applied, so a match
+# means the patch changed nothing.  Independently corroborated the same day
+# by a line-by-line comparison of the two listings: 2597833 comparable
+# lines, 0 differences.
+f9f3849ddc2c7724bfbecab8dbba93551e26f3b1af9cda54c65f032523f09ed6 2597833
