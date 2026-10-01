@@ -257,6 +257,29 @@ parked displacer must be a base-map mixture (TIER_A_WORKPLAN "Known traps").
   flux;
 - all-rods-in gives the expected large negative worth, reported and not tuned.
 
+> **Measured 2026-10-01. The mechanism is there, and the clause after the comma decides it.**
+> `tools/u4_rods.sh` regenerates the table in `decks/Donjon/data/u4_rods.txt`.
+>
+> The 4.5 m graphite displacer is worth **+2060 pcm** against a full-height water column
+> (142 RR/AZ channels). The first 1.25 m of travel — the displacer alone, absorber
+> suppressed, which is the gate's own isolation — is **−175 pcm** with this core's
+> centre-peaked axial flux. Decomposed: the displacer's lower end advancing into the bottom
+> 1.25 m is **+103 pcm**, its upper end retreating is **−329 pcm**. The sweep is negative for
+> *any* centre-peaked flux, because the graphite gained sits in the core's lowest-flux band
+> while the graphite lost sits well inside the high-flux region; the bottom needs about
+> **3.2×** the flux-squared weighting to turn it.
+>
+> Imposing that tilt with the AZOC bank, the sweep **crosses zero at an axial peak of
+> K = 14 and reaches +177 pcm at K = 13**, then reverses to −321 pcm when a deeply-inserted
+> bank pushes the peak back up to K = 18. The sign tracks the peak in both directions, with
+> nothing tuned.
+>
+> **Gate status: the mechanism is confirmed; the positive sign is confirmed conditionally.**
+> This core cannot supply its own bottom-skew (flat burnup, no xenon), so **A6b and A6d are
+> on the critical path to A8** — measured, not assumed. The all-rods-in worth is −5095 pcm
+> and the curve reverses past three-quarters insertion, which is the 5 m absorber in a 7 m
+> core; that row depends on an unsourced 700 cm stroke and the displacer rows do not.
+
 ## After A6
 A6b (Xe axis + fuel COMPO rebuild), A6c (Smolensk-3 start-up benchmark: the first use of these
 rods in a measured core), A6d (Unit 4 initial state at 01:22:30, including the full digitisation

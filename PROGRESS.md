@@ -232,6 +232,18 @@ Access via the per-deck `<name>.access` script, which symlinks `DLIB_99`.
 > 4-fuel/4-reflector strip does not propagate, because the whole band the dataset
 > can move core k in is ~130 pcm wide. See "A6.5" below.
 
+> **2026-10-01 (5): the positive displacer, and the condition it needs.**
+> Gate A6.5 has a measured answer. The 4.5 m graphite displacer is worth
+> **+2060 pcm** against a water column, and the first 1.25 m of rod travel — the
+> displacer alone, absorber suppressed — is **−175 pcm** with a centre-peaked axial
+> flux, because the graphite it gains at the core bottom sits in lower flux than the
+> graphite it loses near the displacer's top. Tilt the flux down and it turns
+> **positive, to +177 pcm**; tilt it back up and it goes negative again. The sign
+> tracks the axial peak in both directions, so the gate's mechanism is in the model
+> and conditional exactly as the gate words it. That also puts **A6b (xenon) and A6d
+> (burnup placement)** on the critical path to A8 by measurement rather than
+> preference: they are what supplies the tilt for real. See "Gate A6.5" below.
+
 ## Validated results
 
 | Item | Result | Status |
@@ -3039,6 +3051,120 @@ like.
   rather than a result. 0.2 % of the power lands outside the 1661 channels, because the
   reflector mixtures carry a non-zero `H-FACTOR` from their COMPOs.
 
+## Gate A6.5: the positive displacer, and the condition it needs — 2026-10-01 (5)
+
+The A6 gate asks whether **inserting only the graphite displacer from below gives positive
+reactivity, with a bottom-skewed axial flux**. It now has a measured answer, and the clause
+after the comma turns out to decide it. `tools/u4_rods.sh` regenerates everything below;
+`decks/Donjon/data/u4_rods.txt` is its output.
+
+### The rod model, and why it checks itself
+
+`gen_rbmk_unit4.py` grew a `stack(n)` function: the rod as A6_CPS_PLAN gives it — 5 m
+absorber, 1.25 m water gap, 4.5 m graphite displacer, 43 planes of 25 cm — placed at an
+insertion depth of `n` planes, with coolant wherever the rod is not. Three mixtures now
+come from the three CPS COMPOs (`_CCompoWAT`, `_CCompoABS`, `_CCompoDSP`, zone 5 of each),
+so `NMIX` is 8: water 1, absorber 2, displacer 3, four reflector rings 4–7, fuel 8.
+
+**The withdrawn geometry is self-checking, and it closes.** With the rod fully up the
+absorber sits above the core, leaving 1.25 m water / 4.5 m displacer / 1.25 m water — and
+1.25 + 4.50 + 1.25 is exactly the 7.00 m core height. Three independently-quoted lengths
+filling the core to the centimetre is a check on all three, and it is also precisely the
+configuration the positive-scram mechanism needs: a water column at the **bottom** for the
+displacer to sweep out. The generator asserts that `stack()` reproduces each hand-derived
+configuration rather than carrying both.
+
+### What the displacer is worth, and what the first 1.25 m does
+
+142 RR/AZ channels carry the swept rod; 36 AZOC are a separately-driven bank; the 12 AR,
+21 USP and 16 detector tubes are water in every row.
+
+| configuration | k | pcm |
+|---|---|---|
+| water column full height (reference) | 1.018278 | — |
+| rods withdrawn: 4.5 m displacer in core | 1.038874 | **+2060** |
+| lower end advances into water (`botD`) | 1.039903 | +103 |
+| upper end retreats into water (`topW`) | 1.035589 | −329 |
+| both at once — displacer only (`dsp`) | 1.037128 | **−175** |
+| … plus the absorber entering (`scram1`) | 1.036682 | −219 |
+
+The displacer is worth **+2060 pcm** against a water column: water is a net absorber in this
+lattice, and that is the reservoir the scram's first motion draws on.
+
+**But the sweep itself came out negative, and the reason is geometric rather than a
+cancellation.** The displacer is centred in the core when withdrawn. Moving it down 1.25 m
+*gains* graphite in the bottom 1.25 m — the lowest-flux band in the core — and *loses* it
+five planes below the displacer's top, which is still well inside the high-flux region. So
+the sweep is negative for **any** centre-peaked axial flux, and turns positive only once the
+bottom is weighted about **3.2×** more heavily than that interior band. I had expected the
+two halves to nearly cancel and they do not; the halves are what made the asymmetry legible.
+
+### The sign tracks the axial peak, both ways
+
+The core here cannot supply its own tilt — flat burnup, no xenon — so one was imposed by
+inserting the AZOC bank from the top. The bank depth was stepped and the axial peak, as
+`FLPOW:` reports it, was read off; nothing was tuned.
+
+| AZOC bank | axial peak K | k(withdrawn) | k(displacer swept) | sweep |
+|---|---|---|---|---|
+| 0 | 17 | 1.038874 | 1.037128 | −175 |
+| 4 planes | 16 | 1.044627 | 1.043651 | −98 |
+| 8 planes | **14** | 1.042054 | 1.042194 | **+14** |
+| 12 planes | 14 | 1.037646 | 1.038895 | **+125** |
+| 16 planes | **13** | 1.031538 | 1.033312 | **+177** |
+| 20 planes | 15 | 1.026018 | 1.026624 | +61 |
+| 28 planes | 18 | 1.025884 | 1.022675 | −321 |
+
+Planes 3–30 are active, so K = 16/17 is the mid-plane. The sweep is negative while the peak
+sits at or above it, crosses zero as the bank drives the peak to K = 14, and is largest where
+the flux is most bottom-skewed (K = 13). Then it **reverses**: a deeply-inserted bank puts
+its own absorber in the *bottom* of the core, pushes the peak back up past the mid-plane
+(K = 18), and the sweep goes negative again. The sign follows the tilt in both directions,
+which is the internal consistency check — a one-sided result could have been an artefact.
+
+**So gate A6.5's mechanism is present in the model, and conditional exactly as the gate
+says.** Positive reactivity from the displacer alone requires a bottom-skewed flux. That
+also settles a scheduling question with a measurement rather than a preference: **A6b
+(xenon) and A6d (burnup placement and the 01:23 rod pattern) are on the critical path to
+A8**, because they are what supplies the tilt for real. Until they exist, A8 would be run on
+a core whose axial shape has the wrong sign for the effect under study.
+
+### The insertion curve, and a reversal worth keeping
+
+| depth | k | pcm vs withdrawn |
+|---|---|---|
+| 0 | 1.038874 | 0 |
+| 2 planes | 1.038486 | −39 |
+| 4 | 1.037457 | −142 |
+| 6 | 1.035724 | −315 |
+| 9 | 1.031987 | −689 |
+| 12 | 1.026358 | −1252 |
+| 16 | 1.013636 | −2524 |
+| 20 | 0.991208 | −4767 |
+| 24 | 0.968386 | **−7049** |
+| 28 (full) | 0.987927 | **−5095** |
+
+The curve **reverses past 24 planes**, and that is the 5 m absorber in a 7 m core rather than
+an error: at full insertion the absorber's top has dropped below the flux peak and the planes
+above it revert to water, so the bank is worth less fully in than three-quarters in. It is
+the same geometry that makes the displacer sweep positive — a rod that cannot cover its own
+core controls the two ends unequally. Where the reversal sits depends on an **unsourced**
+700 cm stroke, so the shape is the finding and not the crossover; the `out`, `dsp` and
+`scram1` rows do not depend on it.
+
+Absorber worths here are **lower bounds**: A6.4 measured the rod cell's neighbours as 7–10 %
+short, one-signed. The displacer is graphite and that bias does not touch it, so the +2060
+pcm and the sweep are not biased by it.
+
+### Open
+
+* The RR stroke, and therefore which 5 m of core the absorber covers at full insertion.
+* `DEVINI:`/`DSET:` devices, needed for A8's *moving* rods. The static stacks here are what
+  the gate needed; `MOVE` mode (`DEVDRV.f:95` → `MOVCHK.f`, `IMODE=2`) stacks multi-part
+  rods correctly and is the route, with the rod assembly longer than the 800 cm geometry as
+  the obstacle to work out.
+* The 01:23 rod pattern itself, which is A8's initial state, not A6's.
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to
@@ -3081,7 +3207,7 @@ like.
 
 ---
 
-*Last updated: 2026-10-01 (4) (A6.5: the Unit 4 core deck solves the whole chain for the first time -- NCR: x2 -> MACINI: -> DUAL 1 1 -> FLUD: -> FLPOW: on real cross sections in every mixture, k = 1.018278 reported not asserted, 8.1 s; the stack boundary closes a third sourced count exactly (156 cooled reflector channels); the radial reflector is worth 131 pcm and only 2.6 pcm leaks past it, which closes the Phase 1b question -- the 7152 pcm strip error does not propagate). Previously: 2026-10-01 (3) (Phase 1b: reflector geometry sourced and closed three ways; OpenMC shows DRAGON's OPEN-BOUNDARY solution is wrong by 2-5x here, which retracts the earlier 'diffusion cannot do reflectors' conclusion -- no published result is affected, all are reflected; closing the supercell avoids it and leaves 7152 pcm on a test that over-weights the reflector; SPH fails in seven variants). Previously: 2026-10-01 (superposition test: the A6.4 environment effect is the SPH factor, spanning 1.00-1.56; sub-additive and not a function of the eight-ring count, so a continuous environment axis is viable but weeks of work; two read-out bugs corrected, k-based conclusions unaffected; radial reflector sourced at 3+1 rings from [BEH96]). Previously: 2026-09-30 (2) (A6.4b disproved: no rod-only SPH equivalence can close gate A6.4,
+*Last updated: 2026-10-01 (5) (gate A6.5 measured: the graphite displacer is worth +2060 pcm against a water column, and the first 1.25 m of rod travel is -175 pcm with a centre-peaked flux but turns POSITIVE, up to +177 pcm, once the axial peak is driven below the mid-plane -- the sign tracks the peak in both directions, so the gate's mechanism is present and conditional exactly as the gate states it; that puts A6b (xenon) and A6d (burnup placement) on the critical path to A8 by measurement). Previously: 2026-10-01 (4) (A6.5: the Unit 4 core deck solves the whole chain for the first time -- NCR: x2 -> MACINI: -> DUAL 1 1 -> FLUD: -> FLPOW: on real cross sections in every mixture, k = 1.018278 reported not asserted, 8.1 s; the stack boundary closes a third sourced count exactly (156 cooled reflector channels); the radial reflector is worth 131 pcm and only 2.6 pcm leaks past it, which closes the Phase 1b question -- the 7152 pcm strip error does not propagate). Previously: 2026-10-01 (3) (Phase 1b: reflector geometry sourced and closed three ways; OpenMC shows DRAGON's OPEN-BOUNDARY solution is wrong by 2-5x here, which retracts the earlier 'diffusion cannot do reflectors' conclusion -- no published result is affected, all are reflected; closing the supercell avoids it and leaves 7152 pcm on a test that over-weights the reflector; SPH fails in seven variants). Previously: 2026-10-01 (superposition test: the A6.4 environment effect is the SPH factor, spanning 1.00-1.56; sub-additive and not a function of the eight-ring count, so a continuous environment axis is viable but weeks of work; two read-out bugs corrected, k-based conclusions unaffected; radial reflector sourced at 3+1 rings from [BEH96]). Previously: 2026-09-30 (2) (A6.4b disproved: no rod-only SPH equivalence can close gate A6.4,
 shown by a ±20 % factor sweep that never reaches the gate; the cause is the rod perturbing its
 neighbours' spectrum by ±3 % at zero burnup, not the rod cell itself; carried as a measured
 one-signed bias). Previously: 2026-09-30 (Phase 0 of the transient: `KINSOL:` runs on the full core for the first time; a severe step costs 0.430 s against 0.090 s frozen, so A8 is hours not days and Tier B stays parallel; `OVERV` and `TRIVAA: UNIT` found to be undocumented prerequisites). Previously: 2026-09-29 (A6.3 table complete, gate missed at 5-12 %; MCFD 1 shown to lose 31-34 % of absorber worth and to be unable to carry an SPH equivalence at all, while DUAL 1 1 costs 8 %; the thermal-scattering interpolation hypothesis for the WAT residual eliminated by measurement; Unit 4 core geometry and 1661-channel fuel map generated from the sourced map and accepted by DONJON; recommendation recorded against porting out of Fortran). Previously: 2026-09-27 (A6: CPS cells built and verified in both codes; A6.3 gate missed, residual carried as the A′ correction; A6.4 homogenisation exact but neighbour data 7–10 % low, closing via a rod-cell equivalence; A6d Unit 4 channel map sourced by registering two digitisations, all counts closing; fuel COMPO rebuilt on the corrected depletion grid, bracket +1.94 / +2.41 / +2.72 $ at 10.9 MWd/kgU). Previously: 2026-09-26 (2) (project assessment; Tier A reordered: A6 → A6b Xe → A6c Smolensk-3 → A6d initial state → A7–A9). Previously: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the

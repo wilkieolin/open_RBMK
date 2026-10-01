@@ -60,8 +60,12 @@ MAP = os.path.join(ROOT, "sources", "derived", "unit4_channel_map.csv")
 # measures what the reflector is worth in THIS core, which is the number the
 # strip-level interface error (PROGRESS.md, Phase 1b) has to be read against.
 WITH_REFL = os.environ.get("U4_REFL", "1") != "0"
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                   "rbmk_unit4_core.don" if WITH_REFL else "rbmk_unit4_norefl.don")
+_RODS0 = os.environ.get("U4_RODS", "wat")
+_TILT0 = os.environ.get("U4_TILT", "0")
+_STEM = ("rbmk_unit4_core" if WITH_REFL else "rbmk_unit4_norefl") + (
+    "" if _RODS0 == "wat" else "_" + _RODS0) + (
+    "" if _TILT0 == "0" else "_t" + _TILT0)
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), _STEM + ".don")
 
 PITCH = 25.0            # cm, the lattice pitch ([D], closed in the A6.1 sources)
 NREF = 4                # radial reflector, columns (100 cm) -- [D] p.9, sourced
@@ -110,29 +114,149 @@ NZ_REFL = 2             # axial graphite reflector, planes each end (50 cm)
 #   tall holding a 346 cm fuel column ([BEH96] II.A).  Unit 4 is 700 cm
 #   active with 50 cm ends, per [D] above.
 
-# Mixtures.  1 is the only fuel mixture: every fuel channel draws from the same
-# MULTICOMPO and is distinguished by what the fuel map carries for it.
-# DONJON mixtures.  The radial reflector is FOUR rings and its constants differ
-# by ring, because the spectrum a metre into graphite is not the spectrum at the
-# core edge -- _RCompo resolves them by depth and it would be wasteful to
-# average that away.  0 is void, outside the stack.
-# Reflector mixtures come FIRST and the fuel LAST, which is upstream's
-# convention (1Sap_vs_3Sap.x2m: RMIX 1 2 3, FMIX 4) and matters: MACINI:
-# indexes the non-fuel macrolib by material number, so MACREF's NMIX is
-# max(RMIX) and leaving a gap at 1 would leave mixture 1 undefined in it.
-# USPLIT: demands NREFL + NFUEL == the highest material index in the geometry
+# DONJON mixtures.  Reflector mixtures come FIRST and the fuel LAST, which is
+# upstream's convention (1Sap_vs_3Sap.x2m: RMIX 1 2 3, FMIX 4) and matters:
+# MACINI: indexes the non-fuel macrolib by material number, so MACREF's NMIX is
+# max(RMIX) and leaving a gap would leave that mixture undefined in it.
+# USPLIT: additionally demands NREFL + NFUEL == the highest material index
 # (USPLIT.f, "WRONG NUMBER OF REFLECTOR OR FUEL TYPES"), so the numbering has
 # to close up when U4_REFL=0 drops the four rings rather than leaving a hole.
-M_CPS = 1
-M_REFL = [2, 3, 4, 5] if WITH_REFL else []   # ring 1 at the core .. ring 4, cooled
-M_FUEL = 2 + len(M_REFL)
+# 0 is void, outside the stack.
+#
+# The radial reflector is FOUR rings because _RCompo resolves the spectrum by
+# depth.  Measured 2026-10-01: at core level that resolution is worth 3.9 pcm,
+# so it is kept because it is free, not because it is needed.
+M_WAT, M_ABS, M_DSP = 1, 2, 3            # the three CPS channel states
+M_REFL = [4, 5, 6, 7] if WITH_REFL else []   # ring 1 at the core .. ring 4, cooled
+M_FUEL = 4 + len(M_REFL)
 NMIX = M_FUEL
 FUEL_TYPES = {"FUEL"}
-# Rod, detector and start-up-chamber channels are all water columns with the
-# rods out.  DKEV and KD are not CPS channels, but they are water-filled tubes
-# in graphite of similar construction; modelling them as the CPS water column is
-# an approximation, recorded here rather than buried.
-CPS_TYPES = {"RR", "USP", "AR", "AZ", "AZOC", "DKEV", "KD"}
+
+# Which lattice positions hold what.  The rod classes differ in construction,
+# not just in where they sit, so they are separated here rather than lumped.
+ROD_DSP = {"RR", "AZ"}          # top-entry: 5 m absorber, 1.25 m water, 4.5 m displacer
+ROD_BANK = {"AZOC"}             # same construction, driven separately by U4_TILT
+ROD_ABS = {"AR"}                # top-entry, absorber only -- no graphite displacer
+ROD_BOT = {"USP"}               # bottom-entry, 3.5 m absorber, no displacer
+DET_TYPES = {"DKEV", "KD"}      # not CPS at all: water-filled tubes in graphite,
+                                # modelled as the CPS water column (approximation)
+CPS_TYPES = ROD_DSP | ROD_BANK | ROD_ABS | ROD_BOT | DET_TYPES
+
+# U4_RODS: what the ROD_DSP channels hold, as a stack of (mixture, planes)
+# read BOTTOM-UP over the 28 active planes.  Every other CPS position stays a
+# water column in every variant, so a difference between two variants is the
+# displacer and absorber alone.
+#
+# THE WITHDRAWN GEOMETRY IS SELF-CHECKING.  A6_CPS_PLAN gives the RR/AZ rod as
+# 5 m absorber + 1.25 m water + 4.5 m displacer.  With the rod fully up the
+# absorber sits above the core, so what is left in the channel is
+# 1.25 m water, 4.5 m displacer, 1.25 m water -- and 1.25 + 4.50 + 1.25 is
+# exactly the 7.00 m core height.  Three independently-quoted lengths filling
+# the core exactly is a check on all three, and it is also the configuration
+# the positive-scram mechanism needs: a water column at the BOTTOM, which the
+# displacer sweeps out as the rod starts down.
+#
+# 'dsp' isolates that sweep: the displacer moves down 1.25 m and nothing else
+# changes.  'scram1' is the same motion with the 1.25 m of absorber that
+# really does enter the top at the same time, so the pair separates the
+# displacer's contribution from the net first step.
+RODS = os.environ.get("U4_RODS", "wat")
+TILT = int(os.environ.get("U4_TILT", "0"))
+_W, _D, _A = "W", "D", "A"
+M_OF = {"W": M_WAT, "D": M_DSP, "A": M_ABS}
+
+# The rod as built: absorber 5 m, water gap 1.25 m, graphite displacer 4.5 m,
+# measured top-down, i.e. 20 + 5 + 18 = 43 planes of 25 cm.
+N_ABS, N_GAP, N_DSP = 20, 5, 18
+
+
+def stack(n):
+    """What a ROD_DSP channel holds, plane by plane bottom-up over the active
+    core, with the rod inserted n planes from fully withdrawn.
+
+    Fully withdrawn puts the absorber above the core and leaves, bottom-up,
+    1.25 m water / 4.5 m displacer / 1.25 m water -- and 1.25 + 4.50 + 1.25 is
+    exactly the 7.00 m core.  Three independently-quoted lengths filling the
+    core exactly is a check on all three, and it is the configuration the
+    positive-scram mechanism needs: a water column at the BOTTOM that the
+    displacer sweeps out as the rod starts down.
+
+    Anything the rod does not occupy is coolant, so the fallback is water --
+    both below the displacer's lower end and above the absorber's upper end.
+    """
+    d0, d1 = 1 + N_GAP - n, N_GAP + N_DSP - n          # displacer, bottom-up
+    g0, g1 = d1 + 1, d1 + N_GAP                        # water gap above it
+    a0, a1 = g1 + 1, g1 + N_ABS                        # absorber above that
+    out = []
+    for q in range(1, NZ_ACTIVE + 1):
+        if a0 <= q <= a1:
+            out.append(_A)
+        elif d0 <= q <= d1:
+            out.append(_D)
+        else:
+            out.append(_W)                             # gap, or beyond either end
+    return out
+
+
+def runs(col):
+    """A plane-by-plane column as (mixture, count) runs, for the deck header."""
+    out = []
+    for c in col:
+        if out and out[-1][0] == c:
+            out[-1][1] += 1
+        else:
+            out.append([c, 1])
+    return [(c, n) for c, n in out]
+
+
+# The hand-derived configurations, kept as names, and ASSERTED against stack()
+# rather than trusted alongside it.  'wat' is not a rod state at all -- it is
+# the water-everywhere reference the displacer's worth is measured from.
+NAMED = {
+    "out":    0,            # rods fully withdrawn
+    "scram1": N_GAP,        # the real first 1.25 m of travel
+    "in":     NZ_ACTIVE,    # rods fully in -- SEE THE CAVEAT
+}
+assert [c for c, _ in runs(stack(0))] == [_W, _D, _W]
+assert [n for _, n in runs(stack(0))] == [N_GAP, N_DSP, N_GAP]
+assert runs(stack(5)) == [(_D, 18), (_W, 5), (_A, 5)]
+assert runs(stack(NZ_ACTIVE)) == [(_A, 20), (_W, 8)]
+
+# Two half-steps of the sweep, which stack() cannot express because they move
+# only one END of the displacer.  They decompose 'dsp': botD is graphite
+# replacing water at the displacer's lower end, topW is water replacing
+# graphite at its upper end, and the sweep is both at once.  Which one wins is
+# decided by the axial flux shape, and that is the whole mechanism.
+# 'dsp' is the gate's own test -- "inserting ONLY the displacer from below" --
+# so the absorber is suppressed.  It is not a physical rod position; it is the
+# isolation the gate asks for, and 'scram1' is the same motion with the
+# absorber that really does enter the top at the same time.
+HALVES = {
+    "dsp":  [_D] * N_DSP + [_W] * (NZ_ACTIVE - N_DSP),
+    "botD": [_D] * (N_GAP + N_DSP) + [_W] * N_GAP,
+    "topW": [_W] * N_GAP + [_D] * (N_DSP - N_GAP) + [_W] * (2 * N_GAP),
+}
+assert all(len(v) == NZ_ACTIVE for v in HALVES.values())
+
+if RODS == "wat":
+    RODCOL = [_W] * NZ_ACTIVE
+elif RODS in HALVES:
+    RODCOL = HALVES[RODS]
+elif RODS in NAMED:
+    RODCOL = stack(NAMED[RODS])
+elif RODS.startswith("d") and RODS[1:].isdigit():
+    RODCOL = stack(int(RODS[1:]))
+else:
+    raise SystemExit(f"U4_RODS={RODS!r}: expected wat, d<n>, or one of "
+                     f"{sorted(set(NAMED) | set(HALVES))}")
+
+# U4_TILT inserts the 36 AZOC channels n planes from the top, as their own
+# bank.  It exists to tilt the axial flux downward, because the displacer
+# sweep's SIGN depends on the tilt and nothing else in this deck provides one:
+# the burnup is flat and there is no xenon.  A partially-inserted scram bank
+# is a real configuration, but THIS pattern is not the 01:23 pattern and is
+# not offered as one.
+BANKCOL = stack(TILT) if TILT else [_W] * NZ_ACTIVE
 
 
 def load():
@@ -223,14 +347,32 @@ def rings(g, ni, nj):
     return out, stack
 
 
-def grid(g, ni, nj, cell, width=3):
+def plane(g, ni, nj, k, cell, width=3):
     """One radial plane, as DONJON reads it: row j = nj-1 first (y decreasing)."""
     rows = []
     for j in range(nj + 2 * NPAD - 1, -1, -1):
-        row = [f"{cell(i - NPAD, j - NPAD, g.get((i - NPAD, j - NPAD))):>{width}d}"
+        row = [f"{cell(i - NPAD, j - NPAD, k, g.get((i - NPAD, j - NPAD))):>{width}d}"
                for i in range(ni + 2 * NPAD)]
         rows.append(wrap(row))
     return "\n".join(rows)
+
+
+def planes(g, ni, nj, nz, cell):
+    """All nz PLANE blocks, with identical planes collapsed onto SAME.
+
+    De-duplication is by CONTENT, not by a rule about which planes ought to
+    match: the rod stacks make most active planes distinct, and a rule would
+    have to be rewritten every time a stack changes.
+    """
+    out, seen = [], {}
+    for k in range(1, nz + 1):
+        body = plane(g, ni, nj, k, cell)
+        if body in seen:
+            out.append(f"PLANE {k} SAME {seen[body]}")
+        else:
+            seen[body] = k
+            out.append(f"PLANE {k}\n{body}")
+    return "\n".join(out), len(seen)
 
 
 def main():
@@ -240,20 +382,34 @@ def main():
     nz = NZ_ACTIVE + 2 * NZ_REFL
     nel = nx * ny * nz
 
-    def core_mix(i, j, r):
-        """Active plane: fuel, CPS water column, reflector ring, or nothing."""
-        if r is not None:
-            return M_FUEL if r["type"] in FUEL_TYPES else M_CPS
-        k = ring.get((i, j))
-        return M_REFL[k - 1] if k else 0
+    # the axial mixture a ROD_DSP channel holds, plane by plane (1-based k over
+    # the whole 32-plane stack; the active region is NZ_REFL+1 .. NZ_REFL+28)
 
-    def refl_mix(i, j, r):
-        """Axial reflector plane.  The graphite columns continue unchanged --
-        they are the same columns -- but every channel position loses its fuel
-        and becomes a coolant tube in graphite, which is what the CPS water
-        column already is.  That substitution is an approximation (the real end
-        region has the Zr/steel transition piece in it) and is stated as one."""
-        return M_CPS if r is not None else core_mix(i, j, r)
+    def core_mix(i, j, k, r):
+        """Mixture at column (i, j) in plane k (1-based)."""
+        if r is None:
+            ring_k = ring.get((i, j))
+            return M_REFL[ring_k - 1] if ring_k else 0
+        active = NZ_REFL < k <= NZ_REFL + NZ_ACTIVE
+        if not active:
+            # Above and below the core the graphite columns continue unchanged,
+            # but every channel loses its fuel and becomes a coolant tube in
+            # graphite, which is what the CPS water column already is.  An
+            # approximation: the real end region holds the Zr/steel transition
+            # piece.  Rods are not tracked outside the active core.
+            return M_WAT
+        if r["type"] in FUEL_TYPES:
+            return M_FUEL
+        if r["type"] in ROD_DSP:
+            return M_OF[RODCOL[k - NZ_REFL - 1]]
+        if r["type"] in ROD_BANK:
+            return M_OF[BANKCOL[k - NZ_REFL - 1]]
+        return M_WAT
+
+    def fmap_mix(i, j, k, r):
+        active = NZ_REFL < k <= NZ_REFL + NZ_ACTIVE
+        return M_FUEL if (active and r is not None
+                          and r["type"] in FUEL_TYPES) else 0
 
     # the fuel map numbers only the fuel channels, 1..NCOMB, in the same raster
     # order the B-ZONE block is written in
@@ -266,11 +422,8 @@ def main():
                 nfuel += 1
                 num[(i, j)] = nfuel
 
-    active = grid(g, ni, nj, core_mix)
-    refl = grid(g, ni, nj, refl_mix)
-    fmap_active = grid(g, ni, nj, lambda i, j, r: M_FUEL if r is not None
-                       and r["type"] in FUEL_TYPES else 0)
-    fmap_refl = grid(g, ni, nj, lambda i, j, r: 0)
+    mixmap, ndistinct = planes(g, ni, nj, nz, core_mix)
+    fmapmap, _ = planes(g, ni, nj, nz, fmap_mix)
     # B-ZONE is NOT an nx-by-ny map: RESDRV.f:347-356 reads exactly NCH integers,
     # one per fuel channel, in the order RESPFM.f:74-82 finds them -- ascending
     # flat radial index over the map, which is the order the MIX planes above are
@@ -295,21 +448,6 @@ def main():
                             indent="         ").splitlines()).lstrip()
 
     zedges = [f"{k * PITCH:.1f}" for k in range(nz + 1)]
-    # PLANE blocks: the two axial reflector plane-groups are identical, and so
-    # are all the active planes, so only two distinct planes are ever written
-    def planes(a, r):
-        out = []
-        for k in range(1, nz + 1):
-            isref = k <= NZ_REFL or k > NZ_REFL + NZ_ACTIVE
-            if k == 1:
-                out.append(f"PLANE {k}\n{r if isref else a}")
-            elif k == NZ_REFL + 1:
-                out.append(f"PLANE {k}\n{a if not isref else r}")
-            else:
-                same = 1 if isref else NZ_REFL + 1
-                out.append(f"PLANE {k} SAME {same}")
-        return "\n".join(out)
-
     ncps = sum(1 for r in g.values() if r["type"] in CPS_TYPES)
     assert nfuel + ncps == len(g), f"{nfuel} + {ncps} != {len(g)}"
     assert nfuel == 1661, nfuel
@@ -325,7 +463,16 @@ def main():
             f"{ncol} columns against [D]'s 2488"
 
     nring = len(M_REFL)
-    tag = "UNIT4" if WITH_REFL else "U4NOREF"
+    nrod = sum(1 for r in g.values() if r["type"] in ROD_DSP)
+    nar = sum(1 for r in g.values() if r["type"] in ROD_ABS)
+    nusp = sum(1 for r in g.values() if r["type"] in ROD_BOT)
+    ndet = sum(1 for r in g.values() if r["type"] in DET_TYPES)
+    stackline = " ".join(f"{m}x{n}" for m, n in runs(RODCOL))
+    bankline = " ".join(f"{m}x{n}" for m, n in runs(BANKCOL))
+    nbank = sum(1 for r in g.values() if r["type"] in ROD_BANK)
+    tag = (("UNIT4" if WITH_REFL else "U4NOREF")
+           + ("" if RODS == "wat" else "_" + RODS.upper())
+           + ("" if not TILT else f"_T{TILT}"))[:12]
     stem = os.path.basename(OUT)[:-4]
     rcpo_arg = " RCpo" if WITH_REFL else ""
     rcpo_seq = ("\nSEQ_ASCII   _RCompo    :: FILE './_RCompo' ;"
@@ -349,18 +496,30 @@ def main():
 *  columns ([D]: 2488), bounded by a circle of radius {R_STACK} cells.  Outside
 *  that circle the mixture is 0 -- a virtual volume (USPMIX.f:52), not graphite.
 *
-*  {nfuel} fuel channels (mix {M_FUEL}), {ncps} CPS/detector channels (mix {M_CPS}),
+*  {nfuel} fuel channels (mix {M_FUEL}), {ncps} CPS/detector channels.
 *  {refl_line}
-*  {NZ_ACTIVE} active planes ({NZ_ACTIVE * PITCH:.0f} cm) and {NZ_REFL} reflector planes each end.
+*  {NZ_ACTIVE} active planes ({NZ_ACTIVE * PITCH:.0f} cm) and {NZ_REFL} reflector planes each end;
+*  {ndistinct} distinct PLANE blocks, the rest written as SAME.
 *
-*  CROSS SECTIONS.  Fuel from _ACompo, CPS water columns from _CCompoWAT,
-*  reflector rings from _RCompo zones 5..8 (3 graphite + 1 cooled).  All at a
-*  UNIFORM burnup of 10900 MWd/t, the Unit 4 core average: the burnup
-*  PLACEMENT map is still an open A6d item, so a flat field is the honest
-*  stand-in and the per-channel route (INST-BURN off the fuel map) is wired
-*  but not yet fed.
+*  RODS: U4_RODS={RODS}.  {nrod} RR/AZ channels carry the stack
+*  {stackline}
+*  read bottom-up over the active planes (W water, D graphite displacer,
+*  A B4C absorber).  The other {ncps - nrod} CPS positions -- {nar} AR, {nusp} USP and
+*  {ndet} detector tubes -- are a water column in every variant, so a
+*  difference between two variants is the displacer and absorber alone.
 *
-*  All rods are withdrawn: every CPS channel is a full-height water column.
+*  CROSS SECTIONS.  Fuel from _ACompo; the three CPS channel states from
+*  _CCompoWAT / _CCompoABS / _CCompoDSP zone 5; reflector rings from _RCompo
+*  zones 5..8 (3 graphite + 1 cooled).  All at a UNIFORM burnup of
+*  10900 MWd/t, the Unit 4 core average: the burnup PLACEMENT map is still an
+*  open A6d item, so a flat field is the honest stand-in and the per-channel
+*  route (INST-BURN off the fuel map) is wired but not yet fed.
+*
+*  The rod cells carry A6.4's measured one-signed bias: an inserted absorber
+*  is 7-10 % short on worth, because the eight fuel cells around it are drawn
+*  from the infinite-lattice COMPO and the real ones are perturbed.  Absorber
+*  worths from this deck are therefore LOWER BOUNDS, and that bias does not
+*  touch the displacer, which is graphite.
 *
 *  k FROM THIS DECK IS REPORTED, NOT ASSERTED.  The reflector carries a
 *  measured homogenisation error (PROGRESS.md, Phase 1b) and the burnup is
@@ -368,22 +527,26 @@ def main():
 *  are right and FLUD: converges.
 *----
 LINKED_LIST GEOM GEO2 MATEX FMAP MACREF MACFUEL MACRO
-            TRACK SYSTEM FLUX POWER FCpo CCpo{rcpo_arg} ;
+            TRACK SYSTEM FLUX POWER FCpo CCpo ACpo DCpo{rcpo_arg} ;
 SEQ_ASCII   _ACompo    :: FILE './_ACompo' ;
-SEQ_ASCII   _CCompoWAT :: FILE './_CCompoWAT' ;{rcpo_seq}
+SEQ_ASCII   _CCompoWAT :: FILE './_CCompoWAT' ;
+SEQ_ASCII   _CCompoABS :: FILE './_CCompoABS' ;
+SEQ_ASCII   _CCompoDSP :: FILE './_CCompoDSP' ;{rcpo_seq}
 MODULE      GEO: USPLIT: RESINI: NCR: MACINI: TRIVAT: TRIVAA: FLUD:
             FLPOW: GREP: DELETE: END: ;
 REAL keff ;
 
 FCpo := _ACompo ;
-CCpo := _CCompoWAT ;{rcpo_asg}
+CCpo := _CCompoWAT ;
+ACpo := _CCompoABS ;
+DCpo := _CCompoDSP ;{rcpo_asg}
 
 *--- core geometry: one node per column, mixture 0 outside the graphite stack
 GEOM := GEO: :: CAR3D {nx} {ny} {nz}
   EDIT 0
   X- VOID X+ VOID  Y- VOID Y+ VOID  Z- VOID Z+ VOID
   MIX
-{planes(active, refl)}
+{mixmap}
   MESHX
 {mesh(nx)}
   MESHY
@@ -394,7 +557,7 @@ GEOM := GEO: :: CAR3D {nx} {ny} {nz}
 
 GEO2 MATEX := USPLIT: GEOM :: EDIT 0
   NGRP 2 MAXR {nel}
-  NREFL {1 + nring} RMIX {M_CPS} {" ".join(str(m) for m in M_REFL[:nring])}
+  NREFL {3 + nring} RMIX {M_WAT} {M_ABS} {M_DSP} {" ".join(str(m) for m in M_REFL)}
   NFUEL 1 FMIX {M_FUEL} ;
 
 *--- the fuel map: {nfuel} channels, numbered in the B-ZONE block below
@@ -403,7 +566,7 @@ FMAP MATEX := RESINI: MATEX ::
       EDIT 0
       X- VOID X+ VOID  Y- VOID Y+ VOID  Z- VOID Z+ VOID
       MIX
-{planes(fmap_active, fmap_refl)}
+{fmapmap}
       MESHX
 {mesh(nx)}
       MESHY
@@ -421,9 +584,13 @@ FMAP MATEX := RESINI: MATEX ::
 *--- non-fuel constants: the CPS water column and the four reflector rings.
 *    MACINI: indexes this macrolib by MATERIAL number, so mixture k here is
 *    material k and the order must match RMIX above (1Sap_vs_3Sap.x2m:29).
-MACREF := NCR: CCpo{rcpo_arg} :: EDIT 0 MACRO LINEAR NMIX {1 + nring}
+MACREF := NCR: CCpo ACpo DCpo{rcpo_arg} :: EDIT 0 MACRO LINEAR NMIX {3 + nring}
   COMPO CCpo 'EDICPS'
-  MIX {M_CPS} FROM 5 SET 'burnup' 10900.0 SET 'DCA' 0.72 SET 'TF' 900.0 ENDMIX
+  MIX {M_WAT} FROM 5 SET 'burnup' 10900.0 SET 'DCA' 0.72 SET 'TF' 900.0 ENDMIX
+  COMPO ACpo 'EDICPS'
+  MIX {M_ABS} FROM 5 SET 'burnup' 10900.0 SET 'DCA' 0.72 SET 'TF' 900.0 ENDMIX
+  COMPO DCpo 'EDICPS'
+  MIX {M_DSP} FROM 5 SET 'burnup' 10900.0 SET 'DCA' 0.72 SET 'TF' 900.0 ENDMIX
 {refl_mixes}  ;
 
 *--- fuel constants, one mixture per bundle.  NMIX is NOT given: with a fuel
@@ -466,6 +633,8 @@ QUIT .
                          'src="$1"/../Dragon/compo\n'
                          'cp "$src"/_ACompo . || exit 1\n'
                          'cp "$src"/_CCompoWAT . || exit 1\n'
+                         'cp "$src"/_CCompoABS . || exit 1\n'
+                         'cp "$src"/_CCompoDSP . || exit 1\n'
                          + ('cp "$src"/_RCompo . || exit 1\n' if WITH_REFL else ""))
     os.chmod(acc, 0o755)
     print(f"wrote {os.path.relpath(OUT, ROOT)}")

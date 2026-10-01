@@ -411,8 +411,14 @@ without checking in.** Report:
   `TRIVAT: DUAL 1 1` → `TRIVAA:` → `FLUD:` → `FLPOW:` on 58 × 58 × 32 with real cross sections in
   every mixture, including a sourced 4-column radial reflector from `_RCompo`, in 8.1 s;
   k = 1.018278, reported not asserted. The radial reflector is worth 131 pcm and only 2.6 pcm
-  leaks past it, which closes the Phase 1b question. Remaining before the A6 gate: rods as
-  `DEVINI:`/`DSET:` devices, carrying the measured bias.
+  leaks past it, which closes the Phase 1b question.
+  **Gate A6.5 measured 2026-10-01: the mechanism is confirmed and the positive sign is
+  confirmed conditionally.** The 4.5 m displacer is worth +2060 pcm against a water column;
+  the first 1.25 m of travel is -175 pcm with a centre-peaked flux and +177 pcm once the
+  axial peak is driven below the mid-plane, the sign tracking the peak in both directions.
+  So **A6b (xenon) and A6d (burnup placement) are on the critical path to A8** by
+  measurement: they are what supplies the bottom-skew for real. See PROGRESS.md "Gate A6.5".
+  Still open: `DEVINI:`/`DSET:` devices for A8's *moving* rods, and the RR stroke.
   The "no rod sites" problem above is solved — `gen_rbmk_unit4.py` places all 227 CPS channels
   at their real positions.*
 - **A6b Xenon axis and fuel COMPO rebuild.** Add a Xe branch axis (equilibrium Xe at the branch

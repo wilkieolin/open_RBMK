@@ -4,4 +4,6 @@
 src="$1"/../Dragon/compo
 cp "$src"/_ACompo . || exit 1
 cp "$src"/_CCompoWAT . || exit 1
+cp "$src"/_CCompoABS . || exit 1
+cp "$src"/_CCompoDSP . || exit 1
 cp "$src"/_RCompo . || exit 1

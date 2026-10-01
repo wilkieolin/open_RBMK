@@ -77,3 +77,11 @@ openmc/cps_runs/
 # authority is the script; u4_leakage.txt (tracked) is the result.
 decks/Donjon/data/u4lk_*.don
 decks/Donjon/data/u4lk_*.don.access
+
+# A6.5 rod study: tools/u4_rods.sh regenerates every rod configuration from
+# gen_rbmk_unit4.py (U4_RODS / U4_TILT).  Only the two base decks and the
+# result table (u4_rods.txt) are tracked.
+decks/Donjon/data/rbmk_unit4_core_*.don
+decks/Donjon/data/rbmk_unit4_core_*.don.access
+decks/Donjon/data/rbmk_unit4_norefl_*.don
+decks/Donjon/data/rbmk_unit4_norefl_*.don.access
