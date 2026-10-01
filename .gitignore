@@ -91,3 +91,9 @@ decks/Donjon/data/rbmk_unit4_norefl_*.don.access
 # table (a7a_check.txt) are tracked.
 decks/Donjon/data/rbmk_a7a_*.don
 decks/Donjon/data/rbmk_a7a_*.don.access
+
+# A7 coupled core: tools/a7b_check.sh generates one deck per flow case and
+# feedback mode from gen_rbmk_unit4.py.  Only the result table (a7b_check.txt)
+# is tracked; the decks embed a 1661-value velocity list each.
+decks/Donjon/data/rbmk_unit4_a7*.don
+decks/Donjon/data/rbmk_unit4_a7*.don.access

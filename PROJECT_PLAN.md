@@ -154,6 +154,9 @@ Driven entirely by Tier B.
 | `SET-PARAM` addresses a fuel-map parameter by **`P-NAME`, not `PARKEY`**, and a `LOCAL` one needs `SAME`/`CHAN`/`BUND` before its value | `RESPAR.f:139-176`; only a `GLOBAL` parameter takes a bare number |
 | `THM:` writes back only into parameters named `T-FUEL`, `D-COOL`, `T-COOL`, `T-SURF`, `P-COOL` | `THM.f:1172-1174`; `NCR:` then reads them by `PARKEY`, which is why the two names differ |
 | `THM:`'s `CLUSTER` is an infinite **triangular** array, so one pitch cannot match an RBMK channel's flow area, hydraulic diameter and heated perimeter | `THM.f:963-971`; match the flow area — measured 2026-10-01, the hydraulic diameter reaches nothing compared once the surface is in nucleate boiling |
+| A COMPO built on a lattice-cell *nominal* state will not cover a real core: the subcooled inlet is **denser** than nominal and a low-power channel end is **colder** than the fuel-temperature floor | measured 2026-10-01 by running the A7 Picard loop -- `DCA` wanted 0.778 against an axis top of 0.72, `TF` wanted 586 K against a floor of 600; `NCR:` has no clamp, so the axis has to cover it |
+| `UTL:` must be in the `MODULE` list before any `UTL:` call parses | otherwise `objstk: OBJECT/MODULE NOT YET DECLARED`, error 5004, which does not point at the module list |
+| The flat `POWER-CHAN` block, not `FLPOW:`'s radial-plane table, is the handover for per-channel data | it is in **channel order** -- what `RESPFM.f:74-82` finds and what `THMINP` reads a `CHAN` list in |
 
 ---
 

@@ -45,7 +45,7 @@ SEQ_ASCII   _CCompoABS :: FILE './_CCompoABS' ;
 SEQ_ASCII   _CCompoDSP :: FILE './_CCompoDSP' ;
 SEQ_ASCII   _RCompo    :: FILE './_RCompo' ;
 MODULE      GEO: USPLIT: RESINI: NCR: MACINI: TRIVAT: TRIVAA: FLUD:
-            FLPOW: GREP: DELETE: END: ;
+            FLPOW: UTL: GREP: DELETE: END: ;
 REAL keff ;
 
 FCpo := _ACompo ;
@@ -764,14 +764,11 @@ MACREF := NCR: CCpo ACpo DCpo RCpo :: EDIT 0 MACRO LINEAR NMIX 7
   MIX 7 FROM 8 SET 'burnup' 10900.0 SET 'DCA' 0.72 ENDMIX
   ;
 
-*--- fuel constants, one mixture per bundle.  NMIX is NOT given: with a fuel
-*    map on the RHS, NCR.f:127 sets it from FLMIX = NCH x NB = 1661 x 32.
-*    'burnup' is SET rather than taken from the map (NCRRGR.f:717 says so in
-*    the printout), because no burnup placement map exists yet.
+
 MACFUEL := NCR: FCpo FMAP :: EDIT 0 MACRO LINEAR
   TABLE FCpo 'EDIRBMK'
-  MIX 8 SET 'burnup' 10900.0 SET 'DCA' 0.72
-               SET 'TF' 900.0 SET 'TG' 750.0 ENDMIX
+  MIX 8 SET 'burnup' 10900.0
+               SET 'DCA' 0.72 SET 'TF' 900.0 SET 'TG' 750.0 ENDMIX
   ;
 
 MACRO MATEX := MACINI: MATEX MACREF MACFUEL :: EDIT 0 ;
@@ -786,6 +783,13 @@ ECHO "UNIT4 KEFF" keff ;
 *    normalisation, is what this increment checks.
 POWER FMAP := FLPOW: FMAP FLUX TRACK MATEX ::
   EDIT 2 PTOT 3200.0 PRINT DISTR POWER ;
+
+*--- the 1661 channel powers in CHANNEL ORDER -- the order RESPFM.f:74-82
+*    finds them, which is the order B-ZONE above is written in and the order
+*    THMINP reads a per-channel list in.  A7b sets each channel's coolant flow
+*    from its power, so this is the handover and it has to be the flat list
+*    rather than the radial-plane table FLPOW: prints.
+UTL: POWER :: IMPR POWER-CHAN * ;
 
 ECHO "UNIT4 geometry 58 x 58 x 32, 1661 fuel, 227 CPS, 592 reflector" ;
 ECHO "rbmk_unit4_core completed" ;

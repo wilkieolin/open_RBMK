@@ -421,7 +421,17 @@ without checking in.** Report:
   Still open: `DEVINI:`/`DSET:` devices for A8's *moving* rods, and the RR stroke.
   The "no rod sites" problem above is solved — `gen_rbmk_unit4.py` places all 227 CPS channels
   at their real positions.*
-- **A6b Xenon axis and fuel COMPO rebuild.** Add a Xe branch axis (equilibrium Xe at the branch
+- **A6b Xenon axis and fuel COMPO rebuild.**
+  **Scope grew 2026-10-01: the rebuild must also widen two existing axes, measured by running
+  the coupled core (PROGRESS.md "A7b").** The A5b axes were built around a lattice-cell nominal
+  state and a real core leaves the box at both ends, so A7 cannot converge on them:
+  `DCA` tops out at 0.72 g/cm3 while a 265 C channel inlet is subcooled at **0.778**, and `TF`
+  floors at 600 K while the ends of a low-power channel sit at **586 K** — a zero-power fuel
+  node is at coolant temperature by definition, so this is not specific to our core. `NCR:` has
+  no clamp, so there is no deck-level workaround. Add **~0.80 g/cm3** to `dcalist`
+  (`rbmk_a5b_compo.x2m:99`, 7 values, so one more is 1/7 of the branch tensor) and **~530 K**
+  below the `TF` floor. Pinning `DCA` instead costs 103 pcm core-wide, an upper bound.
+  Then: add a Xe branch axis (equilibrium Xe at the branch
   power, plus a zero-Xe and a peak-Xe point) and switch depletion to `EVO: EXTR 1` with
   ≤ 2.5 MWd/kg steps; test that combination against `rbmk_meth_dstep125` first. Gates as A5b
   (≤ 10 / ≤ 30 pcm), plus an OpenMC check of the Xe worth at 10.9 MWd/kgU.

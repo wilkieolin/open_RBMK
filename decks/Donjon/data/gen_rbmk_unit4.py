@@ -61,10 +61,31 @@ MAP = os.path.join(ROOT, "sources", "derived", "unit4_channel_map.csv")
 # strip-level interface error (PROGRESS.md, Phase 1b) has to be read against.
 WITH_REFL = os.environ.get("U4_REFL", "1") != "0"
 _RODS0 = os.environ.get("U4_RODS", "wat")
+# A7 (U4_THM=1): couple the flux solve to THM: in a Picard loop.  The flow
+# distribution is bracketed rather than chosen, because no total core flow is
+# sourced yet:
+#   U4_FLOW=prop  every channel valved to its own power, normalised on
+#                 [D] p.95's pairing of 3100 kW with 30 t/h.  This is what an
+#                 RBMK does -- 1661 individually valved channels, set to
+#                 equalise exit quality -- so it is the design intent, and it
+#                 makes the exit quality flat by construction.
+#   U4_FLOW=unif  one velocity everywhere, at the core-average of the same
+#                 normalisation.  The hot channels then boil much harder.
+# The real reactor is between the two, and the pair bounds it.  'prop' needs
+# the channel powers, which come from a previous run's POWER-CHAN dump.
+WITH_THM = os.environ.get("U4_THM", "0") != "0"
+FLOW = os.environ.get("U4_FLOW", "prop")
+PCHAN = os.environ.get("U4_PCHAN", "")
 _TILT0 = os.environ.get("U4_TILT", "0")
+_DCA0 = os.environ.get("U4_DCA", "0.72")
 _STEM = ("rbmk_unit4_core" if WITH_REFL else "rbmk_unit4_norefl") + (
     "" if _RODS0 == "wat" else "_" + _RODS0) + (
-    "" if _TILT0 == "0" else "_t" + _TILT0)
+    "" if _TILT0 == "0" else "_t" + _TILT0) + (
+    "" if _DCA0 == "0.72" else "_d" + _DCA0.replace(".", ""))
+if WITH_THM:
+    _STEM = ("rbmk_unit4_a7" + ("" if _RODS0 == "wat" else "_" + _RODS0)
+             + ("" if FLOW == "prop" else "_" + FLOW)
+             + ("" if os.environ.get("U4_VOIDFB", "1") != "0" else "_nvf"))
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), _STEM + ".don")
 
 PITCH = 25.0            # cm, the lattice pitch ([D], closed in the A6.1 sources)
@@ -257,6 +278,63 @@ else:
 # is a real configuration, but THIS pattern is not the 01:23 pattern and is
 # not offered as one.
 BANKCOL = stack(TILT) if TILT else [_W] * NZ_ACTIVE
+
+
+# --- A7's thermal-hydraulic inputs.  Every one of these is either sourced or
+# derived in A7a (PROGRESS.md "A7a"), and the derivations live in
+# decks/Donjon/data/gen_rbmk_a7a.py so there is one copy of each.
+KGF = 98066.5                   # Pa per kgf/cm2, exact
+P_OUT = 75.3 * KGF              # [D] p.95 outlet pressure
+T_IN = 265.0 + 273.15           # [D] p.95 inlet temperature
+TH_PITCH = 1.7639E-2            # m, flow-area-matched CLUSTER pitch (A7a)
+TH_NPIN = 18
+R_PELLET, R_GAP, R_CLAD = 5.750E-3, 5.850E-3, 6.790E-3     # m, A6.1 cell
+TH_HGAP = 2.80E+3               # W/m2/K: bare He conduction over the sourced
+                                # 100 um gap, k/delta with k = 0.28 at 700 K.
+                                # THM:'s own correlation implies a far tighter
+                                # gap and lands 780 K low on [D]'s centreline.
+V_REF, P_REF = 4.7713, 3100.0   # m/s at kW: THM:'s OWN inlet velocity for
+                                # [D]'s 30 t/h at 3100 kW, measured in A7a, so
+                                # no steam table of ours enters the scaling
+PTOT_MW = 3200.0                # [D]: nominal thermal rating
+# U4_DCA: the coolant density fed to the fuel interpolation in the SINGLE-PASS
+# deck.  It exists to price the COMPO's DCA axis ceiling: the axis is
+# 0.72 0.60 0.45 0.30 0.15 0.05 0.02 g/cm3 (rbmk_a5b_compo.x2m:99) and 0.72 is
+# its TOP, but THM: computes 0.778 g/cm3 at a 265 C channel inlet -- so the
+# real unvoided state is off the end of the axis and A7 cannot interpolate it.
+DCA_SET = os.environ.get("U4_DCA", "0.72")
+# U4_VOIDFB=0 overrides the map's coolant density with DCA_SET inside the
+# Picard loop, which switches the VOID feedback off and leaves the Doppler
+# feedback live.  It exists only because the COMPO's DCA axis stops at 0.72
+# while the real channel inlet is 0.778 g/cm3, so the fully-coupled loop
+# cannot interpolate its own second iterate.  Measured cost of the override,
+# applied core-wide: 103 pcm (dk/dDCA = -0.01779 from the 0.60 and 0.72 grid
+# points, extrapolated 0.058 past the axis end) -- an UPPER bound, because
+# only the subcooled lower part of each channel is above 0.72.
+VOID_FB = os.environ.get("U4_VOIDFB", "1") != "0"
+
+
+def chan_power():
+    """The 1661 channel powers in CHANNEL ORDER, from a previous run's
+    POWER-CHAN dump.  Channel order is what RESPFM.f:74-82 finds and what
+    THMINP reads a per-channel list in, so the flat block is the right one and
+    FLPOW:'s radial-plane table is not."""
+    import re as _re
+    src = PCHAN or os.path.join(
+        ROOT, "5.1", "Donjon", "Linux_aarch64",
+        "rbmk_unit4_core_out.don.result")
+    txt = open(src, "rb").read().decode("latin1").splitlines()
+    for i, l in enumerate(txt):
+        if "CONTENT OF BLOCK 'POWER-CHAN" not in l:
+            continue
+        v = []
+        for q in txt[i + 1:]:
+            if "CONTENT OF BLOCK" in q or "DRVUTL" in q or "LEAVING" in q:
+                break
+            v += [float(x) for x in q.split()
+                  if _re.match(r"^[-+]?\d*\.?\d+E[-+]\d+$", x)]
+        return v, src
+    raise SystemExit(f"no POWER-CHAN block in {src}; run the core deck first")
 
 
 def load():
@@ -472,17 +550,152 @@ def main():
     nbank = sum(1 for r in g.values() if r["type"] in ROD_BANK)
     tag = (("UNIT4" if WITH_REFL else "U4NOREF")
            + ("" if RODS == "wat" else "_" + RODS.upper())
-           + ("" if not TILT else f"_T{TILT}"))[:12]
+           + ("" if not TILT else f"_T{TILT}")
+           + ("" if DCA_SET == "0.72" else f"_D{DCA_SET.replace('.','')}"))[:12]
     stem = os.path.basename(OUT)[:-4]
     rcpo_arg = " RCpo" if WITH_REFL else ""
     rcpo_seq = ("\nSEQ_ASCII   _RCompo    :: FILE './_RCompo' ;"
                 if WITH_REFL else "")
     rcpo_asg = "\nRCpo := _RCompo ;" if WITH_REFL else ""
+    # ---------------------------------------------------------------- A7
+    NCRFUEL = """MACFUEL := NCR: FCpo FMAP :: EDIT 0 MACRO LINEAR
+  TABLE FCpo 'EDIRBMK'
+  MIX %d SET 'burnup' 10900.0%s ENDMIX
+  ;""" % (M_FUEL, "" if WITH_THM else
+          "\n               SET 'DCA' %s SET 'TF' 900.0 SET 'TG' 750.0" % DCA_SET)
+    # With THM:, 'DCA' and 'TF' are NOT set here: the fuel map carries them as
+    # local parameters and NCR: picks a parameter up from the map whenever it
+    # is not SET (NCRRGR.f:714-722 prints which ones SET overrides).  'TG' is
+    # not in the map because nothing in DONJON computes a graphite temperature,
+    # so it stays pinned -- Phase 2c.
+    if WITH_THM:
+        NCRFUEL = NCRFUEL.replace(
+            "ENDMIX",
+            ("SET 'TG' 750.0 ENDMIX" if VOID_FB else
+             f"SET 'DCA' {DCA_SET} SET 'TG' 750.0 ENDMIX"))
+    fbdoc = ("" if VOID_FB else
+             "*  U4_VOIDFB=0: the coolant density is NOT taken from the map, it is pinned\n"
+             f"*  at {DCA_SET} g/cm3, so this loop carries the DOPPLER feedback only.  Not a\n"
+             "*  choice: the COMPO's DCA axis tops out at 0.72 g/cm3 and THM: computes\n"
+             "*  0.778 at a 265 C channel inlet, so the fully-coupled loop cannot\n"
+             "*  interpolate its own second iterate.  Core-wide cost of the override,\n"
+             "*  measured: 103 pcm, and that is an upper bound.  The fix is to extend the\n"
+             "*  DCA axis to ~0.80, which is one more value in a 7-value list and belongs\n"
+             "*  in the A6b rebuild.\n")
+    NCRFUEL_IND = "\n".join("  " + l for l in NCRFUEL.splitlines())
+
+    param_block = "" if not WITH_THM else """*  THM: writes back by P-NAME and recognises exactly T-FUEL, D-COOL, T-COOL,
+*  T-SURF, P-COOL (THM.f:1172-1174); NCR: reads by PARKEY, which is the
+*  COMPO's own axis name.  Hence two names per parameter.  LOCAL is per
+*  bundle, and SET-PARAM addresses by P-NAME and needs SAME before a value
+*  for a LOCAL parameter (RESPAR.f:139-176).
+  ADD-PARAM PNAME 'T-FUEL' PARKEY 'TF'  LOCAL
+  ADD-PARAM PNAME 'D-COOL' PARKEY 'DCA' LOCAL
+  SET-PARAM 'T-FUEL' SAME 900.0
+  SET-PARAM 'D-COOL' SAME 0.72
+  INST-BVAL SAME 10900.0
+"""
+
+    if WITH_THM:
+        if FLOW == "prop":
+            pw, psrc = chan_power()
+            assert len(pw) == nfuel, f"{len(pw)} channel powers, {nfuel} channels"
+            vel = [V_REF * q / P_REF for q in pw]
+            speed = ("  SPEED CHAN\n"
+                     + fmt([f"{v:.4f}" for v in vel], 12, "    "))
+            flowdoc = (f"*  U4_FLOW=prop: every channel valved to its own power, so each gets\n"
+                       f"*  {V_REF:.4f} m/s x P/{P_REF:.0f} kW -- [D] p.95's 30 t/h at 3100 kW, with the\n"
+                       f"*  velocity taken from THM:'s OWN answer for that point (A7a) so that no\n"
+                       f"*  steam table of ours enters the scaling.  Channel powers from\n"
+                       f"*  {os.path.relpath(psrc, ROOT)}\n"
+                       f"*  (POWER-CHAN, channel order): {min(pw):.0f} to {max(pw):.0f} kW, mean {sum(pw)/len(pw):.0f}.\n"
+                       f"*  Velocities {min(vel):.3f} to {max(vel):.3f} m/s; total flow\n"
+                       f"*  {sum(pw)/P_REF*30.0:.0f} t/h against a real RBMK's ~37 500.\n"
+                       f"*  THIS MAKES THE EXIT QUALITY FLAT BY CONSTRUCTION, which is the design\n"
+                       f"*  intent and therefore also the uninformative end of the bracket.\n")
+        else:
+            pw, psrc = chan_power()
+            vbar = V_REF * (sum(pw) / len(pw)) / P_REF
+            speed = f"  SPEED {vbar:.4f}"
+            flowdoc = (f"*  U4_FLOW=unif: one velocity everywhere, {vbar:.4f} m/s, the core-average\n"
+                       f"*  of the same normalisation.  No valving at all, so the hot channels\n"
+                       f"*  boil much harder than the cold ones -- the other end of the bracket.\n")
+        thm_block = f"""{flowdoc}  THER FMAP := THM: FMAP ::
+    EDIT 1
+    CONV 100 100 100 0.5 1.0E-4
+    INLET {P_OUT:.6E} {T_IN:.4f}
+{speed}
+    CLUSTER {TH_PITCH:.6E} {TH_NPIN}
+    RADIUS {R_PELLET:.6E} {R_GAP:.6E} {R_CLAD:.6E} 0.0
+    RODMESH 15 20
+    CRITFL 1.80E+6
+*   SAHA, not the default Bowring: Bowring's XFL never reverts to the
+*   thermodynamic quality once the bulk saturates (THMH2O.f:161).
+    SAHA
+*   HGAP set, not computed: THM:'s correlation implies a far tighter gap than
+*   this fuel's 100 um and lands 780 K low on [D]'s centreline (A7a).
+    HGAP {TH_HGAP:.4E}
+*   DFM 0 because THMTRS.f:157 forces it in the transient; converging the
+*   steady state with drift flux would change void model at t = 0.
+    DFM 0
+    RELAX 0.5
+    ;"""
+        solver = f"""TRACK := TRIVAT: GEO2 :: EDIT 0 MAXR {nel} DUAL 1 1 ;
+
+{fbdoc}*--- A7: Picard loop.  Flux -> power -> thermal-hydraulics -> coolant density
+*    and fuel temperature back into the cross-section interpolation, until the
+*    fuel temperature stops moving.
+REAL errt := 1.0E+10 ;
+INTEGER iter := 0 ;
+LOGICAL conv ;
+REPEAT
+  EVALUATE iter := iter 1 + ;
+{NCRFUEL_IND}
+  MACRO MATEX := MACINI: MATEX MACREF MACFUEL :: EDIT 0 ;
+  SYSTEM := TRIVAA: MACRO TRACK :: EDIT 0 ;
+  FLUX := FLUD: SYSTEM TRACK :: EDIT 0 ADI 2 EXTE 300 1.0E-6 ;
+  GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>keff<< ;
+  POWER FMAP := FLPOW: FMAP FLUX TRACK MATEX :: EDIT 0 PTOT {PTOT_MW:.1f} ;
+  IF iter 1 = THEN
+{thm_block}
+  ELSE
+    THER FMAP := THM: THER FMAP :: EDIT 1 ;
+  ENDIF ;
+  GREP: THER :: GETVAL 'ERROR-T-FUEL' 1 >>errt<< ;
+  ECHO "{tag} ITER" iter "KEFF" keff "ERRT" errt ;
+  EVALUATE conv := errt 1.0 < iter 25 > + ;
+  MACFUEL MACRO SYSTEM FLUX POWER := DELETE:
+    MACFUEL MACRO SYSTEM FLUX POWER ;
+UNTIL conv ;
+ECHO "{tag} CONVERGED keff" keff "after" iter "iterations, errt" errt ;
+
+*--- the converged state, for the comparison against [D] p.95 and for A8
+UTL: THER :: STEP UP 'HISTORY-DATA' STEP UP 'TIMESTEP0000'
+             STEP UP 'CHANNEL' STEP AT 1
+  IMPR XFL * IMPR COOLANT-TEMP * IMPR DENSITY * IMPR VELOCITIES * ;
+GREP: THER :: GETVAL 'MAX-T-FUEL' 1 >>tmaxf<< ;
+GREP: THER :: GETVAL 'MIN-D-COOL' 1 >>dmin<< ;
+GREP: THER :: GETVAL 'MAX-D-COOL' 1 >>dmax<< ;
+ECHO "{tag} TMAXFUEL" tmaxf "DCOOL" dmin dmax ;"""
+    else:
+        solver = f"""{NCRFUEL}
+
+MACRO MATEX := MACINI: MATEX MACREF MACFUEL :: EDIT 0 ;
+
+TRACK := TRIVAT: GEO2 :: EDIT 0 MAXR {nel} DUAL 1 1 ;
+SYSTEM := TRIVAA: MACRO TRACK :: EDIT 0 ;
+FLUX := FLUD: SYSTEM TRACK :: EDIT 1 ADI 2 EXTE 300 1.0E-6 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>keff<< ;
+ECHO "{tag} KEFF" keff ;"""
+
     refl_line = (f"{nrefl_col} radial reflector columns in {nring} rings "
                  f"(mix {M_REFL[0]}..{M_REFL[-1]}), {per_ring} per ring "
                  f"from the core outward." if WITH_REFL else
                  "NO RADIAL REFLECTOR (U4_REFL=0): the VOID boundary sits on "
                  "the core outline.")
+    ther_obj = " THER" if WITH_THM else ""
+    thm_mod = " THM:" if WITH_THM else ""
+    extra_reals = " tmaxf dmin dmax" if WITH_THM else ""
     refl_mixes = ("  COMPO RCpo 'EDIREFL'\n" + "".join(
         f"  MIX {m} FROM {5 + k} SET 'burnup' 10900.0 SET 'DCA' 0.72 ENDMIX\n"
         for k, m in enumerate(M_REFL))) if WITH_REFL else ""
@@ -527,14 +740,14 @@ def main():
 *  are right and FLUD: converges.
 *----
 LINKED_LIST GEOM GEO2 MATEX FMAP MACREF MACFUEL MACRO
-            TRACK SYSTEM FLUX POWER FCpo CCpo ACpo DCpo{rcpo_arg} ;
+            TRACK SYSTEM FLUX POWER{ther_obj} FCpo CCpo ACpo DCpo{rcpo_arg} ;
 SEQ_ASCII   _ACompo    :: FILE './_ACompo' ;
 SEQ_ASCII   _CCompoWAT :: FILE './_CCompoWAT' ;
 SEQ_ASCII   _CCompoABS :: FILE './_CCompoABS' ;
 SEQ_ASCII   _CCompoDSP :: FILE './_CCompoDSP' ;{rcpo_seq}
 MODULE      GEO: USPLIT: RESINI: NCR: MACINI: TRIVAT: TRIVAA: FLUD:
-            FLPOW: GREP: DELETE: END: ;
-REAL keff ;
+            FLPOW:{thm_mod} UTL: GREP: DELETE: END: ;
+REAL keff{extra_reals} ;
 
 FCpo := _ACompo ;
 CCpo := _CCompoWAT ;
@@ -579,7 +792,7 @@ FMAP MATEX := RESINI: MATEX ::
   NCOMB {nfuel}
   B-ZONE
 {bzone}
-  ;
+{param_block}  ;
 
 *--- non-fuel constants: the CPS water column and the four reflector rings.
 *    MACINI: indexes this macrolib by MATERIAL number, so mixture k here is
@@ -593,28 +806,20 @@ MACREF := NCR: CCpo ACpo DCpo{rcpo_arg} :: EDIT 0 MACRO LINEAR NMIX {3 + nring}
   MIX {M_DSP} FROM 5 SET 'burnup' 10900.0 SET 'DCA' 0.72 SET 'TF' 900.0 ENDMIX
 {refl_mixes}  ;
 
-*--- fuel constants, one mixture per bundle.  NMIX is NOT given: with a fuel
-*    map on the RHS, NCR.f:127 sets it from FLMIX = NCH x NB = {nfuel} x {nz}.
-*    'burnup' is SET rather than taken from the map (NCRRGR.f:717 says so in
-*    the printout), because no burnup placement map exists yet.
-MACFUEL := NCR: FCpo FMAP :: EDIT 0 MACRO LINEAR
-  TABLE FCpo 'EDIRBMK'
-  MIX {M_FUEL} SET 'burnup' 10900.0 SET 'DCA' 0.72
-               SET 'TF' 900.0 SET 'TG' 750.0 ENDMIX
-  ;
 
-MACRO MATEX := MACINI: MATEX MACREF MACFUEL :: EDIT 0 ;
-
-TRACK := TRIVAT: GEO2 :: EDIT 0 MAXR {nel} DUAL 1 1 ;
-SYSTEM := TRIVAA: MACRO TRACK :: EDIT 0 ;
-FLUX := FLUD: SYSTEM TRACK :: EDIT 1 ADI 2 EXTE 300 1.0E-6 ;
-GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>keff<< ;
-ECHO "{tag} KEFF" keff ;
+{solver}
 
 *--- power shape.  PTOT is the nominal thermal rating; the shape, not the
 *    normalisation, is what this increment checks.
 POWER FMAP := FLPOW: FMAP FLUX TRACK MATEX ::
   EDIT 2 PTOT 3200.0 PRINT DISTR POWER ;
+
+*--- the {nfuel} channel powers in CHANNEL ORDER -- the order RESPFM.f:74-82
+*    finds them, which is the order B-ZONE above is written in and the order
+*    THMINP reads a per-channel list in.  A7b sets each channel's coolant flow
+*    from its power, so this is the handover and it has to be the flat list
+*    rather than the radial-plane table FLPOW: prints.
+UTL: POWER :: IMPR POWER-CHAN * ;
 
 ECHO "UNIT4 geometry {nx} x {ny} x {nz}, {nfuel} fuel, {ncps} CPS, {nrefl_col} reflector" ;
 ECHO "{stem} completed" ;
