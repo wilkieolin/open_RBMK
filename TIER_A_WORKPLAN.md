@@ -476,6 +476,19 @@ without checking in.** Report:
   Geometry is `CLUSTER <pitch> 18`, not `ASSMB` (`THM.f:460`). Graphite temperature has to be
   supplied from outside: nothing in DONJON computes it, yet the fuel COMPO carries a `TG` axis
   (`rbmk_a5b_compo.x2m:133`, pinned at 750 K today).
+  **Measured 2026-10-02, and it makes Phase 2c a COMPO job before it is a conduction job.**
+  The branch table gives dk/dTG = **+132 pcm per 100 K at BU 0, +400-450 at the core's 10 900,
+  +815 at 20 GWd/t** -- positive, and larger than the Doppler and density feedbacks A7b
+  measured. Two things follow. (i) The axis stops at 900 K = 627 C while `rbmk_cell_a3.x2m:113`
+  carries "RBMK runs 500-700 C" as a bare comment with no reference tag -- an assumption of
+  ours, not a source, and sourcing it is part of this item. At face value 773-973 K, so a real
+  field runs off the top of the axis and `NCR:` aborts, exactly as `DCA` and `TF` did. (ii) Pinning at 750 K (477 C, below the
+  sourced range) biases the core by about **+500 pcm**, so today's core k is a k at TG 750 and
+  must not be quoted as the eigenvalue. The axis also owns essentially all of the off-grid
+  interpolation error -- 31.1 pcm of 30.4, against 1.0 for `DCA` and 0.4 for `TF`. So the next
+  rebuild extends `TG` past 973 K and refines the 250 K gaps, and the conduction solve waits
+  on that. No source in the project gives a graphite temperature coefficient; this one is ours
+  and wants an independent check.
 - **A8 Reference AZ-5 transient.** Starts from the A6d state; runs under bracket variants A′
   and B (`openmc/void_bracket.corrections`); stops at a sourced fuel-failure criterion;
   compared, not tuned, with INSAG-7 Appendix II's three reconstructions. `INIKIN:` → time loop → `DSET:` → `MACINI:` → `NEWMAC:` →

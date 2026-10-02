@@ -342,8 +342,9 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
     </dl>
 
     <p>The database now spans four axes &mdash; burnup, coolant density, fuel temperature and
-      graphite temperature &mdash; at every combination: <strong>840 points</strong>, 14.7 hours,
-      152&nbsp;MB. Each point is a full re-solve including re-computed self-shielding, which is not
+      graphite temperature &mdash; at every combination: <strong>1152 points</strong>, 9.6 hours,
+      208&nbsp;MB, after a 2026-10-02 rebuild widened two axes that a real core had walked
+      straight off the end of. Each point is a full re-solve including re-computed self-shielding, which is not
       optional: boiling the coolant hardens the neutron spectrum into exactly the uranium
       resonances that self-shielding governs.</p>
 
@@ -351,9 +352,9 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
   </div>
 
   <div class="tiles">
-    <div class="tile"><span class="v">840</span><span class="k">branch points, all present, no non-convergence</span></div>
-    <div class="tile"><span class="v" style="color:var(--good)">0.9 pcm</span><span class="k">worst round-trip loss, 8 nodes spanning every axis extreme</span></div>
-    <div class="tile"><span class="v" style="color:var(--good)">24 pcm</span><span class="k">worst off-grid interpolation error &mdash; what the transient will actually use</span></div>
+    <div class="tile"><span class="v">1152</span><span class="k">branch points, all present, no non-convergence</span></div>
+    <div class="tile"><span class="v" style="color:var(--good)">1.3 pcm</span><span class="k">worst round-trip loss, 12 nodes including both newly added axis values</span></div>
+    <div class="tile"><span class="v" style="color:var(--warn,#c90)">30 pcm</span><span class="k">worst off-grid interpolation error &mdash; and all of it belongs to one axis</span></div>
     <div class="tile"><span class="v" style="color:var(--good)">&minus;0.5 %</span><span class="k">&beta; against an independent Monte Carlo measurement</span></div>
   </div>
 
@@ -363,8 +364,16 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
       0.9&nbsp;pcm through all of that is three orders of magnitude below the physics uncertainties
       here. The off-grid test matters more: the transient will never land exactly on a tabulated
       point, so it measures error at the <em>midpoints</em> of the coolant-density and temperature
-      axes. Burnup is deliberately left on grid nodes &mdash; fuel composition does not change over
-      the forty seconds of an accident, while the other three swing violently.</p>
+      axes.</p>
+    <p>That off-grid number sits a whisker over the 30&nbsp;pcm the plan asked for, and the useful
+      thing is <em>where</em> it comes from. Running states that are off-grid in exactly one axis at
+      a time splits it cleanly: the coolant-density axis costs 1&nbsp;pcm, the fuel-temperature axis
+      0.4, and the <strong>graphite-temperature axis 31</strong>. The two axes the rebuild had just
+      widened are essentially free; the entire error lives in the one axis with only three values
+      across it. Since the core model currently pins graphite temperature on one of those three
+      values, the error actually incurred today is about a pcm &mdash; but the moment a graphite
+      conduction model supplies a real field, this becomes the dominant term, and that is now a
+      prerequisite on it rather than a surprise waiting inside it.</p>
     <p>An earlier check on a single corner point had reported 0.4&nbsp;pcm. That was the best case
       by a factor of sixteen; the honest number is 6.4.</p>
   </div>
@@ -775,10 +784,20 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
         conduction across the measured 100&nbsp;&micro;m gap, and inverting the published
         centreline temperature. The solver's own correlation assumes a far tighter gap and is
         the outlier, so the value is now set explicitly rather than left to it.</li>
-      <li><b>Nothing computes the graphite temperature.</b> The cross-section database has an axis
-        for it &mdash; it is a large effect in a graphite-moderated reactor &mdash; but the value
-        is pinned at a constant 750&nbsp;K everywhere, because the solver has no conduction model
-        for the moderator. It has to be supplied from outside.</li>
+      <li><b>Nothing computes the graphite temperature, and that now has a price on it.</b> The
+        cross-section database has an axis for it, but the value is pinned at a constant
+        750&nbsp;K everywhere, because the solver has no conduction model for the moderator. The
+        database itself says what that costs: reactivity rises by about <strong>450&nbsp;pcm per
+        100&nbsp;K</strong> of graphite temperature at this fuel's burnup &mdash; positive, and
+        steeply increasing with burnup &mdash; so pinning the moderator roughly 120&nbsp;K below
+        where an operating RBMK sits biases the core by some <strong>+500&nbsp;pcm</strong>. That
+        is larger than either of the feedbacks the coupled model measures carefully, which means
+        the core's absolute multiplication factor should not be quoted until the graphite field is
+        real. It is a steady bias on the starting state rather than a transient effect: graphite's
+        thermal time constant is hours, so it is frozen through a four-second excursion. Two
+        further problems come with it &mdash; the axis stops below the temperature an operating
+        reactor reaches, and no source in the project gives a graphite temperature coefficient to
+        check this one against.</li>
     </ul>
   </div>
 </section>

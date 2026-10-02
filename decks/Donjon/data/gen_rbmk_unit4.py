@@ -297,6 +297,24 @@ V_REF, P_REF = 4.7713, 3100.0   # m/s at kW: THM:'s OWN inlet velocity for
                                 # [D]'s 30 t/h at 3100 kW, measured in A7a, so
                                 # no steam table of ours enters the scaling
 PTOT_MW = 3200.0                # [D]: nominal thermal rating
+# THM:'s inner temperature tolerance, in K.  Upstream's value is 0.5.
+# 0.05 was adopted on 2026-10-01 on the theory that the outer Picard test --
+# a max over 46 508 bundles -- could not be tighter than what the inner solve
+# guarantees per bundle.  The reasoning is sound and the conclusion was wrong:
+# measured 2026-10-02, tightening it ten-fold changed neither the eigenvalue
+# nor the residual plateau, because the plateau is a limit cycle (see the
+# convergence block below) and not a tolerance floor.  It is kept because an
+# inner solve should be tighter than anything the outer loop tests, not
+# because it fixed anything.
+ERMAXT = os.environ.get("U4_ERMAXT", "0.05")
+# THM: relaxes ALL FIVE local feedback fields with one factor (THM.f:1187,
+# 1207-1245): FLOT = RELAX*new + (1-RELAX)*old.  So the residual THM reports
+# is already scaled by it.  RELAX is a solver parameter, not a physical one,
+# and the converged answer must not depend on it -- measured 2026-10-02 at
+# 1.0, 0.5 and 0.2, keff came out bit-identical at 1.039735 all three times.
+RELAX = os.environ.get("U4_RELAX", "0.5")
+DKTOL = os.environ.get("U4_DKTOL", "1.0E-6")
+MAXIT = os.environ.get("U4_MAXIT", "40")
 # U4_DCA: the coolant density fed to the fuel interpolation in the SINGLE-PASS
 # deck.  It exists to price the COMPO's DCA axis ceiling: the axis is
 # 0.72 0.60 0.45 0.30 0.15 0.05 0.02 g/cm3 (rbmk_a5b_compo.x2m:99) and 0.72 is
@@ -622,7 +640,14 @@ def main():
                        f"*  boil much harder than the cold ones -- the other end of the bracket.\n")
         thm_block = f"""{flowdoc}  THER FMAP := THM: FMAP ::
     EDIT 1
-    CONV 100 100 100 0.5 1.0E-4
+*   CONV is <conduction its> <centre-pellet its> <flow its> <ERMAXT> <ERMAXC>
+*   (THM.f).  ERMAXT is THM:'s OWN inner temperature tolerance in K, kept an
+*   order of magnitude below upstream's 0.5 so the inner solve is tighter than
+*   anything the outer loop tests.  It is NOT why the loop converges: that was
+*   the 2026-10-01 diagnosis and it was disproved the next day -- tightening
+*   this ten-fold left both the eigenvalue and the residual plateau unchanged,
+*   because the plateau is a limit cycle.  See the convergence block below.
+    CONV 100 100 100 {ERMAXT} 1.0E-6
     INLET {P_OUT:.6E} {T_IN:.4f}
 {speed}
     CLUSTER {TH_PITCH:.6E} {TH_NPIN}
@@ -638,14 +663,14 @@ def main():
 *   DFM 0 because THMTRS.f:157 forces it in the transient; converging the
 *   steady state with drift flux would change void model at t = 0.
     DFM 0
-    RELAX 0.5
+    RELAX {RELAX}
     ;"""
         solver = f"""TRACK := TRIVAT: GEO2 :: EDIT 0 MAXR {nel} DUAL 1 1 ;
 
 {fbdoc}*--- A7: Picard loop.  Flux -> power -> thermal-hydraulics -> coolant density
 *    and fuel temperature back into the cross-section interpolation, until the
 *    fuel temperature stops moving.
-REAL errt := 1.0E+10 ;
+REAL errt errd kprev dk := 1.0E+10 1.0E+10 0.0 1.0E+10 ;
 INTEGER iter := 0 ;
 LOGICAL conv ;
 REPEAT
@@ -662,12 +687,64 @@ REPEAT
     THER FMAP := THM: THER FMAP :: EDIT 1 ;
   ENDIF ;
   GREP: THER :: GETVAL 'ERROR-T-FUEL' 1 >>errt<< ;
-  ECHO "{tag} ITER" iter "KEFF" keff "ERRT" errt ;
-  EVALUATE conv := errt 1.0 < iter 25 > + ;
+*   ERROR-D-COOL is the residual that actually matters here.  Measured
+*   2026-10-02: at RELAX 0.5 T-FUEL plateaus around 2 K while D-COOL plateaus
+*   around 0.02 g/cc, both bounded away from zero, with the field EXTREMA frozen to
+*   the thousandth and keff bit-stable.  That is a limit cycle at the
+*   boiling-onset node, not an unconverged solve, so the loop has to report
+*   the density residual rather than infer it from the temperature one.
+  GREP: THER :: GETVAL 'ERROR-D-COOL' 1 >>errd<< ;
+  EVALUATE dk := keff kprev - ABS ;
+  EVALUATE kprev := keff ;
+  ECHO "{tag} ITER" iter "KEFF" keff "DK" dk "ERRT" errt "ERRD" errd ;
+*   CONVERGENCE IS TESTED ON THE EIGENVALUE, NOT ON THE TEMPERATURE FIELD,
+*   and the reason is measured rather than assumed.  THM: reports the
+*   pass-to-pass residual of each field it writes back (THM.f:1211); the
+*   fuel-temperature one does not go to zero.  It plateaus, with the field
+*   EXTREMA frozen to the thousandth of a degree and keff bit-stable for
+*   twenty passes -- bit-stable keff means bit-stable power, so a converged
+*   field would give exactly zero.  It is a limit cycle, and the mechanism is
+*   in the source: K0 is an INTEGER node index set by the Saha-Zuber onset
+*   test IF(TCALO.GE.TSAT-DTSUB) K0=K (THMH2O.f:383), reset to 0 at :276,
+*   and it gates the whole two-phase block at :147.  A node sitting within
+*   rounding of that threshold flips the branch on and off, moving its
+*   density by a finite step each pass, and DTSUB depends on the heat flux,
+*   so the switch lives INSIDE the Picard loop.  No tolerance removes it.
+*   Measured 2026-10-02 at RELAX 1.0 / 0.5 / 0.2, the plateau falls -- about
+*   7, 2 and 0.6 K, and it is noisy from pass to pass because it is a cycle
+*   and not a residual -- faster than RELAX itself, so under-relaxation both
+*   rescales the step and partly damps the switching; but it never reaches
+*   zero, and keff came out BIT-IDENTICAL at all three, 1.039735.  The
+*   relaxation factor is a solver parameter and the answer does not depend on
+*   it.  So the loop converges what converges, and reports the rest.
+  EVALUATE conv := iter 0 < ;
+  IF dk {DKTOL} < THEN
+    IF iter 10 > THEN
+      EVALUATE conv := iter 0 > ;
+    ENDIF ;
+  ENDIF ;
+  IF iter {MAXIT} > THEN
+    EVALUATE conv := iter 0 > ;
+  ENDIF ;
   MACFUEL MACRO SYSTEM FLUX POWER := DELETE:
     MACFUEL MACRO SYSTEM FLUX POWER ;
 UNTIL conv ;
-ECHO "{tag} CONVERGED keff" keff "after" iter "iterations, errt" errt ;
+ECHO "{tag} CONVERGED keff" keff "after" iter "iterations, errt" errt "errd" errd ;
+
+*--- ONE FINAL SOLVE ON THE CONVERGED FIELD.
+*    The loop deletes FLUX at the end of every pass, so everything below it
+*    used to reference an object that no longer existed -- the deck died with
+*    kernel error 666 (LINKED_LIST *FLUX* IS NOT DEFINED) after printing the
+*    loop's own results, and the power-shape block had never once run.
+*    Rebuilding here is also the more correct order: inside the loop the power
+*    is computed BEFORE that pass's THM: update, so the last in-loop power
+*    belongs to the previous temperature field, not the converged one.
+{NCRFUEL}
+MACRO MATEX := MACINI: MATEX MACREF MACFUEL :: EDIT 0 ;
+SYSTEM := TRIVAA: MACRO TRACK :: EDIT 0 ;
+FLUX := FLUD: SYSTEM TRACK :: EDIT 0 ADI 2 EXTE 300 1.0E-6 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>keff<< ;
+ECHO "{tag} FINAL keff" keff ;
 
 *--- the converged state, for the comparison against [D] p.95 and for A8
 UTL: THER :: STEP UP 'HISTORY-DATA' STEP UP 'TIMESTEP0000'
