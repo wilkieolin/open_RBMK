@@ -322,6 +322,24 @@ Access via the per-deck `<name>.access` script, which symlinks `DLIB_99`.
 > flow state need not be perfect. The two density-pinned cases agree to 0.5 pcm, which is the
 > check that the pin severs the flow-to-k path rather than merely damping it.
 
+> **2026-10-03 (12): the burnup rebuild landed, and it says which numbers to trust.**
+> 12 burnup nodes / 1728 points in 18.1 h; 1728/1728 rows, round trip **1.6 pcm**, and
+> BU 0 unchanged at 1.313968, which is the invariant a changed depletion path had to
+> respect. **The core's own burnup interval now interpolates to +8.7 pcm**, measured,
+> on an axis that had never been tested at all — the A6d blocker is cleared where it
+> matters. Refining the depletion grid also removed a **systematic 20–29 pcm** step
+> error the previous "≤ 2.5 MWd/kg" grid still carried. Re-running A7 against the new
+> table then gave the useful result: absolute k moved **−20 pcm** and every feedback
+> moved **≤ 2 pcm** — Doppler −226, density +308, net +82, flow spread 59.7. A
+> one-signed table error moves the eigenvalue and cancels out of differences, which is
+> why the feedback decomposition has been stable across three tables while k has not,
+> and why the `TG` pin matters for quoting k far more than for quoting feedbacks.
+> **A gate point I chose badly:** the burnup gate sampled 250 MWd/t "where the curve is
+> steepest", but [PAV]'s lowest group is 1200, so that 1341 pcm is the error of a state
+> the model never evaluates — exactly the mistake the `TG` axis had been making, found
+> one day earlier and then repeated. The interval that group does sit in was not
+> sampled, so its improvement is real but unmeasured, and no number is claimed for it.
+
 ## Validated results
 
 | Item | Result | Status |
@@ -3815,7 +3833,9 @@ to the previous temperature field.
 ### What the feedback is actually worth, converged rather than extrapolated
 
 `tools/a7b_check.sh` runs all four combinations of {density pinned, density live} ×
-{flow valved to power, uniform flow}, each to the new criterion in 12 passes:
+{flow valved to power, uniform flow}, each to the new criterion in 12 passes. *(These k values
+are on the 1152-point table and were re-based by the 2026-10-03 rebuild — see section (12);
+the absolute values move ~20 pcm, the feedbacks move 2.)*
 
 | case | k | reactivity vs cold |
 |---|---|---|
@@ -3860,7 +3880,7 @@ average but still redistributes power away from the hottest channels, which are 
 boiling hardest.
 
 
-## The burnup axis rebuild, launched — 2026-10-02 (12)
+## The burnup axis rebuild, launched and landed — 2026-10-02/03 (12)
 
 Section (10) measured the problem; this is the fix, running. **12 burnup nodes instead of 8**,
 and the three new ones cost no extra depletion because the chain already passes through them:
@@ -3900,6 +3920,138 @@ end, so the old table stays usable for the whole run.
 prices the pin at ~+500 pcm — but its range is set by a bare uncited comment, and widening an
 axis to a number nobody sourced is the thing this project does not do. Sourcing it is part of
 Phase 2c; the extension goes into whatever rebuild follows.
+
+
+### It landed, and the structural gates pass
+
+**18.1 h** (65 100.6 s; the 14.4 h estimate did not allow for the unrelated workload sharing
+the machine), normal end, MAXRSS 812 MB. `_ACompo` is **312 731 083 bytes** against the
+previous 208 379 142 — a factor of **1.5007** against a tensor that grew by exactly 1.5, which
+is the same cheap consistency check the last rebuild passed.
+
+| gate | result |
+|---|---|
+| branch rows | **1728 / 1728**, no absurd row, k 0.891338 … 1.334122 |
+| burnup nodes stored | **12**, exactly the intended set |
+| **invariant: BU 0 at 0.72 / 900 / 750** | **1.313968** — unchanged to every digit |
+| round trip | **1.6 pcm** over 12 nodes (gate ≤ 10) |
+
+The invariant is the one that mattered. Nothing is depleted at BU 0, so a changed depletion
+path must leave it alone; had it moved, the path change would have been doing something it had
+no business doing.
+
+### What refining the depletion grid was worth, measured
+
+Everything above BU 0 *did* move, and since the old column is on record the shift can be
+measured rather than waved at:
+
+| BU | 11-step grid | 14-step grid | Δρ |
+|---|---|---|---|
+| 0 | 1.313968 | 1.313968 | **+0.0** |
+| 2000 | 1.237577 | 1.238014 | +28.5 |
+| 5000 | 1.187035 | 1.186767 | −19.0 |
+| 7500 | 1.142442 | 1.142208 | −17.9 |
+| 10 000 | 1.097458 | 1.097225 | −19.3 |
+| 12 500 | 1.052316 | 1.052156 | −14.5 |
+| 15 000 | 1.007452 | 1.007269 | −18.0 |
+| 20 000 | 0.921779 | 0.921542 | −27.9 |
+
+So the previous grid — already refined once, to the "≤ 2.5 MWd/kg" rule — still carried
+**up to 29 pcm of depletion-step error**, systematic and one-signed above 2000: it overstated
+k everywhere. That is now the second, independent reason the decision in section (10) was
+right. Computing a burnup reference on a *new* path and comparing it against a table built on
+the *old* one would have folded ~20 pcm of path difference into a 30 pcm gate and called it
+interpolation error. The 500 MWd/t point shows it directly: 1.260106 on the old path,
+1.259790 on the new one, a 20 pcm shift in a quantity the gate reads to the pcm.
+
+It also says the step error is converging rather than closed: 11 → 14 points moved k by ~20 pcm,
+so the remaining error is smaller than that but not zero, and it is one-signed. Worth one more
+halving study if any result ever turns on 20 pcm of absolute k.
+
+
+### The interpolation gates on the rebuilt table, and a gate point I chose badly
+
+| gate | before | after | verdict |
+|---|---|---|---|
+| round trip, 12 nodes | 1.3 pcm | **1.6 pcm** | passes (≤ 10) |
+| off-grid LINEAR, 10 states | 30.4 pcm | **30.4 pcm** | unchanged, and it should be — `TG` owns it and `TG` was not touched |
+| off-grid CUBIC | 48.3 pcm | 34.4 pcm | still worse than LINEAR; still rejected |
+| **burnup, core's own interval (11 250)** | — | **+8.7 pcm** | **the blocker is cleared** |
+| burnup, 0–500 interval (250) | — | **+1340.9 pcm** | the xenon knee is still inside it |
+
+**+8.7 pcm at 11 250 is the result that matters.** It is a direct measurement in the interval
+the core actually runs in, and it replaces an axis that had never been tested at all.
+
+**The 250 point is a gate point I should not have chosen, and the reason is embarrassing.**
+I picked it "in the steepest part of the curve", which sounds right and is wrong: [PAV]'s
+lowest burnup group is at **1200 MWd/t**, so no Unit 4 assembly is anywhere near 250, and the
+1341 pcm it reports is the interpolation error of a state the model never evaluates. That is
+*precisely* the error the `TG` axis had been making — a gate measuring somewhere the model does
+not go — found and written up one day earlier, and then repeated. The point that needed
+sampling was inside **1000–2000**, where the fresh group lives, and the rebuild had the chance
+to put a non-node there and did not.
+
+**So the fresh group's interval is improved but not measured, and I am not going to put a
+number on it.** The node bracketing it went from 0–2000, spanning the xenon knee, to 1000–2000,
+entirely past it, which has to be a large improvement on the ~+1170 pcm of section (10). But
+"has to be" is not a measurement. A curvature estimate from the node values would give ~18 pcm,
+and that estimator is **demonstrably unreliable here**: calibrated against the two burnups where
+truth is now known, it underpredicts by **3.7× at 250 and 17× at 11 250**. A number from it
+would be a number with no error bar, which is worse than saying the interval is untested.
+
+Two things follow for the next rebuild, both cheap because they are gate-side:
+
+* move the burnup gate point from 250 into the 1000–2000 interval, which costs one depletion
+  point and no nodes;
+* keep a point in 0–500 only if something ever puts fuel there, and otherwise record the
+  interval as outside the model's range rather than as a failing gate.
+
+
+### What the rebuild did to A7: moved k by 20 pcm, moved the physics by 2
+
+Every A7 number in section (11) was computed against the 1152-point table. Re-run against the
+1728-point one, same decks, same criterion:
+
+| | 1152-point table | 1728-point table | shift |
+|---|---|---|---|
+| cold, no feedback | 1.038874 | **1.038645** | −21 pcm |
+| Doppler only, flow valved to power | 1.036434 | **1.036211** | −21 pcm |
+| Doppler only, uniform flow | 1.036429 | **1.036206** | −21 pcm |
+| Doppler + density, flow valved | 1.039734 | **1.039528** | −19 pcm |
+| Doppler + density, uniform | 1.040376 | **1.040173** | −19 pcm |
+| | | | |
+| Doppler feedback | −227 pcm | **−226 pcm** | +1 |
+| density feedback | +306 pcm | **+308 pcm** | +2 |
+| net feedback | +80 pcm | **+82 pcm** | +2 |
+| flow-distribution spread | 59.4 pcm | **59.7 pcm** | +0.3 |
+| pinned-pair agreement | 0.5 pcm | **0.5 pcm** | — |
+| | | | |
+| channel peaking, cold → coupled | 1.8289 → 1.5719 | **1.8290 → 1.5717** | 4th digit |
+| peak channel power, cold → coupled | 3517.1 → 3022.2 kW | **3517.1 → 3021.9 kW** | 0.3 kW |
+
+(The cold reference was re-run on the new table too, so both halves of the power comparison are
+on the same database.)
+
+**The shift in absolute k is the depletion-step error the rebuild removed** — 19–21 pcm, the
+same one-signed 20-ish pcm the node column showed — **and it cancels out of every difference.**
+Doppler, void, the flow spread and the pin check all survive to within 2 pcm.
+
+The power distribution does not move either — peaking and peak channel power agree to the
+fourth digit across the two tables, which is what a uniform one-signed shift in the cross
+sections should do to a *shape*.
+
+That is worth stating as a general property of this model rather than as a one-off: a
+systematic, one-signed error in the cross-section table moves the eigenvalue and very nearly
+does not move reactivity *differences*, nor the power shape. It is why the feedback decomposition has been stable
+across three successive tables while the absolute k has not, and it is the reason the `TG` pin
+(~+500 pcm, section 10) is a serious problem for quoting k and a much smaller one for quoting
+feedbacks. A8 is driven by differences. The eigenvalue is what should be distrusted.
+
+A consequence for everything else in this log: **the fuel COMPO rebuild re-baselines absolute k
+wherever it was quoted**, by roughly −20 pcm, while worths and coefficients computed as
+differences on the same table are essentially unaffected. Nothing has been re-run beyond A7;
+earlier absolute values should be read with that offset in mind rather than taken as
+inconsistent.
 
 
 ## Standing rules
@@ -3944,7 +4096,7 @@ Phase 2c; the extension goes into whatever rebuild follows.
 
 ---
 
-*Last updated: 2026-10-02 (11) (A7 converges, and the thing that does not is a switch: last night's ERMAXT diagnosis was WRONG -- bit-identical k means bit-identical power and therefore a residual of exactly zero, so a plateau is a limit cycle, and it is K0, the integer boiling-onset node index set by the Saha-Zuber test at THMH2O.f:383 and gating the two-phase block at :147, with DTSUB depending on heat flux so the switch sits inside the Picard loop; proved by pinning the density, which drops the residual to 0.031 K and dk to exactly zero; k bit-identical at RELAX 1.0/0.5/0.2 so the loop now converges on the eigenvalue; the loop also deleted FLUX on its last pass, so the power-shape block had NEVER run and every A7 run died with kernel error 666 after printing its results; converged feedback Doppler -227, density +306, net +80 pcm; first power shape, peaking 1.8289 -> 1.5719, peak channel 3517 -> 3022 kW; all four flow x feedback cases converge, so the flow-distribution spread is measurable for the first time at 59.4 pcm, while the two density-pinned cases agree to 0.5 pcm). Previously: 2026-10-02 (10) (the 1152-point COMPO landed in 9 h 33 min, round trip 1.3 pcm over 12 nodes including the two newly added axis values, off-grid 30.4 pcm -- and the axis decomposition attributes 31.1 of it to TG alone against 1.0 for DCA and 0.4 for TF, so the two axes just widened are free and the gate had been measuring an axis the core pins on a node; CUBIC rejected on measurement at -48.3 pcm; TWO untested things found: dk/dTG is +400-450 pcm per 100 K and the TG axis stops below operating temperature, so pinning it biases the core ~+500 pcm and today's core k is not an eigenvalue; and the burnup axis, interpolated in every core calculation ever run here, is off by +2099 pcm at 500 MWd/t because the equilibrium xenon knee falls inside the first node interval -- the core's own 10 900 is flat at 2-3 pcm but [PAV] puts 10.4 % of the core at 1.2 MWd/kgU, ~+1170 pcm each, a hard A6d blocker). Previously: 2026-10-01 (9) (A6b scoped down and the COMPO rebuild launched: the xenon AXIS turns out not to be needed at all -- Xe135 and I135 are in the stored MICR list and NCRLIB.f:268 lets NCR: MICRO replace their densities before rebuilding the embedded macrolib, so a xenon field costs a clause and no rebuild -- which leaves A6b's COMPO work as just the two A7b axis widenings; 1152-point rebuild running, ~10 h, with the working 840-point database preserved; DRAGON's -p does nothing for this deck, 118.15 s at 1 thread against 118.18 s at 8). Previously: 2026-10-01 (8) (A7b: the coupled Picard loop runs and converges geometrically at r = 0.40, Doppler feedback worth -240 pcm, extrapolated k = 1.036471 -- and then stops because the A5b MULTICOMPO's branch axes are too narrow for a real core at BOTH ends: DCA tops out at 0.72 g/cm3 where the subcooled inlet is 0.778, and TF floors at 600 K where a low-power channel end sits at 586 K; both are one more value on an existing axis and both go into the A6b rebuild, with the DCA pin priced at 103 pcm upper bound). Previously: 2026-10-01 (7) (A7a: one fuel channel against [D] p.95, the project's first comparison against anything but another code -- outlet temperature 289.47 against 289.3, exit quality 16.50 % against a published 19.6 % that lies OUTSIDE the box [D]'s own power and flow ranges allow, so the model closes its own energy balance to 1.2 % and the residual is the source's internal inconsistency; two THM: default traps found (Bowring's XFL never reverts to the thermodynamic quality, SET-PARAM addresses by P-NAME and needs SAME for a LOCAL parameter); the equivalent CLUSTER pitch resolved by measurement, since the hydraulic diameter reaches nothing compared once the surface is boiling; the centreline gap inverted to a gap conductance of ~1700-2800 W/m2/K that the sourced 100 um gap independently supports). Previously: 2026-10-01 (6) (Phase 2b: THM: patched for per-channel inlet velocity -- SPEED CHAN <list> through the existing THMINP, with the scratch copy THMDRV's self-overwrite demands; proved invisible when unused (2 597 833 comparable lines of channel_mphy.x2m, 0 differences) and provably per-channel when used (fuel temperature falls monotonically with velocity across four channels); the patch lives in patches/ because 5.1/ is gitignored, applied idempotently by tools/apply_patches.sh from bootstrap). Previously: 2026-10-01 (5) (gate A6.5 measured: the graphite displacer is worth +2060 pcm against a water column, and the first 1.25 m of rod travel is -175 pcm with a centre-peaked flux but turns POSITIVE, up to +177 pcm, once the axial peak is driven below the mid-plane -- the sign tracks the peak in both directions, so the gate's mechanism is present and conditional exactly as the gate states it; that puts A6b (xenon) and A6d (burnup placement) on the critical path to A8 by measurement). Previously: 2026-10-01 (4) (A6.5: the Unit 4 core deck solves the whole chain for the first time -- NCR: x2 -> MACINI: -> DUAL 1 1 -> FLUD: -> FLPOW: on real cross sections in every mixture, k = 1.018278 reported not asserted, 8.1 s; the stack boundary closes a third sourced count exactly (156 cooled reflector channels); the radial reflector is worth 131 pcm and only 2.6 pcm leaks past it, which closes the Phase 1b question -- the 7152 pcm strip error does not propagate). Previously: 2026-10-01 (3) (Phase 1b: reflector geometry sourced and closed three ways; OpenMC shows DRAGON's OPEN-BOUNDARY solution is wrong by 2-5x here, which retracts the earlier 'diffusion cannot do reflectors' conclusion -- no published result is affected, all are reflected; closing the supercell avoids it and leaves 7152 pcm on a test that over-weights the reflector; SPH fails in seven variants). Previously: 2026-10-01 (superposition test: the A6.4 environment effect is the SPH factor, spanning 1.00-1.56; sub-additive and not a function of the eight-ring count, so a continuous environment axis is viable but weeks of work; two read-out bugs corrected, k-based conclusions unaffected; radial reflector sourced at 3+1 rings from [BEH96]). Previously: 2026-09-30 (2) (A6.4b disproved: no rod-only SPH equivalence can close gate A6.4,
+*Last updated: 2026-10-03 (12) (the burnup rebuild landed: 12 nodes / 1728 points in 18.1 h, round trip 1.6 pcm, BU 0 unchanged at 1.313968, and the core's own burnup interval now measured at +8.7 pcm on an axis that had never been tested -- the A6d blocker is cleared where it matters; refining the depletion grid removed a systematic 20-29 pcm step error the previous grid still carried; re-running A7 moved absolute k by -20 pcm and every feedback by <= 2 pcm, which says the differences are robust and the eigenvalue is the fragile number; and the burnup gate point was badly chosen -- 250 MWd/t is where the curve is steepest but [PAV]'s lowest group is 1200, so the 1341 pcm it reports belongs to a state the model never evaluates, the same mistake the TG axis was caught making one day earlier). Previously: 2026-10-02 (11) (A7 converges, and the thing that does not is a switch: last night's ERMAXT diagnosis was WRONG -- bit-identical k means bit-identical power and therefore a residual of exactly zero, so a plateau is a limit cycle, and it is K0, the integer boiling-onset node index set by the Saha-Zuber test at THMH2O.f:383 and gating the two-phase block at :147, with DTSUB depending on heat flux so the switch sits inside the Picard loop; proved by pinning the density, which drops the residual to 0.031 K and dk to exactly zero; k bit-identical at RELAX 1.0/0.5/0.2 so the loop now converges on the eigenvalue; the loop also deleted FLUX on its last pass, so the power-shape block had NEVER run and every A7 run died with kernel error 666 after printing its results; converged feedback Doppler -227, density +306, net +80 pcm; first power shape, peaking 1.8289 -> 1.5719, peak channel 3517 -> 3022 kW; all four flow x feedback cases converge, so the flow-distribution spread is measurable for the first time at 59.4 pcm, while the two density-pinned cases agree to 0.5 pcm). Previously: 2026-10-02 (10) (the 1152-point COMPO landed in 9 h 33 min, round trip 1.3 pcm over 12 nodes including the two newly added axis values, off-grid 30.4 pcm -- and the axis decomposition attributes 31.1 of it to TG alone against 1.0 for DCA and 0.4 for TF, so the two axes just widened are free and the gate had been measuring an axis the core pins on a node; CUBIC rejected on measurement at -48.3 pcm; TWO untested things found: dk/dTG is +400-450 pcm per 100 K and the TG axis stops below operating temperature, so pinning it biases the core ~+500 pcm and today's core k is not an eigenvalue; and the burnup axis, interpolated in every core calculation ever run here, is off by +2099 pcm at 500 MWd/t because the equilibrium xenon knee falls inside the first node interval -- the core's own 10 900 is flat at 2-3 pcm but [PAV] puts 10.4 % of the core at 1.2 MWd/kgU, ~+1170 pcm each, a hard A6d blocker). Previously: 2026-10-01 (9) (A6b scoped down and the COMPO rebuild launched: the xenon AXIS turns out not to be needed at all -- Xe135 and I135 are in the stored MICR list and NCRLIB.f:268 lets NCR: MICRO replace their densities before rebuilding the embedded macrolib, so a xenon field costs a clause and no rebuild -- which leaves A6b's COMPO work as just the two A7b axis widenings; 1152-point rebuild running, ~10 h, with the working 840-point database preserved; DRAGON's -p does nothing for this deck, 118.15 s at 1 thread against 118.18 s at 8). Previously: 2026-10-01 (8) (A7b: the coupled Picard loop runs and converges geometrically at r = 0.40, Doppler feedback worth -240 pcm, extrapolated k = 1.036471 -- and then stops because the A5b MULTICOMPO's branch axes are too narrow for a real core at BOTH ends: DCA tops out at 0.72 g/cm3 where the subcooled inlet is 0.778, and TF floors at 600 K where a low-power channel end sits at 586 K; both are one more value on an existing axis and both go into the A6b rebuild, with the DCA pin priced at 103 pcm upper bound). Previously: 2026-10-01 (7) (A7a: one fuel channel against [D] p.95, the project's first comparison against anything but another code -- outlet temperature 289.47 against 289.3, exit quality 16.50 % against a published 19.6 % that lies OUTSIDE the box [D]'s own power and flow ranges allow, so the model closes its own energy balance to 1.2 % and the residual is the source's internal inconsistency; two THM: default traps found (Bowring's XFL never reverts to the thermodynamic quality, SET-PARAM addresses by P-NAME and needs SAME for a LOCAL parameter); the equivalent CLUSTER pitch resolved by measurement, since the hydraulic diameter reaches nothing compared once the surface is boiling; the centreline gap inverted to a gap conductance of ~1700-2800 W/m2/K that the sourced 100 um gap independently supports). Previously: 2026-10-01 (6) (Phase 2b: THM: patched for per-channel inlet velocity -- SPEED CHAN <list> through the existing THMINP, with the scratch copy THMDRV's self-overwrite demands; proved invisible when unused (2 597 833 comparable lines of channel_mphy.x2m, 0 differences) and provably per-channel when used (fuel temperature falls monotonically with velocity across four channels); the patch lives in patches/ because 5.1/ is gitignored, applied idempotently by tools/apply_patches.sh from bootstrap). Previously: 2026-10-01 (5) (gate A6.5 measured: the graphite displacer is worth +2060 pcm against a water column, and the first 1.25 m of rod travel is -175 pcm with a centre-peaked flux but turns POSITIVE, up to +177 pcm, once the axial peak is driven below the mid-plane -- the sign tracks the peak in both directions, so the gate's mechanism is present and conditional exactly as the gate states it; that puts A6b (xenon) and A6d (burnup placement) on the critical path to A8 by measurement). Previously: 2026-10-01 (4) (A6.5: the Unit 4 core deck solves the whole chain for the first time -- NCR: x2 -> MACINI: -> DUAL 1 1 -> FLUD: -> FLPOW: on real cross sections in every mixture, k = 1.018278 reported not asserted, 8.1 s; the stack boundary closes a third sourced count exactly (156 cooled reflector channels); the radial reflector is worth 131 pcm and only 2.6 pcm leaks past it, which closes the Phase 1b question -- the 7152 pcm strip error does not propagate). Previously: 2026-10-01 (3) (Phase 1b: reflector geometry sourced and closed three ways; OpenMC shows DRAGON's OPEN-BOUNDARY solution is wrong by 2-5x here, which retracts the earlier 'diffusion cannot do reflectors' conclusion -- no published result is affected, all are reflected; closing the supercell avoids it and leaves 7152 pcm on a test that over-weights the reflector; SPH fails in seven variants). Previously: 2026-10-01 (superposition test: the A6.4 environment effect is the SPH factor, spanning 1.00-1.56; sub-additive and not a function of the eight-ring count, so a continuous environment axis is viable but weeks of work; two read-out bugs corrected, k-based conclusions unaffected; radial reflector sourced at 3+1 rings from [BEH96]). Previously: 2026-09-30 (2) (A6.4b disproved: no rod-only SPH equivalence can close gate A6.4,
 shown by a ±20 % factor sweep that never reaches the gate; the cause is the rod perturbing its
 neighbours' spectrum by ±3 % at zero burnup, not the rod cell itself; carried as a measured
 one-signed bias). Previously: 2026-09-30 (Phase 0 of the transient: `KINSOL:` runs on the full core for the first time; a severe step costs 0.430 s against 0.090 s frozen, so A8 is hours not days and Tier B stays parallel; `OVERV` and `TRIVAA: UNIT` found to be undocumented prerequisites). Previously: 2026-09-29 (A6.3 table complete, gate missed at 5-12 %; MCFD 1 shown to lose 31-34 % of absorber worth and to be unable to carry an SPH equivalence at all, while DUAL 1 1 costs 8 %; the thermal-scattering interpolation hypothesis for the WAT residual eliminated by measurement; Unit 4 core geometry and 1661-channel fuel map generated from the sourced map and accepted by DONJON; recommendation recorded against porting out of Fortran). Previously: 2026-09-27 (A6: CPS cells built and verified in both codes; A6.3 gate missed, residual carried as the A′ correction; A6.4 homogenisation exact but neighbour data 7–10 % low, closing via a rod-cell equivalence; A6d Unit 4 channel map sourced by registering two digitisations, all counts closing; fuel COMPO rebuilt on the corrected depletion grid, bracket +1.94 / +2.41 / +2.72 $ at 10.9 MWd/kgU). Previously: 2026-09-26 (2) (project assessment; Tier A reordered: A6 → A6b Xe → A6c Smolensk-3 → A6d initial state → A7–A9). Previously: 2026-09-26 (Phase C: SHEM-361 + Zr SS production, 840-point COMPO, void bracket +1.95 / +2.42 / +2.72 $ at 10.9 MWd/kgU; depletion step study). Previously: 2026-09-25 (3) (Phase A–B on the GB10: void gap within criterion on both cells; nominal 240 pcm residual attributed; burnup-normalisation convention found; 8× mesh and accident reference pending). Previously: 2026-09-24 (4) (re-baselined in both codes on the closed geometry; the

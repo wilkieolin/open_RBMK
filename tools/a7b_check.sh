@@ -41,15 +41,21 @@ run () {            # run <flow> <voidfb> -> stem
     stem=$(U4_THM=1 U4_RODS=out U4_FLOW="$1" U4_VOIDFB="$2" python3 "$GEN" \
            | head -1 | sed 's|.*/||; s|\.don$||')
     "$RBMK_ROOT/tools/link_decks.sh" >/dev/null 2>&1
-    # A7B_REUSE=1 keeps an existing .result when the deck that produced it is
-    # byte-identical to the one just generated, so the prose and the tables can
+    # A7B_REUSE=1 keeps an existing .result when the deck and the database
+    # that produced it are both unchanged, so the prose and the tables can
     # be iterated without re-solving the core four times.  Timestamps cannot be
     # used for this: run() regenerates the deck first, so the deck is always
     # newer than the result.  The hash is written beside the result, and a
     # result without "normal end of execution" is never reused.
     local deck="$RBMK_ROOT/decks/Donjon/data/$stem.don"
     local res="$DON/Linux_aarch64/$stem.don.result"
-    local sum; sum=$(md5sum < "$deck" | cut -d" " -f1)
+    # The key covers the deck AND the cross-section database, because a
+    # rebuilt _ACompo changes every answer while leaving the deck identical --
+    # which is exactly what happened on 2026-10-03.  Size and mtime stand in
+    # for hashing 300 MB on every call.
+    local compo="$RBMK_ROOT/5.1/Dragon/compo/_ACompo"
+    local sum; sum=$( { cat "$deck"; stat -c "%s:%Y" "$compo" 2>/dev/null; } \
+                      | md5sum | cut -d" " -f1)
     if [ -n "${A7B_REUSE:-}" ] && [ -f "$res" ] \
        && [ "$(cat "$res.deckmd5" 2>/dev/null)" = "$sum" ] \
        && grep -aq "normal end of execution" "$res"; then

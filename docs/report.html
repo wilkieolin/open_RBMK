@@ -342,9 +342,10 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
     </dl>
 
     <p>The database now spans four axes &mdash; burnup, coolant density, fuel temperature and
-      graphite temperature &mdash; at every combination: <strong>1152 points</strong>, 9.6 hours,
-      208&nbsp;MB, after a 2026-10-02 rebuild widened two axes that a real core had walked
-      straight off the end of. Each point is a full re-solve including re-computed self-shielding, which is not
+      graphite temperature &mdash; at every combination: <strong>1728 points</strong>, 18 hours,
+      313&nbsp;MB, after two rebuilds: one widened two axes that a real core had walked straight
+      off the end of, and the second added four burnup nodes once the burnup axis turned out to
+      be the least accurate of the four and the only one nobody had ever tested. Each point is a full re-solve including re-computed self-shielding, which is not
       optional: boiling the coolant hardens the neutron spectrum into exactly the uranium
       resonances that self-shielding governs.</p>
 
@@ -352,8 +353,8 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
   </div>
 
   <div class="tiles">
-    <div class="tile"><span class="v">1152</span><span class="k">branch points, all present, no non-convergence</span></div>
-    <div class="tile"><span class="v" style="color:var(--good)">1.3 pcm</span><span class="k">worst round-trip loss, 12 nodes including both newly added axis values</span></div>
+    <div class="tile"><span class="v">1728</span><span class="k">branch points, all present, no non-convergence</span></div>
+    <div class="tile"><span class="v" style="color:var(--good)">1.6 pcm</span><span class="k">worst round-trip loss, 12 nodes including every newly added axis value</span></div>
     <div class="tile"><span class="v" style="color:var(--warn,#c90)">30 pcm</span><span class="k">worst off-grid interpolation error &mdash; and all of it belongs to one axis</span></div>
     <div class="tile"><span class="v" style="color:var(--good)">&minus;0.5 %</span><span class="k">&beta; against an independent Monte Carlo measurement</span></div>
   </div>
@@ -374,6 +375,18 @@ footer{margin-top:52px; padding-top:22px; border-top:1px solid var(--rule); font
       values, the error actually incurred today is about a pcm &mdash; but the moment a graphite
       conduction model supplies a real field, this becomes the dominant term, and that is now a
       prerequisite on it rather than a surprise waiting inside it.</p>
+    <p>Splitting the error that way also exposed the thing none of these tests had been looking
+      at. Every off-grid point, in every version of this check, had been placed at an exact
+      <em>burnup</em> &mdash; on the reasonable grounds that fuel composition does not change
+      over the seconds of an accident. True, and beside the point: the steady state the accident
+      starts from sits between burnup entries too, and that axis is therefore interpolated in
+      every single core calculation. Tested at last, it was wrong by <strong>2099&nbsp;pcm</strong>
+      at fresh fuel, because the whole equilibrium xenon build-up happens inside the first gap in
+      the table and a straight line across that gap cannot see it. A tenth of the Chernobyl core
+      was close enough to fresh fuel to be affected. Four more burnup entries fixed it where it
+      matters &mdash; the interval the core actually sits in now interpolates to
+      <strong>8.7&nbsp;pcm</strong> &mdash; and refining the depletion grid turned out to remove a
+      further 20&ndash;29&nbsp;pcm of systematic error nobody had known was there.</p>
     <p>An earlier check on a single corner point had reported 0.4&nbsp;pcm. That was the best case
       by a factor of sixteen; the honest number is 6.4.</p>
   </div>
