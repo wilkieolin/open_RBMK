@@ -3860,6 +3860,48 @@ average but still redistributes power away from the hottest channels, which are 
 boiling hardest.
 
 
+## The burnup axis rebuild, launched — 2026-10-02 (12)
+
+Section (10) measured the problem; this is the fix, running. **12 burnup nodes instead of 8**,
+and the three new ones cost no extra depletion because the chain already passes through them:
+
+| | before | after |
+|---|---|---|
+| COMPO nodes | 0, 2000, 5000, 7500, 10 000, 12 500, 15 000, 20 000 | **+ 500, 1000, 3500, 17 500** |
+| depletion points | 11 | **14** (250 and 11 250 added) |
+| branch tensor | 1152 | **1728**, est. 14.4 h at the measured 29.9 s/point |
+
+Three choices worth stating:
+
+* **1000 is a node even though nothing measured it.** 500 was measured at +2099 pcm and 2000 is
+  a node, so the knee is bracketed — but [PAV]'s fresh group sits at **1200** MWd/t, between
+  them, and a node at 1000 is what makes that group's interval 1000–2000 instead of 0–2000.
+  Putting a node where the fuel actually is costs 144 branch points.
+* **250 and 11 250 are deliberately *not* nodes.** Promoting 500, 3500 and 17 500 destroys the
+  gate that found the problem — they would become exactly-representable and test nothing. A
+  burnup gate needs a point the table has to interpolate to reach, so the rebuild adds two
+  depletion points that are not nodes: 250, in the steepest part of the curve, and 11 250, in
+  the interval the core itself runs in. Both gate decks are remapped onto them.
+* **The depletion path changes, and that is fine *this time*.** Adding steps at 250, 1000 and
+  11 250 shifts every stored isotopic slightly. When this was considered in section (10) it was
+  rejected, because inserting a step into a reference run would have contaminated a comparison
+  against an *existing* table. Here the table and its references are rebuilt together on the
+  same path, so the comparison stays internally consistent. Every A5b number re-baselines; the
+  invariant to check on landing is that BU 0 is still **1.313968**, since nothing has been
+  depleted yet at that point.
+
+The deck was smoke-tested before committing the 14 hours — `tools/mk_a5b_smoke.py` derives a
+two-node, two-density version that exercises the same `isnode` skip, and it reached normal end
+with all four branch points. The working 1152-point database is preserved as
+`_ACompo_pre_bunodes_20261002`, and the save hook only `mv`s the new one into place at the very
+end, so the old table stays usable for the whole run.
+
+**The `TG` axis is deliberately not in this rebuild.** It needs extending too — section (10)
+prices the pin at ~+500 pcm — but its range is set by a bare uncited comment, and widening an
+axis to a number nobody sourced is the thing this project does not do. Sourcing it is part of
+Phase 2c; the extension goes into whatever rebuild follows.
+
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to

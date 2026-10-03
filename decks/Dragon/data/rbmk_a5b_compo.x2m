@@ -99,20 +99,37 @@ REAL tcool :=  573.0 ;  ! K, coolant and structure (saturation at 6.9 MPa)
 REAL dnom  :=   0.72 ;  ! g/cm3, nominal coolant density
 REAL fpwr  :=   16.7 ;  ! MW per tonne initial heavy metal (3200 MWth / 192 t)
 
-INTEGER nbu := 8 ;
-INTEGER ndep := 11 ;
+INTEGER nbu := 12 ;
+INTEGER ndep := 14 ;
 INTEGER ndc := 8 ;
 INTEGER ntf := 6 ;
 INTEGER ntg := 3 ;
 
+*  BURNUP NODES, widened 2026-10-02.  The 8-node set below 2000 MWd/t could
+*  not represent the fuel: measured against the depletion points it did NOT
+*  store, linear interpolation at 500 MWd/t was out by +2099 pcm, because the
+*  whole equilibrium xenon and samarium build-up falls inside the single
+*  0..2000 interval and a straight line across it cannot see the knee.
+*  [PAV] Table 1 puts 172 of 1659 Unit 4 assemblies -- 10.4 % of the core --
+*  at 1.2 MWd/kgU, right inside that interval, mispriced by about +1170 pcm
+*  each, so the A6d burnup placement could not mean anything until this was
+*  fixed.  500, 1000 and 3500 become nodes; 17500 too, where the 5000-wide
+*  top interval was costing +171 pcm.  The core's own 10 900 was never the
+*  problem -- that stretch is nearly straight, 2-3 pcm.
 DONNEES := UTL: :: CREA 'burn' <<nbu>> =
-   0.0  2000.0  5000.0  7500.0  10000.0  12500.0  15000.0  20000.0 ;
-*  depletion grid (<= 2.5 MWd/kg) and which of its points are COMPO nodes
+   0.0  500.0  1000.0  2000.0  3500.0  5000.0  7500.0  10000.0
+   12500.0  15000.0  17500.0  20000.0 ;
+*  Depletion grid (every step <= 2.5 MWd/kg) and which of its points are COMPO
+*  nodes.  TWO points are deliberately left OFF the node set -- 250 and 11250 --
+*  because they are what the off-grid gate measures the burnup axis with, and a
+*  gate needs a point the table has to interpolate to reach.  250 sits in the
+*  steepest part of the curve and 11250 in the interval the core itself runs in.
 DONNEES := UTL: DONNEES :: CREA 'dburn' <<ndep>> =
-   0.0  500.0  2000.0  3500.0  5000.0  7500.0  10000.0  12500.0
-   15000.0  17500.0  20000.0 ;
+   0.0  250.0  500.0  1000.0  2000.0  3500.0  5000.0  7500.0
+   10000.0  11250.0  12500.0  15000.0  17500.0  20000.0 ;
 DONNEES := UTL: DONNEES :: CREA 'isnode' <<ndep>> =
-   1.0  0.0  1.0  0.0  1.0  1.0  1.0  1.0  1.0  0.0  1.0 ;
+   1.0  0.0  1.0  1.0  1.0  1.0  1.0  1.0
+   1.0  0.0  1.0  1.0  1.0  1.0 ;
 DONNEES := UTL: DONNEES :: CREA 'dca' <<ndc>> =
    0.80  0.72  0.60  0.45  0.30  0.15  0.05  0.02 ;
 DONNEES := UTL: DONNEES :: CREA 'tf' <<ntf>> =

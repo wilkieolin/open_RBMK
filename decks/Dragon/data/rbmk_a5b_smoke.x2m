@@ -117,8 +117,23 @@ INTEGER ndc := 2 ;
 INTEGER ntf := 1 ;
 INTEGER ntg := 1 ;
 
+*  BURNUP NODES, widened 2026-10-02.  The 8-node set below 2000 MWd/t could
+*  not represent the fuel: measured against the depletion points it did NOT
+*  store, linear interpolation at 500 MWd/t was out by +2099 pcm, because the
+*  whole equilibrium xenon and samarium build-up falls inside the single
+*  0..2000 interval and a straight line across it cannot see the knee.
+*  [PAV] Table 1 puts 172 of 1659 Unit 4 assemblies -- 10.4 % of the core --
+*  at 1.2 MWd/kgU, right inside that interval, mispriced by about +1170 pcm
+*  each, so the A6d burnup placement could not mean anything until this was
+*  fixed.  500, 1000 and 3500 become nodes; 17500 too, where the 5000-wide
+*  top interval was costing +171 pcm.  The core's own 10 900 was never the
+*  problem -- that stretch is nearly straight, 2-3 pcm.
 DONNEES := UTL: :: CREA 'burn' <<nbu>> =  0.0  2000.0 ;
-*  depletion grid (<= 2.5 MWd/kg) and which of its points are COMPO nodes
+*  Depletion grid (every step <= 2.5 MWd/kg) and which of its points are COMPO
+*  nodes.  TWO points are deliberately left OFF the node set -- 250 and 11250 --
+*  because they are what the off-grid gate measures the burnup axis with, and a
+*  gate needs a point the table has to interpolate to reach.  250 sits in the
+*  steepest part of the curve and 11250 in the interval the core itself runs in.
 DONNEES := UTL: DONNEES :: CREA 'dburn' <<ndep>> =  0.0  500.0  2000.0 ;
 DONNEES := UTL: DONNEES :: CREA 'isnode' <<ndep>> =  1.0  0.0  1.0 ;
 DONNEES := UTL: DONNEES :: CREA 'dca' <<ndc>> =  0.8  0.02 ;

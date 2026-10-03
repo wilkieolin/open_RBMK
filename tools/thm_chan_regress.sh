@@ -20,6 +20,10 @@
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 
+# The listing is DETERMINISTIC: two consecutive runs of the same binary are
+# byte-identical after this script's filter (verified 2026-10-02, 171 361 119
+# bytes each, zero differing lines).  That is what makes the digest a real
+# test rather than a coin toss -- without it a mismatch would say nothing.
 DON="$RBMK_ROOT/5.1/Donjon"
 R="$DON/Linux_aarch64/channel_mphy.result"
 REF="$RBMK_ROOT/patches/channel_mphy.digest"

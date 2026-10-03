@@ -402,40 +402,15 @@ GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
 ECHO "A5BSWEEPAXIS" bu dca tf tg kinf ;
 Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
 
-*  BURNUP OFF-GRID (2026-10-02).  The core runs at 10 900 MWd/t, between
-*  the 10 000 and 12 500 nodes, so the burnup axis is interpolated in every
-*  core calculation.  These three use depletion points the COMPO did not
-*  store as nodes, with DCA/TF/TG held on the grid.
-
-EVALUATE bu dca tf tg := 500.0 0.72 900.0 750.0 ;
-Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
-  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
-               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
-SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
-FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
-GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
-ECHO "A5BSWEEPBURN" bu dca tf tg kinf ;
-Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
-
-EVALUATE bu dca tf tg := 3500.0 0.72 900.0 750.0 ;
-Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
-  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
-               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
-SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
-FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
-GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
-ECHO "A5BSWEEPBURN" bu dca tf tg kinf ;
-Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
-
-EVALUATE bu dca tf tg := 17500.0 0.72 900.0 750.0 ;
-Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
-  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
-               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
-SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
-FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
-GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
-ECHO "A5BSWEEPBURN" bu dca tf tg kinf ;
-Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+*  BURNUP OFF-GRID (2026-10-02).  The core runs at 10 900 MWd/t, between the
+*  10 000 and 12 500 nodes, so the burnup axis is interpolated in every core
+*  calculation.  The first version of this test used 500, 3500 and 17 500 and
+*  found +2099 pcm at 500; those three are COMPO NODES as of the same day's
+*  rebuild, so they would now test nothing.  The two points below are the ones
+*  the rebuild deliberately left off the node set: 250, in the steepest part
+*  of the curve where the xenon knee lives, and 11 250, in the interval the
+*  core itself runs in.  DCA/TF/TG are held on the grid so the error is the
+*  burnup axis's alone.
 
 *--------------------------------------------------------------
 *  ROUND TRIP AT THE NEW AXIS VALUES, added 2026-10-02.
@@ -485,6 +460,26 @@ SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
 FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
 GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
 ECHO "A5BSWEEP" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
+EVALUATE bu dca tf tg := 250.0 0.72 900.0 750.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEPBURN" bu dca tf tg kinf ;
+Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
+
+EVALUATE bu dca tf tg := 11250.0 0.72 900.0 750.0 ;
+Macro := NCR: Cpo :: EDIT 0 MACRO LINEAR NMIX 1 COMPO Cpo 'EDIRBMK'
+  MIX 1 FROM 1 SET 'burnup' <<bu>> SET 'DCA' <<dca>>
+               SET 'TF' <<tf>> SET 'TG' <<tg>> ENDMIX ;
+SYSTEM := TRIVAA: Macro TRACK :: EDIT 0 ;
+FLUX   := FLUD: SYSTEM TRACK :: EDIT 0 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>kinf<< ;
+ECHO "A5BSWEEPBURN" bu dca tf tg kinf ;
 Macro SYSTEM FLUX := DELETE: Macro SYSTEM FLUX ;
 
 END: ;
