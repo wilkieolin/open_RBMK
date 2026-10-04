@@ -354,6 +354,27 @@ def burnup_list(cells, nx, ny):
 
     if BURNMAP == "flat":
         return [10900.0] * len(cells), "every channel at the core average"
+    if BURNMAP == "file":
+        # A placement SOLVED FOR rather than assumed -- tools/a6d_place.py
+        # writes this file.  The histogram is still [PAV]'s; only the pairing
+        # of groups to channels is being determined, so the file is checked
+        # against the pool as a multiset before it is trusted.
+        src = os.environ.get("U4_BURNFILE", "")
+        if not src:
+            raise SystemExit("U4_BURNMAP=file needs U4_BURNFILE=<path>")
+        got = [float(x) for x in open(src).read().split()]
+        if len(got) != len(cells):
+            raise SystemExit(f"{src}: {len(got)} values, {len(cells)} channels")
+        # Compared as a sorted multiset with a tolerance, not for exact
+        # equality: the file carries one decimal and the padding value is a
+        # mean that does not round-trip.  0.1 MWd/t is far below anything that
+        # matters and still catches a value that was invented rather than
+        # moved.
+        a, b = sorted(got), sorted(pool)
+        if max(abs(x - y) for x, y in zip(a, b)) > 0.1:
+            raise SystemExit(f"{src}: not a permutation of [PAV]'s histogram "
+                             "-- the placement may be rearranged, not invented")
+        return got, f"solved placement from {os.path.basename(src)}"
     cx, cy = (nx - 1) / 2.0, (ny - 1) / 2.0
     rad = {c: ((c[0] - cx) ** 2 + (c[1] - cy) ** 2) ** 0.5 for c in cells}
     if BURNMAP == "rand":
@@ -365,13 +386,37 @@ def burnup_list(cells, nx, ny):
         order = sorted(cells, key=lambda c: rad[c])
         pool.sort(reverse=True)                 # most burnt nearest the centre
         why = "most-burnt fuel in the middle, freshest at the edge"
+    elif BURNMAP == "chess":
+        # Locally balanced: adjacent channels take opposite ends of the
+        # distribution, so the burnup varies on the LATTICE scale rather than
+        # the core scale.  The neutron migration length is comparable to the
+        # 25 cm pitch, so the flux cannot resolve a channel-to-channel
+        # alternation and sees something close to the mean -- which is what an
+        # operator avoiding clustered fresh assemblies is really doing.
+        rng = random.Random(BURNSEED)
+        pool.sort()
+        half = len(pool) // 2
+        fresh, burnt = pool[:half], pool[half:]
+        even = [c for c in cells if (c[0] + c[1]) % 2 == 0]
+        odd = [c for c in cells if (c[0] + c[1]) % 2 == 1]
+        # the halves and the parities are not exactly equal in size; put the
+        # overflow wherever there is room rather than silently dropping it
+        if len(even) > len(fresh):
+            burnt, fresh = burnt[len(even) - len(fresh):], fresh + burnt[:len(even) - len(fresh)]
+        elif len(odd) > len(burnt):
+            fresh, burnt = fresh[len(odd) - len(burnt):], burnt + fresh[:len(odd) - len(burnt)]
+        rng.shuffle(fresh); rng.shuffle(burnt)
+        order = even + odd
+        pool = fresh + burnt
+        why = ("locally balanced -- fresh and burnt alternate between "
+               "neighbouring channels")
     elif BURNMAP == "edge":
         order = sorted(cells, key=lambda c: rad[c])
         pool.sort()                             # freshest nearest the centre
         why = "freshest fuel in the middle, most-burnt at the edge"
     else:
         raise SystemExit(f"U4_BURNMAP={BURNMAP!r} is not one of "
-                         "flat|rand|cent|edge|ring")
+                         "flat|rand|cent|edge|ring|chess|file")
     byc = dict(zip(order, pool))
     return [byc[c] for c in cells], why
 

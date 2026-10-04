@@ -4118,6 +4118,52 @@ result so far has used is not neutral. Against a merely scattered placement at t
 understates k by ~480 pcm and understates peak channel power by 60 %.
 
 
+### Solving for the placement: it does not work yet, and why is the finding
+
+The obvious next move was to stop guessing and iterate the refuelling rule to a fixed point —
+run the core, rank the channels by power, give the most-burnt fuel to the hottest ones.
+`tools/a6d_place.py` does exactly that, and **it diverges**: peaking goes from 1.83 to 13–23
+and oscillates, k wandering between 1.088 and 1.167 over ten iterations.
+
+That is not a bug in the rule, it is a property of the core without its other two inputs. The
+loop gain is above one. Putting burnt fuel where the power is high drives towards most-burnt
+in the middle, which peaks hard at the *edge*, because the fresh fuel pushed out there is
+unshielded and the flux piles onto it; the next iteration swings back. Nothing damps it.
+
+A fifth placement was added to test whether local balance is what is missing — fresh and burnt
+alternating between neighbouring channels, which is what an operator avoiding clustered fresh
+assemblies actually does, and which the flux should partly smooth over since the migration
+length is comparable to the 25 cm pitch:
+
+| placement | k | Δρ vs flat | peak channel | MAX/AVG |
+|---|---|---|---|---|
+| flat | 1.038645 | — | 3517 kW | 1.83 |
+| **locally balanced (chequerboard)** | 1.041344 | **+250 pcm** | **5222 kW** | **2.72** |
+| scattered at random | 1.043832 | +478 pcm | 5625 kW | 2.93 |
+| most-burnt in the middle | 1.063382 | +2240 pcm | 14 626 kW | 7.62 |
+| freshest in the middle | 1.170692 | +10 860 pcm | 19 547 kW | 10.16 |
+
+Local balance is the best of them and it barely helps — 2.93 → 2.72. So the peaking is not
+driven by neighbouring fresh channels; it is driven by fresh fuel clustering on scales the flux
+*can* resolve, which a chequerboard does nothing about.
+
+**The conclusion is structural, and it redirects A6d.** No arrangement of [PAV]'s histogram is
+as flat as pretending the fuel is uniform, and the best realistic one still peaks at 1.6× the
+operating limit. The flattening agents in a real RBMK are the **control rods** and the **xenon
+field** — which are exactly the other two A6d inputs still missing. So the three are not
+independent and the placement cannot be pinned down first: it has to be solved jointly with a
+rod pattern and a xenon distribution, against a power shape. `a6d_place.py` is kept, with the
+divergence recorded in its header, to be re-run when they exist.
+
+*One caveat on the falsification argument, stated because it limits it.* These runs normalise
+to 3200 MWth. At 01:23 the reactor was near **200 MW**, where a 5222 kW nominal peak scales to
+~330 kW and the channel power limit does not bind at all. The limit excludes the radial
+orderings as **full-power** cores — which that fuel did have to be, since the burnup was
+accumulated at power — and it says nothing directly about the accident state. For A8 what
+matters is not the absolute channel power but the *shape*, and the shape still differs by a
+factor of 1.5 between these placements.
+
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to
