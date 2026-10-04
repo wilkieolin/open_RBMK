@@ -4054,6 +4054,70 @@ earlier absolute values should be read with that offset in mind rather than take
 inconsistent.
 
 
+## A6d: the burnup placement is the biggest unknown, and the model falsifies most of it — 2026-10-04 (13)
+
+The 1728-point COMPO made per-channel burnup worth using, so the core now carries it: RESINI
+writes `INST-BVAL CHAN` with one value per channel in B-ZONE order, and the fuel `NCR:` call
+declares the burnup PARKEY after the directory name and takes `INST-BURN` inside the `MIX`
+clause (`NCRRGR.f:203-217` for the key, `:651` → `IBTYP=2`, used at `:804`). Both halves are
+needed: without the PARKEY the keyword binds to nothing, and without `INST-BURN` the
+per-channel values sit in the map and are silently ignored.
+
+**What is sourced and what is not.** [PAV] Table 1 gives the Unit 4 core on 26 April 1986 as
+1659 assemblies in eight burnup groups; the counts and the values are sourced, and they
+reproduce the recorded core average — 10.869 MWd/kgU against the 10.9 on record, which is the
+check that the histogram was transcribed correctly. **Where each group sat is not sourced and
+no map has been found.** The channel map holds 1661 fuel positions against the histogram's
+1659; INSAG-7 (pp. 67, 107) accounts for the difference with one extra absorber and one empty
+channel, so two channels take the core average and that is stated rather than smeared.
+
+### Four placements at the same histogram, and a 10 900 pcm spread
+
+Rods withdrawn, no xenon, uniform everything else — so the only thing that differs is *where*
+the eight groups sit:
+
+| placement | k | Δρ vs flat | peak channel | channel MAX/AVG |
+|---|---|---|---|---|
+| flat, every channel at the average | 1.038645 | — | 3517 kW | 1.83 |
+| most-burnt in the middle | 1.063382 | **+2240 pcm** | 14 626 kW | 7.62 |
+| freshest in the middle | 1.170692 | **+10 860 pcm** | 19 547 kW | 10.16 |
+| scattered at random | 1.043832 | **+478 pcm** | 5625 kW | 2.93 |
+
+**This is the largest single uncertainty in the core model** — an order of magnitude beyond the
+`TG` pin (+500 pcm), the void feedback (+308) or Doppler (−226), and it comes entirely from an
+input nobody has sourced.
+
+It is *not* Jensen's inequality on k∞. Weighting the cell k∞ over the eight groups gives
+1.08093 against 1.08156 at the mean burnup — 6 pcm. The effect is **flux redistribution**: the
+core eigenvalue weights each channel by its own flux, so concentrating fresh fuel anywhere lets
+the flux pile onto it, and the more concentrated it is the higher k goes.
+
+### But the model rejects its own extremes, which is the useful part
+
+A peak channel power of 14.6 or 19.5 MW is not a high number, it is an impossible one — [D]
+p.95 has the channel operating at 3000–3200 kW and the fuel would be destroyed long before
+five times that. So **the two radial orderings are excluded by the model's own output, with no
+spatial source needed**, and the 10 900 pcm band is not a real uncertainty band: most of it
+describes cores that cannot exist.
+
+What survives is more interesting. Even *random* scatter gives a 5625 kW peak, still 1.7× the
+operating limit. So the real placement is not merely unordered — it is ordered in a particular
+way, the way an on-power-refuelled reactor orders itself: fresh fuel goes where reactivity is
+wanted, and the operators hold the channel power distribution flat because the channel power
+limit forces them to. That is a **sourced constraint on an unsourced input**, and it is worth
+more than a sensitivity band.
+
+So the next step is not to pick one of these four. It is to **solve for the placement that
+flattens the power**, which is what refuelling physically does, and then report how much
+freedom is left once that constraint is applied. Rods and xenon both flatten too and are not in
+these runs, so they will loosen it; the flat-burnup case already sits at 3517 kW with rods out,
+above the limit, which says the same thing from the other direction.
+
+**One consequence for everything already in this log:** the flat-burnup assumption every core
+result so far has used is not neutral. Against a merely scattered placement at the same mean it
+understates k by ~480 pcm and understates peak channel power by 60 %.
+
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to

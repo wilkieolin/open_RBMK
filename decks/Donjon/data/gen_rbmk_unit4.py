@@ -78,14 +78,17 @@ FLOW = os.environ.get("U4_FLOW", "prop")
 PCHAN = os.environ.get("U4_PCHAN", "")
 _TILT0 = os.environ.get("U4_TILT", "0")
 _DCA0 = os.environ.get("U4_DCA", "0.72")
+_BURN0 = os.environ.get("U4_BURNMAP", "flat")
+_BSFX = "" if _BURN0 == "flat" else "_b" + _BURN0
 _STEM = ("rbmk_unit4_core" if WITH_REFL else "rbmk_unit4_norefl") + (
     "" if _RODS0 == "wat" else "_" + _RODS0) + (
     "" if _TILT0 == "0" else "_t" + _TILT0) + (
-    "" if _DCA0 == "0.72" else "_d" + _DCA0.replace(".", ""))
+    "" if _DCA0 == "0.72" else "_d" + _DCA0.replace(".", "")) + _BSFX
 if WITH_THM:
     _STEM = ("rbmk_unit4_a7" + ("" if _RODS0 == "wat" else "_" + _RODS0)
              + ("" if FLOW == "prop" else "_" + FLOW)
-             + ("" if os.environ.get("U4_VOIDFB", "1") != "0" else "_nvf"))
+             + ("" if os.environ.get("U4_VOIDFB", "1") != "0" else "_nvf")
+             + _BSFX)
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), _STEM + ".don")
 
 PITCH = 25.0            # cm, the lattice pitch ([D], closed in the A6.1 sources)
@@ -313,6 +316,65 @@ ERMAXT = os.environ.get("U4_ERMAXT", "0.05")
 # and the converged answer must not depend on it -- measured 2026-10-02 at
 # 1.0, 0.5 and 0.2, keff came out bit-identical at 1.039735 all three times.
 RELAX = os.environ.get("U4_RELAX", "0.5")
+
+# [PAV] Table 1: the Unit 4 core as loaded on 26 April 1986 -- 1659 assemblies
+# in eight burnup groups, averaging 10.9 MWd/kgU.  COUNTS AND VALUES ARE
+# SOURCED; WHERE EACH GROUP SITS IS NOT.  [PAV] gives no spatial map and none
+# has been found, so the placement is an explicit assumption and the point of
+# U4_BURNMAP is to measure what that assumption is worth rather than to hide it.
+PAV_BURNUP = [(721, 13.7), (392, 12.3), (154, 10.5), (101, 8.8),
+              (35, 7.0), (43, 5.4), (41, 3.5), (172, 1.2)]
+#   flat  every channel at the core average -- what everything before A6d used
+#   rand  the histogram scattered at random (seeded, so the deck is reproducible)
+#   cent  most-burnt fuel in the middle, freshest at the edge
+#   edge  the reverse, freshest in the middle
+#   ring  burnup rising monotonically with radius in bands -- the smooth version
+BURNMAP = os.environ.get("U4_BURNMAP", "flat")
+BURNSEED = int(os.environ.get("U4_BURNSEED", "20260404"))
+
+
+def burnup_list(cells, nx, ny):
+    """Per-channel burnup in MWd/t, in channel order.
+
+    `cells` is the list of (i, j) lattice positions in the order the fuel map
+    numbers them.  The histogram holds 1659 assemblies and the sourced channel
+    map holds 1661 fuel positions; INSAG-7 (pp. 67, 107) accounts for the
+    difference with one extra absorber and one empty channel, so the two
+    channels the histogram cannot fill are given the core average and that is
+    stated rather than smeared.
+    """
+    import random
+    pool = []
+    for n, bu in PAV_BURNUP:
+        pool.extend([bu * 1000.0] * n)          # MWd/kgU -> MWd/t
+    mean = sum(pool) / len(pool)
+    while len(pool) < len(cells):
+        pool.append(mean)
+    pool = pool[:len(cells)]
+
+    if BURNMAP == "flat":
+        return [10900.0] * len(cells), "every channel at the core average"
+    cx, cy = (nx - 1) / 2.0, (ny - 1) / 2.0
+    rad = {c: ((c[0] - cx) ** 2 + (c[1] - cy) ** 2) ** 0.5 for c in cells}
+    if BURNMAP == "rand":
+        rng = random.Random(BURNSEED)
+        rng.shuffle(pool)
+        order = list(cells)
+        why = f"histogram scattered at random, seed {BURNSEED}"
+    elif BURNMAP in ("cent", "ring"):
+        order = sorted(cells, key=lambda c: rad[c])
+        pool.sort(reverse=True)                 # most burnt nearest the centre
+        why = "most-burnt fuel in the middle, freshest at the edge"
+    elif BURNMAP == "edge":
+        order = sorted(cells, key=lambda c: rad[c])
+        pool.sort()                             # freshest nearest the centre
+        why = "freshest fuel in the middle, most-burnt at the edge"
+    else:
+        raise SystemExit(f"U4_BURNMAP={BURNMAP!r} is not one of "
+                         "flat|rand|cent|edge|ring")
+    byc = dict(zip(order, pool))
+    return [byc[c] for c in cells], why
+
 DKTOL = os.environ.get("U4_DKTOL", "1.0E-6")
 MAXIT = os.environ.get("U4_MAXIT", "40")
 # U4_DCA: the coolant density fed to the fuel interpolation in the SINGLE-PASS
@@ -511,12 +573,34 @@ def main():
     # order the B-ZONE block is written in
     nfuel = 0
     num = {}
+    cells = []
     for j in range(ny - 1, -1, -1):
         for i in range(nx):
             r = g.get((i - NPAD, j - NPAD))
             if r is not None and r["type"] in FUEL_TYPES:
                 nfuel += 1
                 num[(i, j)] = nfuel
+                cells.append((i, j))
+    bulist, buwhy = burnup_list(cells, nx, ny)
+    assert len(bulist) == nfuel
+
+    if BURNMAP == "flat":
+        INSTB = "  INST-BVAL SAME 10900.0"
+    else:
+        # fixed field width: wrap() sizes its rows from the FIRST element,
+        # so a list mixing "1200.0" with "13700.0" overruns 120 columns
+        # whenever the first value happens to be a short one.
+        _bu = wrap([f"{b:8.1f}" for b in bulist], "    ")
+        INSTB = (
+            "*  PER-CHANNEL BURNUP, in the same channel order as B-ZONE.\n"
+            f"*  [PAV] Table 1's eight groups over 1659 assemblies, placed by\n"
+            f"*  U4_BURNMAP={BURNMAP}: {buwhy}.\n"
+            "*  The counts and the values are sourced; the PLACEMENT is not, and no\n"
+            "*  spatial map has been found, so it is an assumption whose worth is\n"
+            "*  measured by running the variants rather than argued.\n"
+            f"*  mean {sum(bulist)/len(bulist):.0f} MWd/t, range {min(bulist):.0f}"
+            f" to {max(bulist):.0f}.\n"
+            "  INST-BVAL CHAN\n" + _bu)
 
     mixmap, ndistinct = planes(g, ni, nj, nz, core_mix)
     fmapmap, _ = planes(g, ni, nj, nz, fmap_mix)
@@ -576,10 +660,19 @@ def main():
                 if WITH_REFL else "")
     rcpo_asg = "\nRCpo := _RCompo ;" if WITH_REFL else ""
     # ---------------------------------------------------------------- A7
+    # BURNUP is a GLOBAL value while the map is flat, and read PER BUNDLE out of
+    # the map once it is not.  NCRRGR.f:203-217 takes the burnup's PARKEY as the
+    # token straight after the directory name, and INST-BURN inside the MIX
+    # clause (NCRRGR.f:651 -> IBTYP=2, used at :804) makes it read BRN0 per
+    # bundle -- which is exactly what RESINI's INST-BVAL CHAN wrote.  Without
+    # the PARKEY the keyword has nothing to bind to; without INST-BURN the
+    # per-channel values sit in the map and are silently ignored.
+    _bkey = " 'burnup'" if BURNMAP != "flat" else ""
+    _bmix = "INST-BURN" if BURNMAP != "flat" else "SET 'burnup' 10900.0"
     NCRFUEL = """MACFUEL := NCR: FCpo FMAP :: EDIT 0 MACRO LINEAR
-  TABLE FCpo 'EDIRBMK'
-  MIX %d SET 'burnup' 10900.0%s ENDMIX
-  ;""" % (M_FUEL, "" if WITH_THM else
+  TABLE FCpo 'EDIRBMK'%s
+  MIX %d %s%s ENDMIX
+  ;""" % (_bkey, M_FUEL, _bmix, "" if WITH_THM else
           "\n               SET 'DCA' %s SET 'TF' 900.0 SET 'TG' 750.0" % DCA_SET)
     # With THM:, 'DCA' and 'TF' are NOT set here: the fuel map carries them as
     # local parameters and NCR: picks a parameter up from the map whenever it
@@ -611,8 +704,8 @@ def main():
   ADD-PARAM PNAME 'D-COOL' PARKEY 'DCA' LOCAL
   SET-PARAM 'T-FUEL' SAME 900.0
   SET-PARAM 'D-COOL' SAME 0.72
-  INST-BVAL SAME 10900.0
 """
+    param_block = param_block + INSTB + "\n"
 
     if WITH_THM:
         if FLOW == "prop":
