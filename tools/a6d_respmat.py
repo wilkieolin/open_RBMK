@@ -287,10 +287,25 @@ def solve(a):
     c[-1] = 1.0
     A = np.hstack([H, -np.ones((nc, 1))])
     b = -p0
+    if a.maxrho:
+        # TRUST REGION, and it is not optional.  The per-rod responses are
+        # separable but NOT additive at large collective amplitude: measured
+        # 2026-10-05, the unconstrained LP on all 190 columns chose 93 rods
+        # delivering -2659 pcm, predicted MAX/AVG 1.4369, and DONJON returned
+        # 2.8285 -- worse than the 2.7702 it started from.  The core's azimuthal
+        # modes are nearly degenerate, so a perturbation that large moves the
+        # modes the matrix was measured in.  Bounding the total worth bounds the
+        # perturbation, and the solve becomes sequential linear programming:
+        # solve, verify, re-measure if the step is accepted.
+        A = np.vstack([A, np.hstack([-wr / g(int(z["delta"])), [0.0]])])
+        b = np.concatenate([b, [abs(a.maxrho)]])
+        print(f"trust region: total rod worth held to <= {abs(a.maxrho):.0f} pcm")
     if a.rho:
         # reactivity is linear in u on the same curve (see W above), so a
         # required total worth is one more linear row: -sum_r w_r u_r <= -rho
-        A = np.vstack([A, np.hstack([wr / g(int(z["delta"])) * -1.0, [0.0]])])
+        # worths are NEGATIVE pcm, so "deliver at least rho" is
+        # sum_r w_r u_r <= -rho, not the sign-flipped form.
+        A = np.vstack([A, np.hstack([wr / g(int(z["delta"])), [0.0]])])
         b = np.concatenate([b, [-abs(a.rho)]])
         print(f"constrained to deliver at least {abs(a.rho):.0f} pcm of rod worth")
     r = linprog(c, A_ub=A, b_ub=b,
@@ -341,6 +356,8 @@ def main():
     ap.add_argument("--dmax", type=int, default=24)
     ap.add_argument("--rho", type=float, default=0.0,
                     help="require at least this much rod worth, pcm")
+    ap.add_argument("--maxrho", type=float, default=0.0,
+                    help="trust region: cap total rod worth at this, pcm")
     ap.add_argument("--jacobian", action="store_true")
     ap.add_argument("--linearity", action="store_true")
     ap.add_argument("--solve", action="store_true")

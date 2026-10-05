@@ -4926,6 +4926,79 @@ convergence.
 H is 1661 × 190 float64 = **2.5 MB** on the CPU. Nothing here approaches the machine's budget.
 
 
+## The response matrix solved, and the additivity limit it ran into — 2026-10-05 (20)
+
+The full 1661 × 190 matrix took 190 runs at 48 min. Its structure on all columns, against
+the 51-column preview of section (19):
+
+| | 51 columns | **190 columns** |
+|---|---|---|
+| effective rank | 2.32 | **2.09** |
+| mode 1 | 52.2 % | **66.0 %** |
+| modes 1–5 | 97.9 % | 94.5 % |
+
+and the per-rod worths run −2.0 to −74.6 pcm at 16 planes, −4671 pcm if every rod were
+inserted. Mean worth per class: AZ −30.2, AZOC −29.9, AR −24.5, RR −22.0 pcm.
+
+### The unconstrained LP fails the verification, badly
+
+| | peak | MAX/AVG |
+|---|---|---|
+| base | 5326.1 kW | 2.7702 |
+| the LP's linear prediction | 2720.2 kW | **1.4160** |
+| rounded to the 25 cm mesh | 2760.4 kW | 1.4369 |
+| **DONJON** | **5434.7 kW** | **2.8285** |
+
+The model promised the ≲ 1.4 target and DONJON returned something *worse than the state it
+started from*. The reason is in the solution: given all 190 columns the LP chose **93 rods
+delivering −2659 pcm**, 33 of them at the depth bound. The per-rod responses are separable —
+section (19) measured that — but they are **not additive** at that collective amplitude. The
+core's azimuthal modes are nearly degenerate, so a −2659 pcm perturbation moves the very modes
+the matrix was measured in. A linear model of a near-degenerate system has a trust region, and
+the LP had none.
+
+### With a trust region it works, and the failure is smooth
+
+Capping the total rod worth bounds the perturbation. Every row below is verified in DONJON:
+
+| trust, pcm | rods | mean depth | model MAX/AVG | **DONJON** | model error |
+|---|---|---|---|---|---|
+| 150 | 10 | 0.37 pl | 1.8513 | **1.8357** | **0.8 %** |
+| 250 | 17 | 0.64 | 1.7286 | **1.7791** | 2.9 % |
+| 400 | 24 | 1.01 | 1.7003 | 1.7940 | 5.5 % |
+| 600 | 34 | 1.51 | 1.6353 | 1.7983 | 10.0 % |
+| 900 | 43 | 2.28 | 1.6071 | 1.8949 | 18 % |
+| none (−2659) | 93 | 7.77 | 1.4369 | 2.8285 | **97 %** |
+
+The model is good to **0.8 %** at 150 pcm and degrades monotonically. The *verified* optimum is
+at **250 pcm**, because beyond it the model's gains are more than cancelled by its growing error
+— the classic trust-region trade-off, measured rather than assumed.
+
+### The answer, for one step
+
+**MAX/AVG 1.7791, peak channel 3421.3 kW, k = 1.045552, on 17 rods.**
+
+Against section (18)'s best verified pattern of 2.2398, found by a sixteen-point grid over a
+two-parameter family of all 190 depths — a **21 % improvement using 17 rods instead of 190**. The
+matrix earned its 190 runs.
+
+It is still **7 % outside** [D]'s 3000–3200 kW, so the chequerboard placement is not yet shown
+admissible, and one trust-region step is not the end of the method: this is **sequential linear
+programming**, and the next step re-measures the matrix at the new pattern and solves again. Each
+step costs another 190 runs.
+
+### What this says about the physics, which is the durable part
+
+Section (19) found that 92 % of the rods' authority is the first azimuthal mode and concluded
+that the only lever left was combinations whose m = 1 parts cancel. That is exactly what the LP
+found — and the additivity limit is the same physics seen from the other side. The combinations
+that cancel m = 1 are, by construction, the ones that leave the core sitting between
+near-degenerate modes, which is precisely where superposition stops holding. **The control is
+most useful exactly where it is least linear.** That is a statement about RBMK cores, not about
+DONJON, and it is the quantitative form of why these reactors were hard to shape and hard to
+keep flat.
+
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to
