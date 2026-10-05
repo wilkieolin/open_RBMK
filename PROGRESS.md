@@ -4534,32 +4534,76 @@ worth 120 pcm on the eigenvalue and essentially nothing on the shape. The operab
 is unchanged either way — 2.456 against the flat core's 1.573.
 
 
-## The operability test was the wrong test — 2026-10-05 (17)
+## What the operability test does and does not test — 2026-10-05 (17)
 
-### The conflation
+### A conflation, narrower than first written
 
-Every core result in sections (13)–(16) is normalised to **3200 MW** — `FLPOW: … PTOT 3200.0`,
-which the deck's own comment is careful about ("the shape, not the normalisation, is what this
-increment checks"). Section (14) then compared the resulting peak channel power against [D]'s
-published **3000–3200 kW** operating range and called flat burnup + the 01:22:30 rods "the first
-physically achievable power distribution the model has produced".
+*This section was first committed (`edfac73`) claiming that every core result in sections
+(13)–(16) conflated a 200 MW state with a full-power limit. That was an over-correction and is
+retracted here; what follows is the narrower claim that survives checking.*
 
-That comparison does not hold up. The 01:22:30 state was at **200 MW**, not 3200. At its real
-power the peak channel in that calculation is 3025 × 200/3200 = **189 kW**, and no channel-power
-limit is anywhere near binding. [D]'s range describes a full-power core carrying its **operating**
-rod pattern; the 01:22:30 core is a 200 MW core with the rods **withdrawn** — the ORM violation is
-the accident's premise, so it is precisely the configuration with the least rod shaping available.
-Requiring it to be flat is requiring the wrong thing of it.
+Every core result is normalised to **3200 MW** — `FLPOW: … PTOT 3200.0`. The question is which of
+them is a *self-consistent* full-power state, and that turns on the xenon, because
+`U4_XENON=stored` (the default) leaves the COMPO's depleted Xe-135 and I-135 in place and those
+densities **are the 3200 MW equilibrium**. Section (16) proved it without meaning to: the closed
+form `xenon_equilibrium(s=1, p=1)` returns the stored density to every digit.
 
-So neither "flat burnup is physically achievable" nor "the chequerboard placement is falsified"
-is supported in the form stated. Both were reading a full-power constraint off a 200 MW state.
+So the default decks — flat burnup, the placement sweep, chequerboard with uniform xenon — carry
+full-power equilibrium poison **and** a full-power normalisation. They are coherent full-power
+calculations, and comparing their peak channel power against [D]'s published **3000–3200 kW** is
+legitimate. The flat-burnup result stands as section (14) reported it: **3025.1 kW / MAX-AVG
+1.5730** for a core at full power with equilibrium xenon and the rods at their 01:22:30 depths.
 
-### What survives, and it is most of it
+The conflation is confined to the **`U4_XEHIST=0123`** runs. Those replace the stored equilibrium
+with the 200 MW transient field solved in section (15), while leaving the normalisation at
+3200 MW — a poison distribution from one power and a power level from another. Section (16)'s
+4730.9 kW is therefore not a valid full-power statement, and the sensitivity question that
+prompted the equilibrium field turns out to have mattered for a second reason: **the
+`U4_XEHIST=equil1.0` run is consistent again**, and it is the one to quote.
 
-The comparison is still valid as a **shape** comparison, because every variant is run at the same
-normalisation and the same rod pattern — only the placement moves:
+### Which restores the placement conclusion
 
-| placement, rods out, uniform xenon | k | peak at 3200 MW | MAX/AVG |
+| chequerboard + 01:22:30 rods | xenon | normalisation | peak | MAX/AVG | valid? |
+|---|---|---|---|---|---|
+| uniform stored | 3200 MW equilibrium | 3200 MW | 5608.8 kW | 2.9164 | yes |
+| the 01:23 field | 200 MW transient | 3200 MW | 4730.9 kW | 2.4600 | **no — mixed states** |
+| the equilibrium field | 3200 MW | 3200 MW | **4722.3 kW** | **2.4556** | **yes** |
+
+4722 kW is **1.5 ×** the top of [D]'s range on an internally consistent calculation, so the
+chequerboard placement *is* falsified, and the core-scale placements (7.615 and 10.159) far more
+so. Section (16)'s conclusion survives — it just needed the full-power field to be stated
+properly, which is the same correction, arrived at from the other side.
+
+### And the unpoisoned baseline, which is a control rather than a case
+
+`U4_XENON=none` removes Xe-135 and I-135 outright:
+
+| flat burnup + 01:22:30 rods | k | peak | MAX/AVG |
+|---|---|---|---|
+| no xenon at all | 1.070348 | 3023.6 kW | **1.5722** |
+| stored, i.e. 3200 MW equilibrium | 1.044059 | 3025.1 kW | **1.5730** |
+
+**+2352 pcm** of reactivity and **0.05 %** of shape. That reproduces the equilibrium worth of
+section (15) exactly, and it is the same signature the level/shape decomposition relies on: a
+*uniform* poison is a pure reactivity shift and does not redistribute power. So the unpoisoned
+core is not a separate operability case — it has the same shape as the poisoned one, and only its
+eigenvalue differs.
+
+### The caveat that is actually left
+
+Not the normalisation but the **criticality**. These cores sit at k ≈ 1.044, so the shape being
+compared is a supercritical core's. Holding it at 3200 MW would need enough extra absorber to
+bring k to 1, and the shape would move — by how much is unmeasured, and the one measurement
+available says uniform insertion moves it the wrong way. That is the honest residual, and it sits
+on top of the `TG` pinning already recorded in A7 (worth ~+500 pcm), which is why the eigenvalue
+is not quoted as a result.
+
+### The placement sweep, which was never affected
+
+Every variant here runs at `U4_XENON=stored`, so all five are consistent full-power states, and
+only the placement moves between them:
+
+| placement, rods out, 3200 MW equilibrium xenon | k | peak at 3200 MW | MAX/AVG |
 |---|---|---|---|
 | flat, every channel at 10 900 | 1.045255 | 3057.5 kW | **1.590** |
 | chequerboard (lattice scale) | 1.048422 | 5367.7 kW | 2.791 |
@@ -4572,7 +4616,8 @@ low-leakage reasoning — burnt fuel inside, fresh at the periphery — is the s
 histogram is simply too wide to be grouped spatially: 172 assemblies at 1.2 MWd/kgU put together
 anywhere make a reactivity island, and the burnup axis is steep enough (k = 1.314 fresh) that the
 flux goes there. Only placements varying **faster than the migration length** come close, and the
-finest such pattern available on a lattice, nearest-neighbour alternation, still gives 2.79.
+finest such pattern available on a lattice, nearest-neighbour alternation, still gives 2.79 —
+4722 kW once its own equilibrium field is added, against [D]'s 3200 kW ceiling.
 
 ### Rods are not a generic flattening agent in this model
 
@@ -4590,14 +4635,16 @@ Fully inserting all 211 rods costs −5552 pcm and makes the core **less** flat,
 sites are not uniformly distributed and suppressing them all distorts the shape rather than
 levelling it. Radial flattening needs rods positioned **individually**, which is an inverse
 problem whose answer — the full-power operating rod pattern — is not sourced. So the model cannot
-rescue a 7.6 by any rod pattern it is able to construct, and core-scale placement stays ruled out
-on shape; lattice-scale placement does **not**, and its residual 2.79 → 2.46 is not evidence
-against it.
+rescue a 7.6 by any rod pattern it is able to construct, and core-scale placement is ruled out.
+Lattice-scale placement is ruled out too, but only by its own full-power number — 4722 kW against
+3200 — and by a smaller margin, so it is the one an individually-positioned rod pattern could
+still in principle recover.
 
 ### The test that would actually decide it
 
 A placement is admissible if **some** rod pattern takes it to MAX/AVG ≲ 1.4 at full power with the
-full-power xenon field. That is a well-posed inverse problem on 211 rod depths, it needs no source
+full-power xenon field **and** brings k to 1 while doing it — the two are one problem, since the
+absorber that flattens is the absorber that holds the core down. That is a well-posed inverse problem on 211 rod depths, it needs no source
 beyond the limit itself, and it is the right successor to `tools/a6d_place.py` — which solved the
 wrong problem (iterating a refuelling rule) and diverged doing it. Until it is run, the honest
 statement is that the placement is bounded below by flat and above by core-scale, and that
