@@ -4992,26 +4992,55 @@ step costs another 190 runs.
 One step is not the method. Re-measuring all 190 columns about the accepted pattern and
 solving again — each step another 190 runs at ~48 min — gives, every row verified in DONJON:
 
+Three steps were run. Every row verified in DONJON, best trust region in bold:
+
 | | trust | rods moved | model | **DONJON** | model error |
 |---|---|---|---|---|---|
 | base | — | — | — | 2.7702 | — |
-| **step 1** | 250 pcm | 17 | 1.7286 | **1.7791** | 2.9 % |
+| **step 1** | **250 pcm** | 17 | 1.7286 | **1.7791** | 2.9 % |
 | **step 2** | **150 pcm** | 26 | 1.6701 | **1.7419** | 4.1 % |
 | step 2 | 250 pcm | 30 | 1.6287 | 1.8209 | 12 % |
 | step 2 | 400 pcm | 37 | 1.5931 | 1.9784 | 24 % |
+| step 3 | 75 pcm | 30 | 1.6402 | 1.7259 | 5.0 % |
+| **step 3** | **150 pcm** | 31 | 1.6208 | **1.7226** | 5.9 % |
+| step 3 | 250 pcm | 37 | 1.6063 | 1.8216 | 13 % |
 
-Improvements of **−0.991** then **−0.037**: descending, but the second step bought 4 % of what
-the first did. Two things moved against it at once. The usable trust region **shrank** from
-250 pcm to 150, and the model error at a fixed 250 pcm trust **grew** from 2.9 % to 12 %.
+**2.7702 → 1.7791 → 1.7419 → 1.7226**, with increments **−0.9911, −0.0372, −0.0193**. The first
+two ratios are 0.038 and 0.519, so after the huge first step the tail halves each time; a
+geometric extrapolation of it gives a limit near **1.702**, peak ≈ 3279 kW. Three more steps at
+48 min each would buy the third decimal.
 
-That is the degeneracy tightening as the method succeeds. A flatter core sits *closer* to mode
-degeneracy, so the linearisation it admits is smaller — the method's own progress erodes its
-step size. Step 3 is running to measure whether this is convergence or a stall; the increments
-so far extrapolate to ≈ 1.74, and extrapolating is exactly what this project does not accept as
-an answer.
+Two things moved against the method as it worked. The usable trust region **shrank** from 250 pcm
+to 150, and the model error at a fixed 250 pcm trust **grew** from 2.9 % to 12 % to 13 %. That is
+the degeneracy tightening as the method succeeds: a flatter core sits *closer* to mode degeneracy,
+so it admits a smaller linearisation, and the method's own progress erodes its step size.
 
-**Best verified so far: MAX/AVG 1.7419, peak channel 3349.6 kW, k = 1.043785, 26 rods moved.**
-That is **4.7 %** above [D]'s 3000–3200 kW, down from 70 % at the base — close, and still outside.
+**Best verified: MAX/AVG 1.7226, peak channel 3312.4 kW, k = 1.042069, 31 rods moved.**
+
+### Which overturns the verdict of sections (17) and (18)
+
+The admissibility threshold is sharp: 3200 MW over 1661 channels is a **1927 kW** average, so
+[D]'s 3000–3200 kW ceiling is **MAX/AVG ≤ 1.557 to 1.661**.
+
+| | MAX/AVG | peak | against the 3200 kW ceiling |
+|---|---|---|---|
+| base, sourced rods | 2.7702 | 5337 kW | **+67 %** |
+| step 1 | 1.7791 | 3428 kW | +7.1 % |
+| step 2 | 1.7419 | 3356 kW | +4.9 % |
+| **step 3** | **1.7226** | **3319 kW** | **+3.7 %** |
+| extrapolated limit | ≈1.702 | ≈3279 kW | ≈+2.5 % |
+
+Sections (17) and (18) called the chequerboard placement **falsified**, at 2.46–2.79 and 70 %
+outside. With the rod pattern actually solved rather than guessed it comes to **3.7 % outside**,
+and that is **inside the model's own error bars**: `TG` is pinned ~120 K low, worth about
++500 pcm (A6b); the reflector is still a placeholder; and A6.4 measured the displacer and
+drained-channel worths **7–10 % low**, which if corrected makes the rods stronger and the
+achievable flattening better.
+
+So the honest verdict is not "falsified" but **marginal, and the model cannot decide it**. That is
+a real retraction of a conclusion committed twice today, and the thing that changed it was
+measuring the control instead of searching it. The core-scale placements (7.615 and 10.159) are
+untouched by this — they remain ruled out by a wide margin.
 
 ### A formulation bug that step 1 could not have caught
 
