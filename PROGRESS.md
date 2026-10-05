@@ -4421,6 +4421,96 @@ through the run-down — and the binned-mixture machinery to carry it is designe
 not yet needed.
 
 
+## The binned-mixture machinery, and xenon as a flattening agent — 2026-10-05 (16)
+
+### The machinery, with the two regressions it had to pass first
+
+`NCR:`'s `MICRO` clause carries one concentration per **mixture** (section 15), so a per-channel
+xenon field costs fuel mixtures rather than a branch axis. `U4_XEBINS=N` now splits the fuel
+into N mixtures, `M_FUEL … M_FUEL+N−1`, with `USPLIT:` taking `NFUEL N FMIX 8 9 …` — the
+indices must leave no gap, because `USPLIT.f:180` requires `NREFL + NFUEL` to equal the highest
+material index exactly. The fuel map's own `MIX` array assigns each channel its bin, and `NCR:`
+emits one `MIX … ENDMIX` clause per bin.
+
+Two regressions, run before any new physics:
+
+| | result |
+|---|---|
+| `U4_XEBINS=1` | the deck is **byte-identical** to before the change — the machinery is invisible unused |
+| `U4_XEBINS=4`, all four bins at the same density | **k bit-identical**, +0.00 pcm — splitting the fuel into identical mixtures adds nothing |
+
+The second is the one that matters: it separates "the binning is correct" from "the field does
+something". One bug was found getting there, and it is the kind that would have been invisible
+later: `plane()` hands its callback **unpadded** lattice coordinates while the channel-number map
+is keyed on **padded** ones, so the bin lookup raised a `KeyError` on the first non-fuel cell it
+reached. Indexed explicitly rather than given a default, so a future frame mismatch fails loudly
+instead of quietly assigning bin 0.
+
+### A uniform level moves k and nothing else — which is the control
+
+| | k | peak channel | MAX/AVG |
+|---|---|---|---|
+| uniform Xe at equilibrium | 1.044059 | 3025.1 kW | 1.5730 |
+| uniform Xe at the field's mean, 1.043× | 1.042949 | **3025.1 kW** | **1.5730** |
+| the 8-bin field, identical mean | 1.042037 | 2793.7 kW | 1.4527 |
+
+Raising a *uniform* xenon by 4.3 % costs **−102 pcm** and leaves the power distribution
+identical to four decimal places. Replacing it with a field of the **same mean** costs a further
+**−84 pcm** and moves the peak channel by −7.6 %. So level and shape are cleanly separable here,
+and the uniform case behaving as a pure reactivity shift is the check that the field effect is
+real rather than an artefact of having split the mixtures.
+
+### Xenon is the flattening agent section (13) was missing
+
+Section (13) left the burnup placement unresolved because nothing in the model flattened a
+realistic placement: the sourced rod pattern did not (section 14), and local balance barely did.
+Xenon does, and the mechanism is specific: at 200 MW the burnout term is negligible against
+decay, so Xe-135 tracks the iodine left by the **past** power shape — high-power channels carry
+more poison. That is negative feedback on the shape.
+
+| realistic burnup (chequerboard) + 01:22:30 rods | k | peak channel | MAX/AVG |
+|---|---|---|---|
+| uniform xenon | 1.047346 | 5608.8 kW | 2.9164 |
+| xenon field, one pass | 1.045153 | 4137.0 kW | 2.1512 |
+| xenon field, **self-consistent** | 1.045234 | **4730.9 kW** | **2.4600** |
+
+**−16 % on the peaking, −193 pcm on k.**
+
+### The fixed-point iteration diverges, and under-relaxation is not a convenience
+
+Rebuilding the field from the latest power each pass **diverges**: the peak channel went
+5609 → 4137 → 5870 → 4561 → **6568** kW. Loop gain above one, the same shape of failure as the
+placement solver in section (13) — the field over-corrects a peaked power, the flattened power
+then gives a flat field, and the next pass undoes it.
+
+It is also not the physics. Xenon has a **9.14 h** time constant and cannot respond to a power
+it has just changed; an undamped fixed-point iteration asserts that it can. Under-relaxing the
+power ratios at w = 0.35 (`U4_XERELAX`, state carried in `U4_XESTATE`) converges in six passes
+to 4731 kW, and the one-pass 4137 kW was a 26 % over-correction against the true 16 %.
+
+What the converged number *is* deserves care: it is the field the core would settle into **if
+200 MW were held until xenon equilibrated with its own shape**. That is a bounding question, not
+the accident state — section (15) measured the real 01:23 xenon at only **8 % of the way** into
+that transition.
+
+### Two limits on this, both worth stating
+
+**It does not rescue the placement.** At MAX/AVG 2.46 the chequerboard placement is still far
+from the 1.57 the flat-burnup core gives, so a realistic burnup spread plus the real rods plus a
+self-consistent xenon field still does not produce an operable full-power shape. Section (13)'s
+conclusion survives all three inputs being present: the real placement has to be something more
+ordered than any of these guesses.
+
+**And the full-power test needs a different field.** These runs normalise to 3200 MWth while the
+xenon field belongs to the 200 MW state — the shape is what is being compared, but the channel
+power limit is a full-power constraint, and the full-power equilibrium field is **not** this one.
+At full power the burnout term dominates, so Xe_eq ∝ Σfφ/(λ_Xe+σφ) **saturates** with flux: a
+high-power channel carries proportionally *less* xenon, which is a weaker flattener than the
+decay-dominated 200 MW case and possibly none at all. Computing it is a separate run of the same
+machinery, and the operability argument in section (13) should be re-made with it rather than
+with this field.
+
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to

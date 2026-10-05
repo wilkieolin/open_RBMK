@@ -80,6 +80,8 @@ _TILT0 = os.environ.get("U4_TILT", "0")
 _DCA0 = os.environ.get("U4_DCA", "0.72")
 _BURN0 = os.environ.get("U4_BURNMAP", "flat")
 _BSFX = ("" if _BURN0 == "flat" else "_b" + _BURN0) + (
+    "" if os.environ.get("U4_XEBINS", "1") == "1"
+    else "_n" + os.environ.get("U4_XEBINS", "1")) + (
     "" if os.environ.get("U4_XENON", "stored") == "stored"
     else "_xe" + os.environ.get("U4_XENON", "stored").replace(".", "").replace("+", "")[:8])
 _STEM = ("rbmk_unit4_core" if WITH_REFL else "rbmk_unit4_norefl") + (
@@ -155,7 +157,19 @@ NZ_REFL = 2             # axial graphite reflector, planes each end (50 cm)
 M_WAT, M_ABS, M_DSP = 1, 2, 3            # the three CPS channel states
 M_REFL = [4, 5, 6, 7] if WITH_REFL else []   # ring 1 at the core .. ring 4, cooled
 M_FUEL = 4 + len(M_REFL)
-NMIX = M_FUEL
+# U4_XEBINS: how many fuel mixtures to split the fuel into, so that a
+# PER-CHANNEL xenon field can be carried.  NCR:'s MICRO clause sets one
+# concentration per MIX (NCRRGR.f:326 -> :919, CONC indexed by mixture, with no
+# channel index on that path), so a field costs mixtures and not an axis.  The
+# fuel mixtures are M_FUEL .. M_FUEL+XEBINS-1 and must leave no gap below them,
+# because USPLIT.f:180 requires NREFL + NFUEL to equal the highest material
+# index exactly.
+XEBINS = int(os.environ.get("U4_XEBINS", "1"))
+if XEBINS < 1:
+    raise SystemExit("U4_XEBINS must be >= 1")
+M_FUEL_HI = M_FUEL + XEBINS - 1
+NMIX = M_FUEL_HI
+fmixlist = " ".join(str(m) for m in range(M_FUEL, M_FUEL_HI + 1))
 FUEL_TYPES = {"FUEL"}
 
 # Which lattice positions hold what.  The rod classes differ in construction,
@@ -531,6 +545,89 @@ DCA_SET = os.environ.get("U4_DCA", "0.72")
 VOID_FB = os.environ.get("U4_VOIDFB", "1") != "0"
 
 
+def xenon_bins(cells, nfuel):
+    """Per-channel xenon bin index, and the Xe-135 density each bin carries.
+
+    With one bin there is nothing to do and the deck keeps whatever U4_XENON
+    asked for.  With several, the field comes from the I/Xe history solve run
+    per channel at that channel's own power ratio -- tools/a6b_xenon.py, which
+    is imported rather than copied so there is one set of physics.
+
+    THE ASSUMPTION IS STATED IN THAT MODULE and bears repeating here: each
+    channel is taken to hold its present power RATIO throughout the run-down,
+    so only the global level moves.  The real 01:23 field is not that, because
+    the shape itself reshaped -- which is exactly what INSAG-7 says the
+    operators could not control, and what it records was never calculated.
+    This measures a FROZEN-SHAPE field, which is a first estimate and a lower
+    bound on the spread.
+
+    Binning is equal-population on the density, each bin carrying its members'
+    mean, so the within-bin error is as small as a given bin count allows.
+    """
+    if XEBINS == 1:
+        return [0] * nfuel, [0.0], "one fuel mixture -- no xenon field"
+    import sys as _sys
+    _sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import a6b_xenon as _xe
+    pw, psrc = chan_power()
+    if len(pw) != nfuel:
+        raise SystemExit(f"{len(pw)} channel powers, {nfuel} channels")
+    mean = sum(pw) / len(pw)
+    scales = [q / mean for q in pw]
+    # UNDER-RELAXATION, and it is not optional.  Rebuilding the field from the
+    # latest power each pass diverges: measured 2026-10-05, the peak channel
+    # went 5609 -> 4137 -> 5870 -> 4561 -> 6568 kW.  The loop gain exceeds one
+    # because the field over-corrects a peaked power, the flattened power then
+    # gives a flat field, and so on.  It is also not the physics -- xenon has a
+    # 9.14 h time constant and cannot respond to a power it has just changed.
+    # U4_XESTATE carries a running mean of the power ratios between passes, so
+    # the sequence converges on the SELF-CONSISTENT field: the one the core
+    # would settle into if 200 MW were held until xenon equilibrated with its
+    # own shape.  That is a bounding question, not the 01:23 state, which
+    # section (15) measures at 8 % of the way into that transition.
+    st = os.environ.get("U4_XESTATE", "")
+    w = float(os.environ.get("U4_XERELAX", "0.35"))
+    if st and os.path.exists(st):
+        old_s = [float(x) for x in open(st).read().split()]
+        if len(old_s) == len(scales):
+            scales = [(1.0 - w) * o + w * n for o, n in zip(old_s, scales)]
+    if st:
+        with open(st, "w") as f:
+            f.write("\n".join(f"{x:.6f}" for x in scales))
+    # the ODE is only ~25 distinct solves wide: Xe is smooth in the power
+    # ratio, so solve on a grid spanning the real range and interpolate rather
+    # than integrate 1661 times
+    lo, hi = min(scales), max(scales)
+    grid = [lo + (hi - lo) * j / 24.0 for j in range(25)]
+    gval = [_xe.xenon_at_0123(g) for g in grid]
+
+    def interp(x):
+        if x <= grid[0]:
+            return gval[0]
+        for j in range(1, len(grid)):
+            if x <= grid[j]:
+                f = (x - grid[j - 1]) / (grid[j] - grid[j - 1])
+                return gval[j - 1] + f * (gval[j] - gval[j - 1])
+        return gval[-1]
+
+    dens = [interp(x) for x in scales]
+    order = sorted(range(nfuel), key=lambda c: dens[c])
+    xebin = [0] * nfuel
+    vals = []
+    for b in range(XEBINS):
+        a = b * nfuel // XEBINS
+        z = (b + 1) * nfuel // XEBINS
+        members = order[a:z]
+        for c in members:
+            xebin[c] = b
+        vals.append(sum(dens[c] for c in members) / len(members))
+    why = (f"{XEBINS} equal-population bins over a frozen-shape field from "
+           f"{os.path.basename(psrc)}; Xe spans "
+           f"{min(dens) / _xe.XE_EQ:.3f} to {max(dens) / _xe.XE_EQ:.3f} "
+           f"x equilibrium")
+    return xebin, vals, why
+
+
 def chan_power():
     """The 1661 channel powers in CHANNEL ORDER, from a previous run's
     POWER-CHAN dump.  Channel order is what RESPFM.f:74-82 finds and what
@@ -694,7 +791,7 @@ def main():
             # piece.  Rods are not tracked outside the active core.
             return M_WAT
         if r["type"] in FUEL_TYPES:
-            return M_FUEL
+            return M_FUEL + xebin[num[(i + NPAD, j + NPAD)] - 1]
         if INSAG_RODS and r["type"] in CPS_RODS:
             return M_OF[insag_col(r)[k - NZ_REFL - 1]]
         if r["type"] in ROD_DSP:
@@ -705,8 +802,9 @@ def main():
 
     def fmap_mix(i, j, k, r):
         active = NZ_REFL < k <= NZ_REFL + NZ_ACTIVE
-        return M_FUEL if (active and r is not None
-                          and r["type"] in FUEL_TYPES) else 0
+        return (M_FUEL + xebin[num[(i + NPAD, j + NPAD)] - 1]
+                if (active and r is not None
+                    and r["type"] in FUEL_TYPES) else 0)
 
     # the fuel map numbers only the fuel channels, 1..NCOMB, in the same raster
     # order the B-ZONE block is written in
@@ -722,6 +820,8 @@ def main():
                 cells.append((i, j))
     bulist, buwhy = burnup_list(cells, nx, ny)
     assert len(bulist) == nfuel
+    xebin, xeval, xewhy = xenon_bins(cells, nfuel)
+    assert len(xebin) == nfuel and len(xeval) == XEBINS
 
     if BURNMAP == "flat":
         INSTB = "  INST-BVAL SAME 10900.0"
@@ -818,12 +918,22 @@ def main():
         # would be as the Xe precursor, which does not act.  Zeroing it as well
         # would be a second, unrelated perturbation smuggled into the answer.
         _xe = f"\n               MICRO ALL Xe135 {float(XENON):.6E}"
-    NCRFUEL = """MACFUEL := NCR: FCpo FMAP :: EDIT 0 MACRO LINEAR
+    _setrest = ("" if WITH_THM else
+                "\n               SET 'DCA' %s SET 'TF' 900.0 SET 'TG' 750.0" % DCA_SET)
+    _mixes = ""
+    for _b in range(XEBINS):
+        # With one bin the clause is whatever U4_XENON asked for.  With several
+        # the bin's own density always wins, because that is the whole point.
+        # XEBINS > 1 with U4_XENON set to a number is the CONTROL: every bin
+        # carries the same density, so splitting the fuel into several
+        # identical mixtures must reproduce the single-mixture answer exactly.
+        # It is the only way to show the binning itself adds nothing.
+        _c = (_xe if (XEBINS == 1 or XENON != "stored")
+              else "\n               MICRO ALL Xe135 %.6E" % xeval[_b])
+        _mixes += "  MIX %d %s%s%s ENDMIX\n" % (M_FUEL + _b, _bmix, _setrest, _c)
+    NCRFUEL = ("""MACFUEL := NCR: FCpo FMAP :: EDIT 0 MACRO LINEAR
   TABLE FCpo 'EDIRBMK'%s
-  MIX %d %s%s%s ENDMIX
-  ;""" % (_bkey, M_FUEL, _bmix, "" if WITH_THM else
-          "\n               SET 'DCA' %s SET 'TF' 900.0 SET 'TG' 750.0" % DCA_SET,
-          _xe)
+%s  ;""" % (_bkey, _mixes))
     # With THM:, 'DCA' and 'TF' are NOT set here: the fuel map carries them as
     # local parameters and NCR: picks a parameter up from the map whenever it
     # is not SET (NCRRGR.f:714-722 prints which ones SET overrides).  'TG' is
@@ -1091,7 +1201,7 @@ GEOM := GEO: :: CAR3D {nx} {ny} {nz}
 GEO2 MATEX := USPLIT: GEOM :: EDIT 0
   NGRP 2 MAXR {nel}
   NREFL {3 + nring} RMIX {M_WAT} {M_ABS} {M_DSP} {" ".join(str(m) for m in M_REFL)}
-  NFUEL 1 FMIX {M_FUEL} ;
+  NFUEL {XEBINS} FMIX {fmixlist} ;
 
 *--- the fuel map: {nfuel} channels, numbered in the B-ZONE block below
 FMAP MATEX := RESINI: MATEX ::

@@ -83,8 +83,6 @@ R_PU239 = 4.9904e-03 / 6.7304e-02
 
 P0 = 3200.0                       # MW, the depletion power the densities are at
 
-print(f"reference at BU {BU_CORE:.0f}:  Xe_eq {XE_EQ:.5E}  I_eq {I_EQ:.5E}"
-      f"   I/Xe {I_EQ / XE_EQ:.5f}\n")
 
 # ---- INSAG-7 Table I-I and Sec. I-4.7.6, as (minutes from 25 Apr 01:06, MW)
 # Piecewise linear between points.  t = 0 is the start of the power reduction,
@@ -145,6 +143,38 @@ def solve(r, dt=5.0):
         xi += dt / 6 * (a1 + 2 * a2 + 2 * a3 + a4)
         xe += dt / 6 * (b1 + 2 * b2 + 2 * b3 + b4)
     return sig_phi0, trace
+
+
+def xenon_at_0123(scale=1.0, r=R_U235, dt=5.0):
+    """Xe-135 at 01:23 for a channel whose power is `scale` x the core average.
+
+    THE ASSUMPTION, STATED: the channel holds that same power RATIO throughout
+    the history, so only the global level moves.  That is wrong in exactly the
+    way INSAG-7 says matters -- the shape itself reshaped -- so this gives the
+    magnitude of a frozen-shape xenon field, not the real one.  It is a first
+    estimate and the error is in the direction of understating the spread.
+    """
+    sig_phi0 = LAM_I * (I_EQ / XE_EQ) * (1.0 + r) - LAM_XE
+    xi, xe = I_EQ, XE_EQ
+    prod_i = LAM_I * I_EQ
+    n = int(T_END / dt)
+
+    def deriv(i_, x_, pp):
+        return (prod_i * pp - LAM_I * i_,
+                r * prod_i * pp + LAM_I * i_ - LAM_XE * x_ - sig_phi0 * pp * x_)
+
+    for k in range(n):
+        t = k * dt
+        p1 = power(t) / P0 * scale
+        p2 = power(t + dt / 2) / P0 * scale
+        p4 = power(t + dt) / P0 * scale
+        a1, b1 = deriv(xi, xe, p1)
+        a2, b2 = deriv(xi + dt / 2 * a1, xe + dt / 2 * b1, p2)
+        a3, b3 = deriv(xi + dt / 2 * a2, xe + dt / 2 * b2, p2)
+        a4, b4 = deriv(xi + dt * a3, xe + dt * b3, p4)
+        xi += dt / 6 * (a1 + 2 * a2 + 2 * a3 + a4)
+        xe += dt / 6 * (b1 + 2 * b2 + 2 * b3 + b4)
+    return xe
 
 
 def main():
