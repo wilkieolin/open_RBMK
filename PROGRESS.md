@@ -4076,6 +4076,12 @@ channel, so two channels take the core average and that is stated rather than sm
 Rods withdrawn, no xenon, uniform everything else — so the only thing that differs is *where*
 the eight groups sit:
 
+*(Every k and power in this section is superseded by section (14): these runs
+carried 36 AZOC channels as pure water instead of as withdrawn rods holding their
+graphite displacers, which is worth +609 pcm and a large change in the power shape.
+The **ordering** of the placements and the conclusions drawn from it survive; the
+numbers do not.)*
+
 | placement | k | Δρ vs flat | peak channel | channel MAX/AVG |
 |---|---|---|---|---|
 | flat, every channel at the average | 1.038645 | — | 3517 kW | 1.83 |
@@ -4162,6 +4168,154 @@ orderings as **full-power** cores — which that fuel did have to be, since the 
 accumulated at power — and it says nothing directly about the accident state. For A8 what
 matters is not the absolute channel power but the *shape*, and the shape still differs by a
 factor of 1.5 between these placements.
+
+
+## The 01:22:30 rod pattern, and 36 displacers that were not there — 2026-10-04 (14)
+
+### Per-rod depths, from the source that was already in the repository
+
+The channel map has carried a `depth_cm` column since A6d digitised INSAG-7 Fig. II-6 and
+registered it against Dollezhal Fig. 2.3 — **211 rods, 47 of them inserted, 4346 cm of total
+insertion** — and the generator had been ignoring it, driving every rod channel from one
+uniform bank. `U4_RODS=insag` now builds each CPS channel from its own class and its own
+sourced depth. That needed two constructions the deck did not have, because the 47 inserted
+rods are spread across all four classes (RR 20, AR 12, AZOC 8, AZ 4, USP 3):
+
+* **AR** — top-entry, 5 m absorber, **no displacer** (INSAG-7 §2.2, p. 103). Withdrawn, the
+  channel is plain water, so an AR rod contributes nothing at all until it moves. That is the
+  opposite of an RR, whose displacer is in the core even when the rod is up.
+* **USP** — **bottom-entry**, 3.5 m absorber, no displacer. It suppresses the bottom of the
+  flux, the opposite end from everything else in the CPS.
+
+The depths quantise onto the 25 cm axial mesh: 4346 cm of sourced insertion becomes 4425 cm,
+**+1.8 %**, and no rod rounds away to nothing (the shallowest, 13 rods at 20 cm, round up to one
+plane). That is a real loss of resolution and it is reported rather than absorbed.
+
+### Which immediately found a bug in the uniform bank
+
+Comparing the two ways of building the same core exposed a disagreement, and the per-rod
+version was right. `BANKCOL` read `stack(TILT) if TILT else [_W] * NZ_ACTIVE`: with the tilt
+off — **every core run to date except the tilt studies** — the 36 AZOC channels were modelled as
+pure water columns. But AZOC is the same hardware as RR and AZ, so a withdrawn AZOC channel
+contains its 4.5 m graphite displacer exactly as a withdrawn RR does. `stack(0)` *is* the
+withdrawn configuration; the special case was not a simplification, it was **36 missing
+displacers**.
+
+| rods withdrawn, flat burnup | k | peak channel | MAX/AVG |
+|---|---|---|---|
+| 36 AZOC as water (as run until now) | 1.038645 | 3517 kW | 1.829 |
+| 36 AZOC as withdrawn rods (correct) | **1.045255** | **3058 kW** | **1.590** |
+| | **+609 pcm** | −459 kW | −0.24 |
+
+**Corroborated against an independent measurement.** A6.5 put the displacer bank at +2060 pcm
+against water columns over the 142 RR/AZ channels; scaled to 36 channels that predicts
+**+522 pcm**, against **+609** measured. Same mechanism, right magnitude, the excess being that
+the AZOC channels sit at different flux positions from the average RR. It also moves the power
+shape a long way — peaking 1.829 → 1.590 — because 36 graphite columns are not a small
+perturbation on a core whose moderator is graphite.
+
+Everything in this log that quotes an absolute core k from a `U4_TILT=0` deck is affected by
+roughly **+600 pcm**. As section (12) established for the COMPO rebuild, differences fare far
+better than absolutes, but this one also moves the power distribution and so is not confined to
+k.
+
+### What the real rod pattern is worth: −110 pcm
+
+With the bug fixed, the comparison is finally clean — same deck, same everything, 47 rods moved
+from withdrawn to their sourced depths:
+
+| | k | peak channel | MAX/AVG |
+|---|---|---|---|
+| all rods withdrawn | 1.045255 | 3058 kW | 1.590 |
+| **the 01:22:30 pattern** | **1.044059** | **3025 kW** | **1.573** |
+| | **−110 pcm** | | |
+
+**47 rods, 4346 cm of absorber, worth 110 pcm — 2.3 pcm per rod.** That is the accident in one
+number. The absorber entering the top of each channel is very nearly cancelled by the graphite
+displacer sweeping water out of the bottom as the same rod goes down, which is the mechanism
+A6.5 measured in isolation and this is it operating across a real rod pattern. A control system
+with that little worth in its inserted rods is the operating-reactivity-margin problem the
+accident reports describe, arrived at here from the geometry rather than assumed.
+
+It is **not** a scram calculation and must not be read as one: this is a static comparison of
+two rod positions, with no rod motion, no time dependence and no xenon.
+
+### And the rods do not rescue a wrong burnup placement
+
+| rod pattern | burnup | k | peak channel | MAX/AVG |
+|---|---|---|---|---|
+| withdrawn | flat | 1.045255 | 3058 kW | 1.590 |
+| **01:22:30** | **flat** | **1.044059** | **3025 kW** | **1.573** |
+| withdrawn | locally balanced | 1.048422 | 5368 kW | 2.791 |
+| 01:22:30 | locally balanced | 1.047346 | 5609 kW | 2.916 |
+| 01:22:30 | scattered | 1.049243 | 5818 kW | 3.025 |
+
+Two things fall out. **The flat-burnup core with the real rod pattern lands at 3025 kW and
+MAX/AVG 1.573 — inside [D] p.95's published 3000–3200 kW operating range.** That is the first
+time the core model has produced a channel power distribution that an operating RBMK could
+actually have had, and it is a check on the rod pattern, the reflector and the geometry
+together.
+
+But with a *realistic* burnup spread the same rods leave the peak at 5.4–5.8 MW, and in fact
+make the peaking slightly **worse**, not better. The real rod pattern was the pattern for the
+real burnup distribution; applied to a scattered one it is not flattening anything. So
+section (13)'s conclusion survives the correction intact — the placement is still unresolved,
+the rods are now fixed and sourced, and the one remaining flattening agent is **xenon**.
+
+
+### What the correction does to A7
+
+Every A7 number in sections (11) and (12) came from a `U4_TILT=0` deck and so carried the hole.
+Re-run with the 36 displacers restored:
+
+| | 36 AZOC as water | corrected | shift |
+|---|---|---|---|
+| cold, no feedback | 1.038645 | **1.045255** | +609 pcm |
+| Doppler only, flow valved | 1.036211 | **1.042750** | +601 pcm |
+| Doppler only, uniform flow | 1.036206 | **1.042745** | +601 pcm |
+| Doppler + density, flow valved | 1.039528 | **1.046365** | +628 pcm |
+| Doppler + density, uniform | 1.040173 | **1.047068** | +630 pcm |
+| | | | |
+| Doppler feedback | −226 pcm | **−230 pcm** | −4 |
+| density feedback | +308 pcm | **+331 pcm** | +23 |
+| net feedback | +82 pcm | **+101 pcm** | +19 |
+| flow-distribution spread | 59.7 pcm | **64.2 pcm** | +4.5 |
+| pinned-pair agreement | 0.5 pcm | **0.5 pcm** | 0 |
+
+The same pattern as section (12) and a useful contrast with it. There the table rebuild moved k
+by −20 pcm and the feedbacks by ≤ 2; here the shift is thirty times bigger, and the feedbacks
+move by 4 to 23. **Differences are robust against a systematic error, but not infinitely so** —
+roughly 3–4 % of the k shift leaks into them either way, which is invisible at 20 pcm and
+visible at 600. The density feedback is the one that moves most, +308 → +331, which is what
+thirty-six extra graphite columns should do to a void worth.
+
+
+### Xenon: a level is free, a field is not — correcting the A6b conclusion
+
+A6b dropped the xenon axis on 2026-10-01 on the grounds that `NCRLIB.f:268` lets `NCR: … MICRO`
+replace a stored isotope density before rebuilding the embedded macrolib, so "a xenon field
+costs a `MICRO` clause from the core side and no rebuild". Checked properly now that it is
+about to be used, **that is true of a xenon *level* and not of a xenon *field*.**
+
+`MICRO` sits inside a `MIX` clause and reads one scalar per isotope — `CONCMI(NISOMI)` at
+`NCRRGR.f:326`, stored at `:919` as `CONC(NTOT, ISO)` where `NTOT` indexes the **mixture**.
+There is no channel index anywhere on that path. One fuel mixture therefore carries one xenon
+concentration, core-wide.
+
+Unit 4 at 01:23 is the opposite of uniform: the xenon was built up from twelve hours at half
+power, then the flux collapsed at 00:28 and stopped burning it out while I-135 kept decaying
+into it, so the poisoning is strongly shaped by the local power *history*. A single number
+cannot represent it.
+
+The way through does not need a rebuild either, and it is worth writing down before it is
+built: **bin the xenon field and give each bin its own fuel mixture.** The fuel map already
+assigns a mixture per channel through `FMIX`, and `NCR:` already takes several `MIX … ENDMIX`
+clauses, so N xenon levels cost N fuel mixtures and N `MICRO` clauses. The axis the A6b
+rebuild avoided is still avoided; what it costs instead is mixture count, which is cheap.
+
+That leaves the xenon *field itself* as the input to produce — an I-135/Xe-135 solve per channel
+over the published power history (INSAG-7's account of the run-down) rather than an equilibrium
+assumption, since the whole point is that the core was far from equilibrium.
 
 
 ## Standing rules

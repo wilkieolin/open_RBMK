@@ -192,6 +192,11 @@ M_OF = {"W": M_WAT, "D": M_DSP, "A": M_ABS}
 # The rod as built: absorber 5 m, water gap 1.25 m, graphite displacer 4.5 m,
 # measured top-down, i.e. 20 + 5 + 18 = 43 planes of 25 cm.
 N_ABS, N_GAP, N_DSP = 20, 5, 18
+# USP is the shortened absorber that enters from BELOW and carries no
+# displacer: 3.5 m, i.e. 14 planes (INSAG-7 Sec. 2.2, Fig. 1; A6_CPS_PLAN
+# "Rod types"/"Axial design").  AR is top-entry absorber only, same 5 m
+# absorber as RR/AZ but no graphite under it.
+N_USP = 14
 
 
 def stack(n):
@@ -220,6 +225,30 @@ def stack(n):
         else:
             out.append(_W)                             # gap, or beyond either end
     return out
+
+
+def stack_abs(n):
+    """An AR channel: 5 m of absorber entering from the TOP, no displacer.
+
+    Fully withdrawn (n = 0) the absorber sits above the core and the channel is
+    all water, so an AR rod contributes nothing until it is moved -- unlike
+    RR/AZ, whose displacer is in the core even when the rod is up.  That
+    difference is the whole reason the classes are kept apart.
+    """
+    hi = NZ_ACTIVE - n + N_ABS
+    lo = NZ_ACTIVE - n + 1
+    return [_A if lo <= q <= hi else _W for q in range(1, NZ_ACTIVE + 1)]
+
+
+def stack_bot(n):
+    """A USP channel: 3.5 m of absorber entering from BELOW, no displacer.
+
+    Withdrawn means parked under the core, so again the channel is all water at
+    n = 0.  Entering from below it suppresses the bottom of the flux, which is
+    the opposite end from everything else in the CPS.
+    """
+    hi, lo = n, n - N_USP + 1
+    return [_A if lo <= q <= hi else _W for q in range(1, NZ_ACTIVE + 1)]
 
 
 def runs(col):
@@ -262,7 +291,41 @@ HALVES = {
 }
 assert all(len(v) == NZ_ACTIVE for v in HALVES.values())
 
-if RODS == "wat":
+# U4_RODS=insag drives every CPS channel to its OWN sourced depth instead of
+# driving one bank uniformly.  The depths are in the channel map's depth_cm
+# column, digitised from INSAG-7 Fig. II-6 at 01:22:30 and registered against
+# Dollezhal Fig. 2.3 (PROGRESS.md "A6d"): 211 rods, 47 of them inserted,
+# 4346 cm of total insertion.  Each class gets its own construction -- RR, AZ
+# and AZOC carry the displacer, AR is absorber only, USP enters from below --
+# because at this state the inserted rods are spread across all four.
+INSAG_RODS = RODS == "insag"
+CPS_RODS = ROD_DSP | ROD_BANK | ROD_ABS | ROD_BOT
+_COLCACHE = {}
+
+
+def insag_col(r):
+    """The axial column of one CPS channel at its own sourced depth."""
+    key = (r["type"], r["depth_cm"])
+    if key not in _COLCACHE:
+        # 28 planes over the 700 cm active height -> 25 cm a plane, so the
+        # sourced depths quantise to the axial mesh.  Insertions of 20 and
+        # 30 cm round to one plane and 0 respectively; that is a real loss of
+        # resolution and is reported by the generator rather than hidden.
+        n = int(round(float(r["depth_cm"] or 0) / (700.0 / NZ_ACTIVE)))
+        t = r["type"]
+        if t in ROD_DSP or t in ROD_BANK:
+            col = stack(n)
+        elif t in ROD_ABS:
+            col = stack_abs(n)
+        elif t in ROD_BOT:
+            col = stack_bot(n)
+        else:
+            col = [_W] * NZ_ACTIVE
+        _COLCACHE[key] = col
+    return _COLCACHE[key]
+
+
+if RODS == "wat" or INSAG_RODS:
     RODCOL = [_W] * NZ_ACTIVE
 elif RODS in HALVES:
     RODCOL = HALVES[RODS]
@@ -271,7 +334,7 @@ elif RODS in NAMED:
 elif RODS.startswith("d") and RODS[1:].isdigit():
     RODCOL = stack(int(RODS[1:]))
 else:
-    raise SystemExit(f"U4_RODS={RODS!r}: expected wat, d<n>, or one of "
+    raise SystemExit(f"U4_RODS={RODS!r}: expected wat, insag, d<n>, or one of "
                      f"{sorted(set(NAMED) | set(HALVES))}")
 
 # U4_TILT inserts the 36 AZOC channels n planes from the top, as their own
@@ -280,7 +343,17 @@ else:
 # the burnup is flat and there is no xenon.  A partially-inserted scram bank
 # is a real configuration, but THIS pattern is not the 01:23 pattern and is
 # not offered as one.
-BANKCOL = stack(TILT) if TILT else [_W] * NZ_ACTIVE
+#
+# CORRECTED 2026-10-04.  This used to read `stack(TILT) if TILT else [_W]*N`,
+# which made the 36 AZOC channels PURE WATER whenever the tilt was off -- i.e.
+# in every core run to date bar the tilt studies.  AZOC is the same hardware
+# as RR/AZ (ROD_BANK above, and A6_CPS_PLAN "Rod types"), so a withdrawn AZOC
+# channel contains its 4.5 m graphite displacer exactly as a withdrawn RR does.
+# stack(0) IS the withdrawn configuration, so the special case was not a
+# simplification, it was 36 missing displacers.  Found by comparing the
+# uniform-bank deck against the per-rod INSAG-7 pattern, which builds every CPS
+# channel from its own class and depth and so never had the hole.
+BANKCOL = stack(TILT)
 
 
 # --- A7's thermal-hydraulic inputs.  Every one of these is either sourced or
@@ -603,6 +676,8 @@ def main():
             return M_WAT
         if r["type"] in FUEL_TYPES:
             return M_FUEL
+        if INSAG_RODS and r["type"] in CPS_RODS:
+            return M_OF[insag_col(r)[k - NZ_REFL - 1]]
         if r["type"] in ROD_DSP:
             return M_OF[RODCOL[k - NZ_REFL - 1]]
         if r["type"] in ROD_BANK:
