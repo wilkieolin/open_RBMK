@@ -4534,6 +4534,76 @@ worth 120 pcm on the eigenvalue and essentially nothing on the shape. The operab
 is unchanged either way — 2.456 against the flat core's 1.573.
 
 
+## The operability test was the wrong test — 2026-10-05 (17)
+
+### The conflation
+
+Every core result in sections (13)–(16) is normalised to **3200 MW** — `FLPOW: … PTOT 3200.0`,
+which the deck's own comment is careful about ("the shape, not the normalisation, is what this
+increment checks"). Section (14) then compared the resulting peak channel power against [D]'s
+published **3000–3200 kW** operating range and called flat burnup + the 01:22:30 rods "the first
+physically achievable power distribution the model has produced".
+
+That comparison does not hold up. The 01:22:30 state was at **200 MW**, not 3200. At its real
+power the peak channel in that calculation is 3025 × 200/3200 = **189 kW**, and no channel-power
+limit is anywhere near binding. [D]'s range describes a full-power core carrying its **operating**
+rod pattern; the 01:22:30 core is a 200 MW core with the rods **withdrawn** — the ORM violation is
+the accident's premise, so it is precisely the configuration with the least rod shaping available.
+Requiring it to be flat is requiring the wrong thing of it.
+
+So neither "flat burnup is physically achievable" nor "the chequerboard placement is falsified"
+is supported in the form stated. Both were reading a full-power constraint off a 200 MW state.
+
+### What survives, and it is most of it
+
+The comparison is still valid as a **shape** comparison, because every variant is run at the same
+normalisation and the same rod pattern — only the placement moves:
+
+| placement, rods out, uniform xenon | k | peak at 3200 MW | MAX/AVG |
+|---|---|---|---|
+| flat, every channel at 10 900 | 1.045255 | 3057.5 kW | **1.590** |
+| chequerboard (lattice scale) | 1.048422 | 5367.7 kW | 2.791 |
+| random | 1.043832 | 5625.4 kW | 2.925 |
+| most-burnt centre, fresh edge | 1.063382 | 14625.6 kW | **7.615** |
+| fresh centre, most-burnt edge | 1.170692 | 19546.6 kW | **10.159** |
+
+Both **core-scale** placements are catastrophic, and the one that should flatten by textbook
+low-leakage reasoning — burnt fuel inside, fresh at the periphery — is the second worst. [PAV]'s
+histogram is simply too wide to be grouped spatially: 172 assemblies at 1.2 MWd/kgU put together
+anywhere make a reactivity island, and the burnup axis is steep enough (k = 1.314 fresh) that the
+flux goes there. Only placements varying **faster than the migration length** come close, and the
+finest such pattern available on a lattice, nearest-neighbour alternation, still gives 2.79.
+
+### Rods are not a generic flattening agent in this model
+
+The obvious objection is that the operating rod pattern would flatten a core-scale placement. The
+model says uniform insertion does the opposite — measured on flat burnup, where there is no
+placement effect to confuse it:
+
+| flat burnup | k | MAX/AVG |
+|---|---|---|
+| all rods out | 1.045255 | **1.590** |
+| rods at the 01:22:30 depths | 1.044059 | 1.573 |
+| all rods fully in | 0.987927 | **2.249** |
+
+Fully inserting all 211 rods costs −5552 pcm and makes the core **less** flat, because the rod
+sites are not uniformly distributed and suppressing them all distorts the shape rather than
+levelling it. Radial flattening needs rods positioned **individually**, which is an inverse
+problem whose answer — the full-power operating rod pattern — is not sourced. So the model cannot
+rescue a 7.6 by any rod pattern it is able to construct, and core-scale placement stays ruled out
+on shape; lattice-scale placement does **not**, and its residual 2.79 → 2.46 is not evidence
+against it.
+
+### The test that would actually decide it
+
+A placement is admissible if **some** rod pattern takes it to MAX/AVG ≲ 1.4 at full power with the
+full-power xenon field. That is a well-posed inverse problem on 211 rod depths, it needs no source
+beyond the limit itself, and it is the right successor to `tools/a6d_place.py` — which solved the
+wrong problem (iterating a refuelling rule) and diverged doing it. Until it is run, the honest
+statement is that the placement is bounded below by flat and above by core-scale, and that
+everything between is open.
+
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to
