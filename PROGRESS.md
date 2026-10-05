@@ -4501,14 +4501,37 @@ self-consistent xenon field still does not produce an operable full-power shape.
 conclusion survives all three inputs being present: the real placement has to be something more
 ordered than any of these guesses.
 
-**And the full-power test needs a different field.** These runs normalise to 3200 MWth while the
-xenon field belongs to the 200 MW state — the shape is what is being compared, but the channel
-power limit is a full-power constraint, and the full-power equilibrium field is **not** this one.
-At full power the burnout term dominates, so Xe_eq ∝ Σfφ/(λ_Xe+σφ) **saturates** with flux: a
-high-power channel carries proportionally *less* xenon, which is a weaker flattener than the
-decay-dominated 200 MW case and possibly none at all. Computing it is a separate run of the same
-machinery, and the operability argument in section (13) should be re-made with it rather than
-with this field.
+**And the full-power test needed a different field — which turned out not to matter for shape.**
+The channel-power limit binds at full power, not at 200 MW, so the operability argument needs the
+full-power equilibrium field rather than the 01:23 one. `U4_XEHIST=equil<f>` builds it from the
+same machinery, in closed form, since equilibrium needs no integration:
+Xe = (1+r)·λ_I·I_eq·p / (λ_Xe + σφ₀·p). At s = 1, p = 1 it returns the stored density to every
+digit — independent confirmation that the COMPO's isotopics really are the 3200 MW equilibrium and
+that σφ₀, calibrated from the I/Xe ratio, is consistent with them.
+
+I predicted it would be the weaker flattener by **3.4 ×**, from the shape sensitivity
+dln(Xe)/dln(s) = 1/(1 + σφ/λ_Xe), which is 0.841 at 200 MW against 0.249 at 3200 MW because
+σφ₀ = 3.015 λ_Xe for this lattice. **The measurement says otherwise:**
+
+| chequerboard + 01:22:30 rods, converged | k | peak channel | MAX/AVG | Δρ |
+|---|---|---|---|---|
+| uniform xenon | 1.047346 | 5608.8 kW | 2.9164 | — |
+| the 01:23 field | 1.045234 | 4730.9 kW | **2.4600** | −193 pcm |
+| the 3200 MW equilibrium field | 1.046546 | 4722.3 kW | **2.4556** | **−73 pcm** |
+
+The shapes agree to **0.2 %** while the reactivity costs differ by **120 pcm**. The sensitivity
+argument used the wrong lens: it prices the gradient at the *peak*, where the 01:23 field is
+indeed ~3.7 × steeper, but the chequerboard spread has a wide **low**-power tail, and there the
+equilibrium field collapses to **0.50 ×** equilibrium against the 01:23 field's **0.94 ×** — the
+latter cannot fall further in the 24 h available against a 9.14 h constant. The flattening gets
+done from the valleys instead of the peak and lands in the same place.
+
+Two consequences. The −73 pcm is nearly **all shape**: the equilibrium field holds *less* total
+xenon than the uniform case — Xe(s) is concave, so the channel mean falls below Xe(s̄) — and still
+loses reactivity, because the poison sits where the flux is. And for A8, which is driven by
+differences, the peaking a xenon field imposes is **robust to which field is used**: the choice is
+worth 120 pcm on the eigenvalue and essentially nothing on the shape. The operability conclusion
+is unchanged either way — 2.456 against the flat core's 1.573.
 
 
 ## Standing rules

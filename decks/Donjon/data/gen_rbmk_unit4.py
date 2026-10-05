@@ -81,7 +81,9 @@ _DCA0 = os.environ.get("U4_DCA", "0.72")
 _BURN0 = os.environ.get("U4_BURNMAP", "flat")
 _BSFX = ("" if _BURN0 == "flat" else "_b" + _BURN0) + (
     "" if os.environ.get("U4_XEBINS", "1") == "1"
-    else "_n" + os.environ.get("U4_XEBINS", "1")) + (
+    else "_n" + os.environ.get("U4_XEBINS", "1")
+         + ("" if os.environ.get("U4_XEHIST", "0123") == "0123"
+            else "_h" + os.environ.get("U4_XEHIST", "0123").replace(".", ""))) + (
     "" if os.environ.get("U4_XENON", "stored") == "stored"
     else "_xe" + os.environ.get("U4_XENON", "stored").replace(".", "").replace("+", "")[:8])
 _STEM = ("rbmk_unit4_core" if WITH_REFL else "rbmk_unit4_norefl") + (
@@ -599,7 +601,20 @@ def xenon_bins(cells, nfuel):
     # than integrate 1661 times
     lo, hi = min(scales), max(scales)
     grid = [lo + (hi - lo) * j / 24.0 for j in range(25)]
-    gval = [_xe.xenon_at_0123(g) for g in grid]
+    # WHICH FIELD.  U4_XEHIST=0123 (default) runs the sourced power history to
+    # 01:23, which is the accident state.  U4_XEHIST=equil<f> instead takes the
+    # equilibrium field for the core held at f x 3200 MW -- a bounding question,
+    # and the only one relevant to a channel-power limit, which binds at full
+    # power and not at 200 MW.  The two differ by more than their level: the
+    # shape sensitivity dlnXe/dlns is 0.84 at 200 MW and 0.25 at 3200, because
+    # burnout saturates the poison, so the equilibrium field is the weaker
+    # flattener by ~3.4x.  See xenon_equilibrium() for the arithmetic.
+    _hist = os.environ.get("U4_XEHIST", "0123")
+    if _hist.startswith("equil"):
+        _pf = float(_hist[5:] or "1.0")
+        gval = [_xe.xenon_equilibrium(g, _pf) for g in grid]
+    else:
+        gval = [_xe.xenon_at_0123(g) for g in grid]
 
     def interp(x):
         if x <= grid[0]:

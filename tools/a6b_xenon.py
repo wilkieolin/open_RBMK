@@ -177,6 +177,39 @@ def xenon_at_0123(scale=1.0, r=R_U235, dt=5.0):
     return xe
 
 
+def xenon_equilibrium(scale=1.0, pfrac=1.0, r=R_U235):
+    """Xe-135 for a channel at `scale` x core-average power, with the core held
+    at `pfrac` x 3200 MW long enough for xenon to equilibrate WITH THAT SHAPE.
+
+    Closed form, because equilibrium needs no integration:
+
+        Xe_eq = (1+r) * gI*Sf*phi0 * p / (lambda_Xe + sigma*phi0 * p),   p = pfrac*scale
+
+    and gI*Sf*phi0 is lambda_I*I_EQ, already known.  At scale = pfrac = 1 this
+    returns the stored density to every digit -- a check that the COMPO's
+    isotopics really are the 3200 MW equilibrium and that sigma*phi0, calibrated
+    from the I/Xe ratio, is consistent with them.
+
+    WHY IT MATTERS THAT THIS SATURATES.  sigma*phi0 = 3.015 x lambda_Xe, so at
+    full power burnout dominates decay and Xe_eq is strongly sublinear in power.
+    The shape sensitivity dln(Xe)/dln(s) at s = 1 is 1/(1 + sigma*phi/lambda_Xe):
+
+        3200 MW   sigma*phi/lambda_Xe = 3.015   sensitivity 0.249
+         200 MW                         0.188              0.841
+
+    So a channel at twice average power carries 1.14 x the average xenon at full
+    power against 1.73 x at 200 MW.  Xenon is a flattening agent in both cases --
+    the concentration rises with power either way -- but it is 3.4 x weaker at
+    full power, which is where the channel power limit actually binds.  A field
+    built for the 200 MW state therefore overstates the flattening available to
+    an operating core by about that factor.
+    """
+    sig_phi0 = LAM_I * (I_EQ / XE_EQ) * (1.0 + r) - LAM_XE
+    prod_i = LAM_I * I_EQ
+    p = pfrac * scale
+    return (1.0 + r) * prod_i * p / (LAM_XE + sig_phi0 * p)
+
+
 def main():
     print("Xe-135 at 01:23 on 26 April 1986, from INSAG-7's power history\n")
     for lab, r in (("U235 yields", R_U235), ("Pu239 yields", R_PU239)):
