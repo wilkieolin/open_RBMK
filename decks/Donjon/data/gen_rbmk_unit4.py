@@ -86,6 +86,12 @@ _BSFX = ("" if _BURN0 == "flat" else "_b" + _BURN0) + (
             else "_h" + os.environ.get("U4_XEHIST", "0123").replace(".", ""))) + (
     "" if os.environ.get("U4_XENON", "stored") == "stored"
     else "_xe" + os.environ.get("U4_XENON", "stored").replace(".", "").replace("+", "")[:8])
+# content-addressed on the depth file, so a solved pattern can never be served
+# a deck built from a different one (standing rule 7)
+_RD0 = os.environ.get("U4_RODDEPTH", "")
+if _RD0:
+    import hashlib as _hl
+    _BSFX += "_rd" + _hl.md5(open(_RD0, "rb").read()).hexdigest()[:8]
 _STEM = ("rbmk_unit4_core" if WITH_REFL else "rbmk_unit4_norefl") + (
     "" if _RODS0 == "wat" else "_" + _RODS0) + (
     "" if _TILT0 == "0" else "_t" + _TILT0) + (
@@ -318,18 +324,43 @@ assert all(len(v) == NZ_ACTIVE for v in HALVES.values())
 # because at this state the inserted rods are spread across all four.
 INSAG_RODS = RODS == "insag"
 CPS_RODS = ROD_DSP | ROD_BANK | ROD_ABS | ROD_BOT
+
+# U4_RODDEPTH=<file> replaces the sourced depth_cm of the TOP-ENTRY rods with
+# solved ones, keeping every rod's sourced TYPE and SITE.  The file holds one
+# depth in cm per CPS row, in the channel map's row order, so it is checked for
+# length and for leaving the non-solved classes alone before it is trusted --
+# the same discipline U4_BURNMAP=file applies to the burnup histogram.  This is
+# an inverse problem (tools/a6d_rods.py), not a sourced state: the target is
+# [D]'s channel-power limit, and what is being asked is whether ANY pattern
+# meets it, not which pattern history used.
+RODDEPTH = os.environ.get("U4_RODDEPTH", "")
+_RDMAP = {}
+if RODDEPTH:
+    if RODS != "insag":
+        raise SystemExit("U4_RODDEPTH needs U4_RODS=insag -- it overrides that "
+                         "construction's depths and keeps its types")
+    _rd = [float(x) for x in open(RODDEPTH).read().split()]
+    _rrows = [r for r in csv.DictReader(open(MAP)) if r["type"] in CPS_RODS]
+    if len(_rd) != len(_rrows):
+        raise SystemExit(f"{RODDEPTH}: {len(_rd)} depths, {len(_rrows)} CPS rods")
+    for _r, _d in zip(_rrows, _rd):
+        if _d < 0.0 or _d > 700.0:
+            raise SystemExit(f"{RODDEPTH}: depth {_d} outside the 0-700 cm travel")
+        _RDMAP[(int(_r["i"]), int(_r["j"]))] = _d
+
 _COLCACHE = {}
 
 
 def insag_col(r):
     """The axial column of one CPS channel at its own sourced depth."""
-    key = (r["type"], r["depth_cm"])
+    _d = _RDMAP.get((int(r["i"]), int(r["j"])), r["depth_cm"])
+    key = (r["type"], _d)
     if key not in _COLCACHE:
         # 28 planes over the 700 cm active height -> 25 cm a plane, so the
         # sourced depths quantise to the axial mesh.  Insertions of 20 and
         # 30 cm round to one plane and 0 respectively; that is a real loss of
         # resolution and is reported by the generator rather than hidden.
-        n = int(round(float(r["depth_cm"] or 0) / (700.0 / NZ_ACTIVE)))
+        n = int(round(float(_d or 0) / (700.0 / NZ_ACTIVE)))
         t = r["type"]
         if t in ROD_DSP or t in ROD_BANK:
             col = stack(n)

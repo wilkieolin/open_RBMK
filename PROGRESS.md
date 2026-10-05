@@ -4651,6 +4651,112 @@ statement is that the placement is bounded below by flat and above by core-scale
 everything between is open.
 
 
+## Solving for the rod pattern — 2026-10-05 (18)
+
+Section (17) left one question: a burnup placement is admissible if **some** rod pattern takes it
+inside [D]'s 3000–3200 kW at full power. That is an existence question about 190 rod depths, well
+posed without a source because the *target* is sourced even though the pattern is not. What comes
+out is not the historical pattern — INSAG-7 gives the 01:22:30 depths and nothing for normal
+operation — but whether an admissible pattern exists at all.
+
+### The machinery, and the two regressions it passed first
+
+`U4_RODDEPTH=<file>` replaces the sourced `depth_cm` of the top-entry rods while keeping every
+rod's sourced **type** and **site**, checked against the channel map for length and travel before
+it is trusted — the same discipline `U4_BURNMAP=file` applies to the burnup histogram. The deck is
+content-addressed on the depth file (rule 7) so a pattern can never be served a result built from
+a different one.
+
+| | result |
+|---|---|
+| no `U4_RODDEPTH` | the deck is **byte-identical** to before the change |
+| the sourced depths written back through it | **no-op**, identical deck modulo the stem |
+
+190 rods are solved for (RR 121, AZOC 36, AZ 21, AR 12). The 21 bottom-entry USP keep their
+sourced depths, being a distinct system on a 3.5 m absorber.
+
+### Criticality was deliberately not used as a target
+
+Reaching k = 1 from the rods-out 1.045255 needs **4330 pcm**, and all 211 rods fully in are worth
+5552 pcm, so it takes about **190 rods at four fifths of their travel**. A real RBMK at full power
+carries 55–70 inserted. That gap is a statement about the *model's* excess reactivity — `TG` is
+pinned ~120 K low, worth about +500 pcm (A6b), and the reflector is still a placeholder — not
+about the rods. Driving k to 1 by adding absorber would be compensating a known modelling bias
+with physical absorber, which is rule 1. So shape was solved at a stated insertion **budget** and
+the resulting k reported as a diagnostic.
+
+### The answer: a best pattern, and it does not reach the target
+
+Ranking the rod sites on local power and laying a monotone depth profile over the ranks reduces
+190 unknowns to two — **B**, the budget, and **A**, how hard the pattern discriminates — which
+also avoids the fixed-point iteration that diverged twice already in this project.
+
+| | best found | at | k | peak |
+|---|---|---|---|---|
+| chequerboard burnup | MAX/AVG **2.2398** | A = 4, B = 8 | 1.041362 | 4306.7 kW |
+| flat burnup (the control) | MAX/AVG **1.5347** | A = 4, B = 4 | 1.042989 | 2951.3 kW |
+
+Against the sourced pattern's 2.9164 and 1.5730 — a 23 % improvement on the badly peaked core and
+**2.4 %** on the flat one. Neither reaches the ≲ 1.4 a full-power core needs, and the chequerboard
+is not close. Every deeper budget is worse: at B = 20, where k finally approaches 1
+(0.9853–1.0032), MAX/AVG is **3.50 to 10.09**. In this model **flatness and criticality are
+opposed**, which is the single most useful thing the solve produced.
+
+### Per-rod refinement fails, and the diagnosis changes the method
+
+Refining per rod from the best chequerboard point made it steadily **worse** and then converged
+there: 2.2398 → 2.94 → 3.56 → 4.14 → … → **4.28**, with the number of rods still moving falling to
+13. A damped loop converging to a worse answer is not the divergence of sections (13) and (16); it
+is a **wrong model of the control** reaching a self-consistent wrong answer. The update rule
+assumes a rod's insertion mainly affects the power around that rod.
+
+It does not. Driving 41 mutually well-separated rods (≥ 6 pitches apart) 24 planes in, worth
+−1978 pcm, the 100 fuel channels whose relative power falls most sit at a mean distance of
+**2.80** pitches from the nearest moved rod against a core-wide mean of **2.75** — uncorrelated
+with rod proximity — while their mean radius from the core centre is **21.3** against **17.4**.
+The response is a **global radial redistribution**, not a set of local depressions, so a diagonal
+per-rod feedback rule is solving the wrong problem and the two-parameter global family beats it.
+
+The right method is therefore a **response matrix** — measure ∂(channel power)/∂(rod depth) and
+solve the linear system — rather than local feedback. That is affordable (the responses of
+well-separated rods can be measured several at a time) and it is the successor to this work.
+
+### What this does NOT establish, stated because the first draft claimed it
+
+The first version of this section concluded that the rods have **no local shape authority**, from a
+near-field mean of +0.2 %. That does not hold up. At −1978 pcm the per-channel scatter is ±35 %,
+so a 163-channel bin has a standard error of ~2.7 % and the mean establishes nothing. Repeating it
+at 2, 4 and 8 planes (−19, −73, −297 pcm) puts every bin at the 0.01–0.3 % level with strongly
+skewed per-channel distributions that a binned mean mishandles — the bin means do not even average
+to zero, which is how the skew announces itself.
+
+So **how much local authority the rods have is unmeasured**, and it is exactly what the response
+matrix would answer. It was also wrong to attribute the shortfall to a missing A6.4b rod-cell
+equivalence: that work was built and **disproved on 2026-09-30**, and it concerned the integral
+worth (7–10 % on the displacer and drained channel), not the local shape.
+
+### A second result, from the uniform sweep, which is not about the solve at all
+
+The same data shows **k is not monotone in rod depth**:
+
+| uniform depth | absorber / displacer / water, planes | k | MAX/AVG |
+|---|---|---|---|
+| 20 | 20 / 3 / 5 | 0.991208 | 2.1201 |
+| 24 | 20 / 0 / 8 | **0.968386** | 2.9564 |
+| 28 (fully in) | 20 / 0 / 8 | **0.987927** | 2.2488 |
+
+The last four planes of travel are worth **+2000 pcm**. At 24 planes the displacer has been fully
+expelled and the absorber spans planes 5–24; at 28 it has relocated to planes 1–20, out of the top
+and into the bottom. Moving absorber from the upper core to the lower core *releases* reactivity,
+so the axial flux is top-peaked here — and this model therefore reproduces non-monotone rod worth
+at **core** scale, not only in the A6.5 single-channel gate. MAX/AVG is non-monotone with it, worst
+at 24 planes rather than at full insertion.
+
+And one more, from the shallow end: between 2 and 12 planes of uniform insertion k moves
+**1200 pcm** while MAX/AVG sits at 1.82–1.83. Over the range an operator actually works in, these
+rods move reactivity and barely touch the radial shape.
+
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to
