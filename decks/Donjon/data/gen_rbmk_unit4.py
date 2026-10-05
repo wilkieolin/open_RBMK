@@ -79,7 +79,9 @@ PCHAN = os.environ.get("U4_PCHAN", "")
 _TILT0 = os.environ.get("U4_TILT", "0")
 _DCA0 = os.environ.get("U4_DCA", "0.72")
 _BURN0 = os.environ.get("U4_BURNMAP", "flat")
-_BSFX = "" if _BURN0 == "flat" else "_b" + _BURN0
+_BSFX = ("" if _BURN0 == "flat" else "_b" + _BURN0) + (
+    "" if os.environ.get("U4_XENON", "stored") == "stored"
+    else "_xe" + os.environ.get("U4_XENON", "stored").replace(".", "").replace("+", "")[:8])
 _STEM = ("rbmk_unit4_core" if WITH_REFL else "rbmk_unit4_norefl") + (
     "" if _RODS0 == "wat" else "_" + _RODS0) + (
     "" if _TILT0 == "0" else "_t" + _TILT0) + (
@@ -404,6 +406,23 @@ PAV_BURNUP = [(721, 13.7), (392, 12.3), (154, 10.5), (101, 8.8),
 #   ring  burnup rising monotonically with radius in bands -- the smooth version
 BURNMAP = os.environ.get("U4_BURNMAP", "flat")
 BURNSEED = int(os.environ.get("U4_BURNSEED", "20260404"))
+
+# XENON.  The COMPO's MICR list carries Xe135 and I135 (rbmk_a5b_compo.x2m:263),
+# so their densities can be overridden per MIX at run time without a branch
+# axis -- NCRLIB.f:45-48 takes the user value whenever it is not the '*'
+# sentinel, and the ALL form keeps every other depleted isotope (NCRLIB.f:364
+# shows ONLY would DISCARD the unlisted ones, which is not what is wanted).
+#
+#   stored   leave the depleted densities alone.  That is EQUILIBRIUM xenon at
+#            the depletion power, 16.7 MW/t, not the 01:23 state.
+#   none     Xe135 and I135 set to zero, so `stored` minus `none` measures what
+#            the equilibrium xenon is worth in this core.
+#   <value>  an explicit Xe135 density, for a level taken from the I/Xe solve
+#            over INSAG-7's run-down.
+#
+# MICRO HAS TO COME LAST in the MIX clause: NCRRGR.f:316-335 reads
+# isotope/value pairs until it sees ENDMIX, so anything after it is eaten.
+XENON = os.environ.get("U4_XENON", "stored")
 
 
 def burnup_list(cells, nx, ny):
@@ -789,11 +808,22 @@ def main():
     # per-channel values sit in the map and are silently ignored.
     _bkey = " 'burnup'" if BURNMAP != "flat" else ""
     _bmix = "INST-BURN" if BURNMAP != "flat" else "SET 'burnup' 10900.0"
+    if XENON == "stored":
+        _xe = ""
+    elif XENON == "none":
+        _xe = "\n               MICRO ALL Xe135 0.0 I135 0.0"
+    else:
+        # Only Xe135 is overridden.  I135 keeps its stored density: its own
+        # absorption is negligible, and in a STATIC calculation its only role
+        # would be as the Xe precursor, which does not act.  Zeroing it as well
+        # would be a second, unrelated perturbation smuggled into the answer.
+        _xe = f"\n               MICRO ALL Xe135 {float(XENON):.6E}"
     NCRFUEL = """MACFUEL := NCR: FCpo FMAP :: EDIT 0 MACRO LINEAR
   TABLE FCpo 'EDIRBMK'%s
-  MIX %d %s%s ENDMIX
+  MIX %d %s%s%s ENDMIX
   ;""" % (_bkey, M_FUEL, _bmix, "" if WITH_THM else
-          "\n               SET 'DCA' %s SET 'TF' 900.0 SET 'TG' 750.0" % DCA_SET)
+          "\n               SET 'DCA' %s SET 'TF' 900.0 SET 'TG' 750.0" % DCA_SET,
+          _xe)
     # With THM:, 'DCA' and 'TF' are NOT set here: the fuel map carries them as
     # local parameters and NCR: picks a parameter up from the map whenever it
     # is not SET (NCRRGR.f:714-722 prints which ones SET overrides).  'TG' is

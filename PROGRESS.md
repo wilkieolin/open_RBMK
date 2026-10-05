@@ -4318,6 +4318,109 @@ over the published power history (INSAG-7's account of the run-down) rather than
 assumption, since the whole point is that the core was far from equilibrium.
 
 
+## A6b: the xenon level at 01:23, solved rather than assumed — 2026-10-05 (15)
+
+### First, what xenon is worth here at all, because nobody had measured it
+
+The COMPO has carried Xe-135 and I-135 in its `MICR` list since A5b, and the core has been
+using the stored densities all along — equilibrium at the depletion power — without anyone
+putting a number on them. `MICRO ALL Xe135 0.0` against the stored value:
+
+| | k | peak channel | MAX/AVG |
+|---|---|---|---|
+| Xe-135 removed | 1.070348 | 3023.6 kW | 1.5722 |
+| equilibrium Xe-135 | 1.044059 | 3025.1 kW | 1.5730 |
+| | **−2352 pcm** | | |
+
+**Equilibrium xenon is worth −2352 pcm, about −3.1 $.** That is ten times the Doppler feedback
+and seven times the void feedback, and it sits in every core result quoted so far. The power
+shape barely moves, which is the expected signature of a *uniform* poison and a check that the
+override is doing what it claims.
+
+`ALL` is required, not `ONLY`: `NCRLIB.f:364` shows `ONLY` **discards** every isotope not
+listed, which would throw away the whole depleted inventory. And `MICRO` must come last in the
+`MIX` clause, because `NCRRGR.f:316-335` reads isotope/value pairs until it sees `ENDMIX`.
+
+### Then the 01:23 level, with every constant read out of the library
+
+Equilibrium is not the accident state. Unit 4 had spent most of a day at half power, collapsed
+to 30 MW at 00:28, and been dragged back to 200 MW — and with Xe-135 at 9.14 h and I-135 at
+6.57 h that history is still in the core. `tools/a6b_xenon.py` integrates the I/Xe pair over it.
+
+Nothing in it is chosen:
+
+| quantity | where it comes from |
+|---|---|
+| decay constants | the COMPO's own `DEPL-CHAIN/DEPLETE-DECA`, units 1e-8 /s. They return **6.570 h** and **9.140 h** — the accepted half-lives, which is how the units and the indexing were confirmed |
+| fission yields | `DEPL-CHAIN/FISSIONYIELD`, 13 products × 16 parents. Groups 4 and 5 are I135 and Xe135; the U235 entries read **6.2805E-02** and **2.5610E-03** against accepted 0.0629 and ~0.0024, which is how the layout was identified |
+| equilibrium densities | `ISOTOPESDENS`, interpolated between the 10 000 and 12 500 nodes to the core's own 10 900 MWd/t |
+| burnout rate σφ₀ | **calibrated from the stored equilibrium**, not from a flux estimate and a tabulated cross section: σφ₀ = λ_I(I/Xe)(1+r) − λ_Xe. Comes out **6.35E-05 /s = 3.0 λ_Xe**, so burnout-dominated at power, and implies a thermal flux of order 2×10¹³ |
+| power history | INSAG-7 Table I-I and §I-4.7.6 |
+
+The only soft input is r = γ_Xe/γ_I, because the fissioning mix at 10.9 MWd/kg is part U235 and
+part Pu239. Both library values are carried as bounds and the answer moves by 0.001, because r
+itself is small. The initial condition is exactly consistent by construction — substituting the
+stored densities at p = 1 gives dI/dt = dXe/dt = 0 identically, since σφ₀ was defined from that
+same balance — so the solve starts at rest and every later deviation is the history doing work.
+
+| waypoint | P/P₀ | Xe/Xe_eq | I/I_eq |
+|---|---|---|---|
+| 25 Apr 01:06, 3200 MW, equilibrium | 1.000 | 1.000 | 1.000 |
+| 25 Apr 12:36 | 0.469 | **1.181** | 0.661 |
+| 25 Apr 23:10 | 0.469 | 0.969 | 0.532 |
+| 26 Apr 00:33, the 30 MW floor | 0.009 | 0.995 | 0.498 |
+| 26 Apr 01:00 | 0.062 | 1.022 | 0.477 |
+| **26 Apr 01:23** | 0.062 | **1.039** | 0.460 |
+
+**Xe-135 at 01:23 is 1.039 × the equilibrium the table stores, worth −92 pcm more.** Measured
+directly: 1.044059 → 1.043056. That is far smaller than the −2352 pcm of the equilibrium itself,
+and it is the answer to whether the stored densities were good enough — for the *level*, nearly.
+
+### The number that matters is not the level but the slope
+
+The xenon peaked at **1.18 ×** after the power reduction, decayed back below equilibrium by
+23:10, and at 01:23 was **rising**. The quasi-static level for 200 MW with the iodine then in
+the core is **1.502 × equilibrium** — worth roughly −1180 pcm — and the core was only **8 % of
+the way there**, having entered that transient fifty minutes earlier against a 9.14 h timescale.
+
+So the reactor was early on a steep poisoning curve, climbing towards something worth an order
+of magnitude more than it had yet accumulated, while the 47 inserted rods held **−110 pcm**
+between them (section 14). The two numbers belong together, and both come out of geometry and
+sourced history rather than narrative.
+
+### A reference error, caught by its own control
+
+The first attempt read the densities at burnup **node** 10 000 rather than interpolating to the
+core's 10 900. The control for this is obvious in hindsight — write the stored density back
+through `MICRO` and the result must be a no-op — and it failed by **−49 pcm**, which also made
+the xenon worth look 65 % non-linear. The node values explain it exactly: Xe falls 1.09500 →
+1.03440 → 0.97266 E-10 across the 10 000 / 12 500 / 15 000 nodes, so 10 900 interpolates to
+1.07318E-10 and the node value is 2.03 % high — predicting 48 pcm against the 49 measured.
+
+With the interpolated reference the control is **bit-exact (+0.0 pcm)** and the worth is linear:
+−92 pcm measured against −91 predicted from the equilibrium worth. The override path is
+therefore validated rather than merely used.
+
+That burnup dependence is itself a check on the stored data. **I-135 is nearly flat across the
+nodes while Xe-135 falls 11 %**, which is what constant specific power demands: Σf·φ is fixed,
+so I_eq = γ_I Σf φ/λ_I does not move, while φ must rise as Σf falls, so σφ grows and
+Xe_eq = (γ_I+γ_Xe)Σf φ/(λ_Xe+σφ) drops.
+
+### What is still open: the shape
+
+This is a **point** solve, so it gives a level and not a field, and a uniform level is all the
+`MICRO` path can carry anyway (section 14: `CONC` is indexed by mixture). For the level that is
+now shown to be adequate — the whole core-average effect is −92 pcm.
+
+The shape is the part that matters and the part nobody has. INSAG-7 names it directly: the
+00:28–00:33 manoeuvre "gave rise to a new xenon reshaping of the power density fields which the
+personnel were unable to control", and then, remarkably, **"no calculational studies have been
+made of the power density field dynamics from this time until the time of the accident."** A
+per-channel field needs the per-channel *flux* history, which needs the core solved repeatedly
+through the run-down — and the binned-mixture machinery to carry it is designed (section 14) but
+not yet needed.
+
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to

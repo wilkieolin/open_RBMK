@@ -1,0 +1,36 @@
+*----
+*  XENON PROBE -- read the STORED Xe135 and I135 densities out of the A5b
+*  MULTICOMPO.
+*
+*  WHY.  The 01:23 xenon level has to be expressed as a multiple of the
+*  equilibrium the table already holds, and the I/Xe point equations need the
+*  burnout rate sigma*phi at the depletion power.  Both come free from the
+*  stored densities: at equilibrium
+*     Xe_eq/I_eq = [(gI+gXe)/gI] * lambda_I / (lambda_Xe + sigma*phi)
+*  so the ratio CALIBRATES sigma*phi against this exact lattice at this exact
+*  burnup, instead of a thermal flux estimated from the power and a one-group
+*  cross section taken from a table.
+*
+*  This only dumps structure and numbers; it computes nothing.
+*----
+LINKED_LIST Cpo ;
+SEQ_ASCII   _ACompo :: FILE './_ACompo' ;
+MODULE      UTL: DELETE: END: ;
+
+Cpo := _ACompo ;
+
+ECHO "XEPROBE CALC 1009" ;
+UTL: Cpo :: STEP UP 'EDIRBMK' STEP UP 'MIXTURES' STEP AT 1
+             STEP UP 'CALCULATIONS' STEP AT 1009
+             IMPR ISOTOPESDENS * IMPR K-INFINITY * ;
+ECHO "XEPROBE CALC 1153" ;
+UTL: Cpo :: STEP UP 'EDIRBMK' STEP UP 'MIXTURES' STEP AT 1
+             STEP UP 'CALCULATIONS' STEP AT 1153
+             IMPR ISOTOPESDENS * IMPR K-INFINITY * ;
+ECHO "XEPROBE CALC 1297" ;
+UTL: Cpo :: STEP UP 'EDIRBMK' STEP UP 'MIXTURES' STEP AT 1
+             STEP UP 'CALCULATIONS' STEP AT 1297
+             IMPR ISOTOPESDENS * IMPR K-INFINITY * ;
+
+END: ;
+QUIT .
