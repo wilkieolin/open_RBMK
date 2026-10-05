@@ -4836,6 +4836,48 @@ modes, which is why a 190-parameter search found so little — but it is **not**
 and the modes are reachable with opposite signs. There is real authority here; it was simply being
 sought in the wrong coordinates.
 
+### What the rods can actually do: 92 % of it is the first azimuthal mode
+
+Decomposing the measured response block on azimuthal harmonics about the core
+centre — the fraction of each singular mode's norm captured by cos/sin(mθ), and by a
+radial profile:
+
+| mode | % of variance | m = 1 | m = 2 | radial | character |
+|---|---|---|---|---|---|
+| 1 | 52.2 % | **0.830** | 0.268 | 0.239 | m = 1 |
+| 2 | 39.6 % | **0.724** | 0.186 | 0.262 | m = 1 |
+| 3 | 3.7 % | 0.142 | 0.593 | 0.017 | m = 2 |
+| 4 | 1.3 % | 0.130 | 0.054 | 0.514 | radial |
+| 5 | 1.0 % | 0.085 | 0.347 | 0.020 | m = 3 |
+
+Modes 1 and 2 are the two degenerate orientations, cos θ and sin θ, of the **first
+azimuthal harmonic**, and together they carry **91.8 %** of everything the rods can
+do to this core's power distribution. Everything else — m = 2, the radial profile,
+m = 3 — is **6 %** between them.
+
+So the rods **tilt** the core, and essentially nothing else. That is not a defect of
+the search, it is the shape of the control, and it explains every result in sections
+(18) and (19) at once:
+
+- The effective rank is 2.3 because the control really is two-dimensional: one tilt
+  amplitude in each of two orthogonal directions.
+- A single rod near the edge (131 at (3, 31)) beat a 190-rod profile because it
+  excites the m = 1 pair strongly and in a useful orientation; a rod at the centre
+  (96 at (23, 23)), worth nearly twice as much, sits near the mode's node and
+  mostly adds reactivity.
+- A chequerboard burnup peak is **not a tilt**. Its peaking lives in high azimuthal
+  orders and in the radial profile, which is precisely where the rods have 6 % of
+  their authority. No rod pattern can flatten it, and the LP will say so.
+
+This is also the mode RBMK cores are known to be unstable in, and the one this
+project exists to study — `PROJECT_PLAN.md` names first-azimuthal-mode xenon
+instability in its objective. It has now been measured as a property of the rod
+control, from a steady-state calculation, before any transient has been run. The
+physical reason is size: an 11.8 m core with a migration length of a few tens of
+centimetres is neutronically enormous, so the azimuthal harmonics sit very close to
+the fundamental in eigenvalue and are the cheapest thing any local perturbation can
+excite.
+
 ### The solve, and why it is an exact linear program
 
 Because the direction is fixed per rod, the model is linear in the **amplitude** even though it is
