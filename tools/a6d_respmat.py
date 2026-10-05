@@ -45,6 +45,7 @@ MEMORY: J is 1661 x 190 float64 = 2.5 MB, on the CPU.  Nothing here goes near
 the GPU or the machine's budget.
 """
 import argparse
+import hashlib
 import os
 import sys
 
@@ -54,6 +55,21 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import a6d_rods as R          # run(), powers(), parse(), load_map(), SOLVED, NZ, PLANE_CM
 
 OUT = os.path.join(R.SCRATCH, "respmat")
+
+
+def base_id(src):
+    """Identify a base pattern by its CONTENT, not its filename.
+
+    Both the stored matrix and the pattern a solve writes are named from this,
+    so renaming or regenerating a base file still resolves to the same matrix,
+    and two different bases can never collide (standing rule 7).  An earlier
+    scheme used the filename and a guessed step number: step 3 at 150 pcm
+    overwrote the step-2 base it had been solved from, which survived only
+    inside the step-3 .npz.
+    """
+    if not src:
+        return "out"
+    return hashlib.md5(open(src, "rb").read()).hexdigest()[:8]
 
 
 def base_depths(cps, src=""):
@@ -154,8 +170,7 @@ def jacobian(a):
     fuel, cps = R.load_map()
     solved = [k for k, r in enumerate(cps) if r["type"] in R.SOLVED]
     base = base_depths(cps, a.base)
-    sfx = ("_s" + os.path.basename(a.base).replace('.txt','')) if a.base else ""
-    npz = f"{OUT}_{a.burnmap}_d{a.delta}{sfx}.npz"
+    npz = f"{OUT}_{a.burnmap}_d{a.delta}_b{base_id(a.base)}.npz"
     os.makedirs(R.SCRATCH, exist_ok=True)
 
     k0, pk0, ff0, res = R.run(base, a.burnmap, a.xe, a.bins, "base")
@@ -265,8 +280,7 @@ def solve(a):
     """
     from scipy.optimize import linprog
     fuel, cps = R.load_map()
-    sfx = ("_s" + os.path.basename(a.base).replace(".txt", "")) if a.base else ""
-    npz = f"{OUT}_{a.burnmap}_d{a.delta}{sfx}.npz"
+    npz = f"{OUT}_{a.burnmap}_d{a.delta}_b{base_id(a.base)}.npz"
     z = np.load(npz, allow_pickle=True)
     H, p0, solved = z["J"] * int(z["delta"]), z["p0"], z["solved"].tolist()
     if int(z["done"]) != H.shape[1]:
@@ -383,11 +397,13 @@ def solve(a):
           f"{predr.max()/predr.mean():9.4f}")
     print(f"{'DONJON':>24} {pk:10.1f} {ff:9.4f}")
     print(f"{'':>24} k = {kv:.6f}")
-    # the step number has to be in the name: step 1 and step 2 at the same
-    # trust region would otherwise overwrite each other
-    stepn = os.path.basename(a.base).count("_r") + 1 if a.base else 1
-    tag = (f"_s{stepn}" if stepn > 1 else "") + (
-        f"_r{int(abs(a.maxrho))}" if a.maxrho else "")
+    # Name the pattern by the md5 of the BASE it was solved from plus the
+    # trust region.  An earlier scheme counted "_r" in the base filename to
+    # guess a step number, which was wrong -- step 3 at 150 pcm overwrote the
+    # step-2 base pattern it had been solved from, and that base survived only
+    # inside the step-3 .npz.  Content addressing cannot collide (standing
+    # rule 7) and records the lineage.
+    tag = f"_b{base_id(a.base)}" + (f"_r{int(abs(a.maxrho))}" if a.maxrho else "")
     out = os.path.join(R.SCRATCH, f"rd_lp_{a.burnmap}{tag}.txt")
     with open(out, "w") as fh:
         fh.write("\n".join(f"{x:.1f}" for x in dd))

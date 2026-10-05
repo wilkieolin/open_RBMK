@@ -5061,6 +5061,29 @@ before — the step-2 solve reports a variable range of −1.817 to +1.246 with 
 The rebased code reproduces step 1 exactly (1.7286 model, 1.7791 DONJON, 17 rods), which is the
 regression that says the reduction is right.
 
+### A provenance hazard the content addressing caught
+
+The pattern files were first named by a guessed step number taken from the base filename, and it
+counted the wrong substring: **step 3 at 150 pcm overwrote the step-2 base pattern it had been
+solved from**. The base survived only inside the step-3 `.npz`, where `jacobian()` stores it.
+
+Recovering it exposed something worse and more interesting. The step-1 pattern *file* on disk
+hashes to `787dd3d4`, but the base the step-2 matrix was actually measured about hashes to
+**`03bbc453`** — they are different patterns. The step-1 solve had been re-run during the
+rebasing regression, and the LP returned a **degenerate** optimum: same objective, same verified
+1.7791, different depths. Had the filename been trusted, step 2's matrix would have been
+attributed to a pattern it was never measured about, and nothing would have complained.
+
+Both the stored matrix and the pattern a solve writes are now named from the **md5 of the base
+pattern's content** (`base_id()`), so a renamed or regenerated file still resolves to the right
+matrix and two different bases cannot collide — standing rule 7, earning itself. The chain was
+then re-verified end to end: solving from the recovered step-2 base reproduces **3312.4 kW /
+1.7226 / k = 1.042069** exactly.
+
+The three matrices (2.5 MB each) and the two intermediate patterns are the artefact; the 159
+per-probe decks and results, 62 MB, were deleted as regenerable, keeping the step-3 verification
+itself.
+
 ### What this says about the physics, which is the durable part
 
 The control's **character does not change** with the operating point. Re-measuring at the flatter
