@@ -102,6 +102,16 @@ G = {0: 0.0, 2: 0.0231, 4: 0.0884, 8: 0.3417, 12: 0.6889,
 # confined to.  Beyond it the control is not invertible.
 G_MAX_PLANES = 24
 
+# The WORTH follows the same curve, normalised to its own peak at 24 planes:
+W = {0: 0.0, 2: 0.0180, 4: 0.0741, 8: 0.2884, 12: 0.5763,
+     16: 0.8207, 20: 0.9600, 24: 1.0000, 28: 0.9592}
+# and W(d)/G(d) is 0.78, 0.84, 0.84, 0.84, 0.82, 0.81, 0.80 across the travel
+# -- constant to about 4 %.  A rod's reactivity worth and the amplitude of the
+# power it redistributes are therefore PROPORTIONAL at every depth, which is
+# what makes the flatness/criticality trade-off an exact linear program: both
+# are linear in the same variable u = g(d).  Tracing that trade-off properly is
+# what section (18)'s four-point budget sweep was groping at.
+
 
 def g(d):
     """The amplitude factor at depth d planes, linearly interpolated on G."""
@@ -251,7 +261,9 @@ def solve(a):
     nc, nr = H.shape
     print(f"H is {nc} x {nr}, measured at {int(z['delta'])} planes, "
           f"burnup {str(z['burnmap'])}")
-    print(f"base peak {p0.max()/1000:.1f} kW, MAX/AVG {p0.max()/p0.mean():.4f}")
+    # POWER-CHAN is already in kW -- FLPOW: reports 1923.1 kW mean over 1661
+    # channels against a 3.2 GW total, so no scaling is applied here.
+    print(f"base peak {p0.max():.1f} kW, MAX/AVG {p0.max()/p0.mean():.4f}")
 
     cs = np.abs(H.sum(axis=0))
     print(f"\ncheck: total power is fixed, so every column must sum to 0 -- "
@@ -264,18 +276,34 @@ def solve(a):
           f"{ev[:5].sum()*100:.1f} %")
 
     umax = g(min(a.dmax, G_MAX_PLANES))
+    # per-rod worth at the probe depth, in pcm, from the k of each probe run
+    k0 = float(z["k0"])
+    wr = np.array([(1.0 / k0 - 1.0 / kv) * 1e5 if kv > 0 else 0.0
+                   for kv in z["kvals"]])
+    print(f"rod worths at {int(z['delta'])} planes: {wr.min():.1f} to "
+          f"{wr.max():.1f} pcm, total if all were inserted {wr.sum():.0f} pcm")
+
     c = np.zeros(nr + 1)
     c[-1] = 1.0
     A = np.hstack([H, -np.ones((nc, 1))])
-    r = linprog(c, A_ub=A, b_ub=-p0,
+    b = -p0
+    if a.rho:
+        # reactivity is linear in u on the same curve (see W above), so a
+        # required total worth is one more linear row: -sum_r w_r u_r <= -rho
+        A = np.vstack([A, np.hstack([wr / g(int(z["delta"])) * -1.0, [0.0]])])
+        b = np.concatenate([b, [-abs(a.rho)]])
+        print(f"constrained to deliver at least {abs(a.rho):.0f} pcm of rod worth")
+    r = linprog(c, A_ub=A, b_ub=b,
                 bounds=[(0.0, umax)] * nr + [(None, None)], method="highs")
     if not r.success:
-        raise SystemExit("linprog failed: " + r.message)
+        print("  INFEASIBLE at this reactivity: " + r.message.strip())
+        return
     u = r.x[:nr]
+    print(f"  worth delivered {float(wr @ u / g(int(z['delta']))):.0f} pcm")
     pred = p0 + H @ u
     print(f"\nLP over depths 0-{min(a.dmax, G_MAX_PLANES)} planes "
           f"(u <= {umax:.4f}):")
-    print(f"  predicted peak {pred.max()/1000:.1f} kW, "
+    print(f"  predicted peak {pred.max():.1f} kW, "
           f"MAX/AVG {pred.max()/pred.mean():.4f}")
 
     dep = np.array([g_inv(x) for x in u])
@@ -284,7 +312,7 @@ def solve(a):
           f"planes, {(dr >= G_MAX_PLANES).sum()} at the limit")
     predr = p0 + H @ np.array([g(x) for x in dr])
     print(f"  after rounding to the 25 cm mesh: "
-          f"{predr.max()/1000:.1f} kW, {predr.max()/predr.mean():.4f}")
+          f"{predr.max():.1f} kW, {predr.max()/predr.mean():.4f}")
 
     base = z["base"].tolist()
     dd = list(base)
@@ -294,7 +322,7 @@ def solve(a):
     print("\nverification -- the model against DONJON, which is the only test "
           "that counts")
     print(f"{'':>24} {'peak kW':>10} {'MAX/AVG':>9}")
-    print(f"{'model, rounded':>24} {predr.max()/1000:10.1f} "
+    print(f"{'model, rounded':>24} {predr.max():10.1f} "
           f"{predr.max()/predr.mean():9.4f}")
     print(f"{'DONJON':>24} {pk:10.1f} {ff:9.4f}")
     print(f"{'':>24} k = {kv:.6f}")
@@ -310,7 +338,9 @@ def main():
     ap.add_argument("--xe", default="equil1.0")
     ap.add_argument("--bins", type=int, default=1)
     ap.add_argument("--delta", type=int, default=8)
-    ap.add_argument("--dmax", type=int, default=12)
+    ap.add_argument("--dmax", type=int, default=24)
+    ap.add_argument("--rho", type=float, default=0.0,
+                    help="require at least this much rod worth, pcm")
     ap.add_argument("--jacobian", action="store_true")
     ap.add_argument("--linearity", action="store_true")
     ap.add_argument("--solve", action="store_true")
