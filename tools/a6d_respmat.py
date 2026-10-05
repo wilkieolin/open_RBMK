@@ -56,8 +56,19 @@ import a6d_rods as R          # run(), powers(), parse(), load_map(), SOLVED, NZ
 OUT = os.path.join(R.SCRATCH, "respmat")
 
 
-def base_depths(cps):
-    """Every solved rod out; the USP keep their sourced depths."""
+def base_depths(cps, src=""):
+    """The pattern the matrix is measured about.
+
+    Default: every solved rod out, the USP at their sourced depths.  With
+    `src`, an existing depth file -- which is what a sequential linear
+    programming step needs, because the matrix has to be re-measured at the
+    pattern the previous step produced.  Checked for length against the map.
+    """
+    if src:
+        v = [float(x) for x in open(src).read().split()]
+        if len(v) != len(cps):
+            raise SystemExit(f"{src}: {len(v)} depths, {len(cps)} CPS rods")
+        return v
     return [0.0 if r["type"] in R.SOLVED else float(r["depth_cm"] or 0)
             for r in cps]
 
@@ -142,8 +153,9 @@ def g_inv(u):
 def jacobian(a):
     fuel, cps = R.load_map()
     solved = [k for k, r in enumerate(cps) if r["type"] in R.SOLVED]
-    base = base_depths(cps)
-    npz = f"{OUT}_{a.burnmap}_d{a.delta}.npz"
+    base = base_depths(cps, a.base)
+    sfx = ("_s" + os.path.basename(a.base).replace('.txt','')) if a.base else ""
+    npz = f"{OUT}_{a.burnmap}_d{a.delta}{sfx}.npz"
     os.makedirs(R.SCRATCH, exist_ok=True)
 
     k0, pk0, ff0, res = R.run(base, a.burnmap, a.xe, a.bins, "base")
@@ -253,7 +265,8 @@ def solve(a):
     """
     from scipy.optimize import linprog
     fuel, cps = R.load_map()
-    npz = f"{OUT}_{a.burnmap}_d{a.delta}.npz"
+    sfx = ("_s" + os.path.basename(a.base).replace(".txt", "")) if a.base else ""
+    npz = f"{OUT}_{a.burnmap}_d{a.delta}{sfx}.npz"
     z = np.load(npz, allow_pickle=True)
     H, p0, solved = z["J"] * int(z["delta"]), z["p0"], z["solved"].tolist()
     if int(z["done"]) != H.shape[1]:
@@ -275,13 +288,41 @@ def solve(a):
           f"of {nr}; mode 1 carries {ev[0]*100:.1f} %, modes 1-5 "
           f"{ev[:5].sum()*100:.1f} %")
 
-    umax = g(min(a.dmax, G_MAX_PLANES))
-    # per-rod worth at the probe depth, in pcm, from the k of each probe run
+    # per-rod worth of the probe move itself, in pcm, from each probe run's k.
+    # It is the coefficient per unit of the LP variable v below, because worth
+    # and response amplitude follow the same depth curve (W/G constant to 4 %).
     k0 = float(z["k0"])
     wr = np.array([(1.0 / k0 - 1.0 / kv) * 1e5 if kv > 0 else 0.0
                    for kv in z["kvals"]])
-    print(f"rod worths at {int(z['delta'])} planes: {wr.min():.1f} to "
-          f"{wr.max():.1f} pcm, total if all were inserted {wr.sum():.0f} pcm")
+    print(f"probe worths: {wr.min():.1f} to {wr.max():.1f} pcm per "
+          f"{int(z['delta'])}-plane move")
+
+    # REBASING, which matters from the second SLP step on.  H[:,r] is the
+    # response to moving rod r from ITS BASE DEPTH d0_r to d0_r + delta, while
+    # G is a function of ABSOLUTE depth.  So the response to putting that rod at
+    # absolute depth d is
+    #
+    #     H[:,r] * (g(d) - g(d0_r)) / (g(d0_r + delta) - g(d0_r))
+    #
+    # and the LP variable is that coefficient v_r.  On step 1 every solved rod
+    # starts at 0, the denominator is g(delta) and v reduces to g(d)/g(delta) --
+    # which is why the un-rebased form was right there and wrong here.  Rebasing
+    # also lets v go NEGATIVE, i.e. the LP may WITHDRAW a rod, which from step 2
+    # on is half the available control and was previously unreachable.
+    base = z["base"].tolist()
+    dmax = min(a.dmax, G_MAX_PLANES)
+    d0 = np.array([base[kidx] / R.PLANE_CM for kidx in solved])
+    den = np.array([g(x + int(z["delta"])) - g(x) for x in d0])
+    if np.any(np.abs(den) < 1e-9):
+        raise SystemExit("a rod's probe produced no amplitude change -- "
+                         "it is at the top of the G curve and cannot be probed "
+                         "by inserting further")
+    lo = np.array([(g(0.0) - g(x)) / dn for x, dn in zip(d0, den)])
+    hi = np.array([(g(dmax) - g(x)) / dn for x, dn in zip(d0, den)])
+    print(f"\nbase pattern: {(d0 > 0).sum()} rods already inserted, "
+          f"mean depth {d0.mean():.2f} planes")
+    print(f"LP variable range: {lo.min():.3f} to {hi.max():.3f} "
+          f"({(lo < -1e-9).sum()} rods can be withdrawn)")
 
     c = np.zeros(nr + 1)
     c[-1] = 1.0
@@ -296,40 +337,41 @@ def solve(a):
         # modes are nearly degenerate, so a perturbation that large moves the
         # modes the matrix was measured in.  Bounding the total worth bounds the
         # perturbation, and the solve becomes sequential linear programming:
-        # solve, verify, re-measure if the step is accepted.
-        A = np.vstack([A, np.hstack([-wr / g(int(z["delta"])), [0.0]])])
-        b = np.concatenate([b, [abs(a.maxrho)]])
-        print(f"trust region: total rod worth held to <= {abs(a.maxrho):.0f} pcm")
+        # solve, verify, re-measure about the accepted step.
+        #
+        # |worth| <= maxrho, as two rows, because v may be of either sign.
+        A = np.vstack([A, np.hstack([-wr, [0.0]]), np.hstack([wr, [0.0]])])
+        b = np.concatenate([b, [abs(a.maxrho), abs(a.maxrho)]])
+        print(f"trust region: |total rod worth| held to <= {abs(a.maxrho):.0f} pcm")
     if a.rho:
-        # reactivity is linear in u on the same curve (see W above), so a
-        # required total worth is one more linear row: -sum_r w_r u_r <= -rho
         # worths are NEGATIVE pcm, so "deliver at least rho" is
-        # sum_r w_r u_r <= -rho, not the sign-flipped form.
-        A = np.vstack([A, np.hstack([wr / g(int(z["delta"])), [0.0]])])
+        # sum_r w_r v_r <= -rho, not the sign-flipped form.
+        A = np.vstack([A, np.hstack([wr, [0.0]])])
         b = np.concatenate([b, [-abs(a.rho)]])
-        print(f"constrained to deliver at least {abs(a.rho):.0f} pcm of rod worth")
+        print(f"constrained to deliver at least {abs(a.rho):.0f} pcm")
     r = linprog(c, A_ub=A, b_ub=b,
-                bounds=[(0.0, umax)] * nr + [(None, None)], method="highs")
+                bounds=list(zip(lo, hi)) + [(None, None)], method="highs")
     if not r.success:
-        print("  INFEASIBLE at this reactivity: " + r.message.strip())
+        print("  INFEASIBLE: " + r.message.strip())
         return
     u = r.x[:nr]
-    print(f"  worth delivered {float(wr @ u / g(int(z['delta']))):.0f} pcm")
+    print(f"  worth delivered {float(wr @ u):.0f} pcm")
     pred = p0 + H @ u
-    print(f"\nLP over depths 0-{min(a.dmax, G_MAX_PLANES)} planes "
-          f"(u <= {umax:.4f}):")
     print(f"  predicted peak {pred.max():.1f} kW, "
           f"MAX/AVG {pred.max()/pred.mean():.4f}")
 
-    dep = np.array([g_inv(x) for x in u])
+    # back to absolute depths on the 25 cm mesh
+    dep = np.array([g_inv(min(max(g(x) + v * dn, 0.0), g(G_MAX_PLANES)))
+                    for x, v, dn in zip(d0, u, den)])
     dr = np.clip(np.round(dep), 0, G_MAX_PLANES).astype(int)
-    print(f"  {(dr > 0).sum()} rods inserted, mean depth {dr.mean():.2f} "
-          f"planes, {(dr >= G_MAX_PLANES).sum()} at the limit")
-    predr = p0 + H @ np.array([g(x) for x in dr])
-    print(f"  after rounding to the 25 cm mesh: "
-          f"{predr.max():.1f} kW, {predr.max()/predr.mean():.4f}")
+    vr = np.array([(g(float(q)) - g(x)) / dn
+                   for q, x, dn in zip(dr, d0, den)])
+    predr = p0 + H @ vr
+    print(f"  {(dr > 0).sum()} rods inserted, mean depth {dr.mean():.2f} planes, "
+          f"{int((dr != np.round(d0)).sum())} moved from base")
+    print(f"  after rounding to the 25 cm mesh: {predr.max():.1f} kW, "
+          f"{predr.max()/predr.mean():.4f}")
 
-    base = z["base"].tolist()
     dd = list(base)
     for n, kidx in enumerate(solved):
         dd[kidx] = float(dr[n]) * R.PLANE_CM
@@ -341,7 +383,12 @@ def solve(a):
           f"{predr.max()/predr.mean():9.4f}")
     print(f"{'DONJON':>24} {pk:10.1f} {ff:9.4f}")
     print(f"{'':>24} k = {kv:.6f}")
-    out = os.path.join(R.SCRATCH, f"rd_lp_{a.burnmap}.txt")
+    # the step number has to be in the name: step 1 and step 2 at the same
+    # trust region would otherwise overwrite each other
+    stepn = os.path.basename(a.base).count("_r") + 1 if a.base else 1
+    tag = (f"_s{stepn}" if stepn > 1 else "") + (
+        f"_r{int(abs(a.maxrho))}" if a.maxrho else "")
+    out = os.path.join(R.SCRATCH, f"rd_lp_{a.burnmap}{tag}.txt")
     with open(out, "w") as fh:
         fh.write("\n".join(f"{x:.1f}" for x in dd))
     print(f"\npattern written to {out}")
@@ -362,6 +409,8 @@ def main():
     ap.add_argument("--linearity", action="store_true")
     ap.add_argument("--solve", action="store_true")
     ap.add_argument("--restart", action="store_true")
+    ap.add_argument("--base", default="",
+                    help="depth file to measure the matrix about (SLP step 2+)")
     a = ap.parse_args()
     if a.jacobian:
         jacobian(a)

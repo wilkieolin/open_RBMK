@@ -4987,7 +4987,65 @@ admissible, and one trust-region step is not the end of the method: this is **se
 programming**, and the next step re-measures the matrix at the new pattern and solves again. Each
 step costs another 190 runs.
 
+### Sequential linear programming: it descends, and it decelerates hard
+
+One step is not the method. Re-measuring all 190 columns about the accepted pattern and
+solving again — each step another 190 runs at ~48 min — gives, every row verified in DONJON:
+
+| | trust | rods moved | model | **DONJON** | model error |
+|---|---|---|---|---|---|
+| base | — | — | — | 2.7702 | — |
+| **step 1** | 250 pcm | 17 | 1.7286 | **1.7791** | 2.9 % |
+| **step 2** | **150 pcm** | 26 | 1.6701 | **1.7419** | 4.1 % |
+| step 2 | 250 pcm | 30 | 1.6287 | 1.8209 | 12 % |
+| step 2 | 400 pcm | 37 | 1.5931 | 1.9784 | 24 % |
+
+Improvements of **−0.991** then **−0.037**: descending, but the second step bought 4 % of what
+the first did. Two things moved against it at once. The usable trust region **shrank** from
+250 pcm to 150, and the model error at a fixed 250 pcm trust **grew** from 2.9 % to 12 %.
+
+That is the degeneracy tightening as the method succeeds. A flatter core sits *closer* to mode
+degeneracy, so the linearisation it admits is smaller — the method's own progress erodes its
+step size. Step 3 is running to measure whether this is convergence or a stall; the increments
+so far extrapolate to ≈ 1.74, and extrapolating is exactly what this project does not accept as
+an answer.
+
+**Best verified so far: MAX/AVG 1.7419, peak channel 3349.6 kW, k = 1.043785, 26 rods moved.**
+That is **4.7 %** above [D]'s 3000–3200 kW, down from 70 % at the base — close, and still outside.
+
+### A formulation bug that step 1 could not have caught
+
+From step 2 on, `H[:,r]` is the response to moving rod r from **its own base depth** d₀ᵣ to
+d₀ᵣ + 16, while the amplitude curve G is a function of **absolute** depth. The response to
+putting that rod at absolute depth d is therefore
+
+    H[:,r] · (g(d) − g(d₀ᵣ)) / (g(d₀ᵣ + 16) − g(d₀ᵣ))
+
+and the LP variable is that coefficient. On step 1 every solved rod starts at zero, the
+denominator is g(16) and it reduces to g(d)/g(16) — which is why the un-rebased form was right
+there and silently wrong here. The first version of `solve()` also wrote **absolute** depths over
+the base pattern, discarding the step it was supposed to build on.
+
+Rebasing earns something beyond correctness: the coefficient may go **negative**, so the LP can
+**withdraw** a rod. From step 2 on that is half the available control, and it was unreachable
+before — the step-2 solve reports a variable range of −1.817 to +1.246 with 17 rods withdrawable.
+The rebased code reproduces step 1 exactly (1.7286 model, 1.7791 DONJON, 17 rods), which is the
+regression that says the reduction is right.
+
 ### What this says about the physics, which is the durable part
+
+The control's **character does not change** with the operating point. Re-measuring at the flatter
+step-2 base:
+
+| | eff rank | mode 1 | mode 2 | m = 1 content of the span |
+|---|---|---|---|---|
+| base = all rods out | 2.09 | 66.0 %, m = 1 0.647 | 19.7 %, m = 1 0.911 | 0.620 |
+| base = the 1.7791 pattern | 2.66 | 50.8 %, m = 1 0.779 | 33.6 %, m = 1 0.815 | **0.687** |
+
+Cancelling m = 1 in the **power** does not reduce the m = 1 character of the **control** — it rises
+slightly. The tilt dominance is a property of the rod lattice and the core's neutronic size, not
+of the state the core is in, so every SLP step meets the same wall: two tilt directions plus a
+small m ≥ 2 residue, wherever it starts.
 
 Section (19) found that 92 % of the rods' authority is the first azimuthal mode and concluded
 that the only lever left was combinations whose m = 1 parts cancel. That is exactly what the LP
