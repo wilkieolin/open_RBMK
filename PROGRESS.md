@@ -4757,6 +4757,101 @@ And one more, from the shallow end: between 2 and 12 planes of uniform insertion
 rods move reactivity and barely touch the radial shape.
 
 
+## The rod response matrix, and why each rod is its own problem — 2026-10-05 (19)
+
+Section (18) solved for a rod pattern with a local rule and it walked uphill. The diagnosis there
+was that the response is not local; this section measures what it actually is, and the answer
+reorganises the problem.
+
+### A single rod acts on the far side of the core
+
+Rod 29 is an RR at lattice site (21, 9). Driven 24 planes in on the chequerboard core — worth
+**−37.9 pcm**, a small perturbation — the ten channels it moves most are at (25, 38), (24, 39),
+(24, 41) and their neighbours: **29 to 33 pitches away**, across the core. And the response has
+no distance dependence at all:
+
+| distance from the rod, pitches | 0–1.5 | 1.5–2.5 | 2.5–4 | 4–8 | 8+ |
+|---|---|---|---|---|---|
+| channels | 8 | 12 | 20 | 132 | 1489 |
+| mean \|dP\|, kW | 194.8 | 223.0 | 220.6 | 207.9 | **192.3** |
+
+Half the total \|dP\| is carried by channels at a **mean distance of 25 pitches**. One rod moves a
+single channel on the opposite side of the core by **1478 kW**, against that channel's own 2960 kW.
+A 38 pcm perturbation is not diffusing outward from the rod — it is rotating a nearly degenerate
+flux eigenmode, and the core's peak *rises*, 5326 → 5593 kW, MAX/AVG 2.7694 → 2.9083.
+
+That is the first-azimuthal-mode behaviour this project exists to study, appearing unbidden in a
+steady-state rod measurement. It also explains (18) completely: a rule that moves each rod on its
+own neighbourhood is reading a signal that carries none of the information.
+
+### The response factorises, which makes the matrix affordable
+
+The worry was cost. A response that is non-monotone in depth seems to need every rod measured at
+every depth — 190 × 8 = 1520 runs, about 17 h. It does not, because the response separates into a
+fixed direction and a shared amplitude.
+
+**Direction.** For one rod, the cosine similarity between its response vectors at 4, 8, 16 and 24
+planes is **≥ 0.9975**, and the single most-affected channel is the same at every depth. Where a
+rod pushes power does not change as it goes deeper; only how hard.
+
+**Amplitude.** That "how hard" is one curve, shared by every rod. Measured on five rods (four RR
+and one AZ, spread across the core) at eight depths, \|dP(d)\| normalised to its value at 16 planes
+agrees to within **0.054 at worst, about 4 %**:
+
+| depth, planes | 2 | 4 | 8 | 12 | 16 | 20 | **24** | 28 |
+|---|---|---|---|---|---|---|---|---|
+| amplitude | 0.023 | 0.088 | 0.342 | 0.689 | 1.000 | 1.188 | **1.246** | 1.189 |
+| worth | 0.018 | 0.074 | 0.288 | 0.576 | 0.821 | 0.960 | **1.000** | 0.959 |
+
+The curve *is* the physics. A top-entry absorber enters the low-flux top of the core, so the first
+two planes do **2 %** of what the rod can do; it reaches maximum effect mid-travel; and past 24
+planes the displacer has been fully expelled and the absorber relocates toward the bottom, so both
+curves **turn over**. That is section (18)'s +2000 pcm over the last four planes, now recovered
+per rod rather than in a uniform bank, and it means the response per plane varies by a factor
+**5.7** across the travel.
+
+So one run per rod measures the direction and the shared curve carries it everywhere: **190 runs,
+not 1520.** The curve is monotone only on [0, 24] planes, so the control is invertible only there,
+and the solve is confined to it.
+
+### The control is low-rank but not degenerate, and the rods are not interchangeable
+
+Eight rods spread as widely as the lattice allows, each driven 16 planes in alone:
+
+| rod | site | worth | peak kW | MAX/AVG |
+|---|---|---|---|---|
+| 131 | (3, 31) | −17.4 pcm | **4828.6** | **2.5107** |
+| 33 | (3, 11) | −7.7 | 5192.5 | 2.6999 |
+| 0 | (17, 1) | −7.3 | 5371.0 | 2.7927 |
+| 96 | (23, 23) | −32.6 | 5579.0 | **2.9009** |
+
+base 5326.1 kW / 2.7694. **One rod** at (3, 31) improves MAX/AVG by 0.26 — more shape than the
+entire sixteen-point grid of section (18) found — while a rod worth nearly twice as much at (23, 23)
+makes it worse. Their response directions are **anti-correlated**, cosine −0.47 between 131 and 96,
+−0.67 between 131 and 68, with positive pairs up to +0.61.
+
+The eight-row response block has an effective rank of **2.83** and its leading mode carries 54 %
+of the variance, 74 % for the first two. So the control space is low-dimensional — a handful of
+modes, which is why a 190-parameter search found so little — but it is **not** one-dimensional,
+and the modes are reachable with opposite signs. There is real authority here; it was simply being
+sought in the wrong coordinates.
+
+### The solve, and why it is an exact linear program
+
+Because the direction is fixed per rod, the model is linear in the **amplitude** even though it is
+strongly curved in depth. With u_r = g(d_r) and H the measured response at 16 planes,
+
+    minimise t   subject to   P0_c + Σ_r u_r H[c][r] ≤ t  for all c,   0 ≤ u_r ≤ g(24)
+
+which is an exact LP in 191 variables and 1661 constraints, and the depths come back by inverting
+the shared curve. `FLPOW:` holds total power fixed, so every column of H sums to zero and the LP
+cannot lower the peak by lowering everything — it can only redistribute. That is checked rather
+than assumed: the worst column sum is 2 × 10⁻⁶ of the column norm, i.e. the solver's own
+convergence.
+
+H is 1661 × 190 float64 = **2.5 MB** on the CPU. Nothing here approaches the machine's budget.
+
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to
