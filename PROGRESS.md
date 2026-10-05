@@ -4878,6 +4878,38 @@ centimetres is neutronically enormous, so the azimuthal harmonics sit very close
 the fundamental in eigenvalue and are the cheapest thing any local perturbation can
 excite.
 
+### No rod type or position escapes it — but combinations might
+
+Decomposing each rod's own response, grouped by class and by the rod's radius:
+
+| type | n | mean worth | m = 1 | m = 2 | radial |
+|---|---|---|---|---|---|
+| AR | 3 | −23.6 pcm | 0.762 | 0.212 | 0.327 |
+| AZ | 4 | −29.5 | 0.769 | 0.188 | 0.354 |
+| AZOC | 12 | **−35.6** | 0.726 | 0.210 | 0.223 |
+| RR | 52 | −21.2 | 0.709 | 0.240 | 0.191 |
+
+| rod radius, pitches | n | m = 1 | m = 2 | radial |
+|---|---|---|---|---|
+| 8–14 | 4 | 0.690 | 0.139 | **0.458** |
+| 14–20 | 19 | 0.724 | 0.179 | 0.284 |
+| 20–40 | 48 | 0.718 | **0.259** | 0.162 |
+
+Every class is the same to within 0.06 on m = 1, so **no subset of rods escapes the
+tilt**; choosing different hardware is not the lever. (AZOC are the strongest
+individually at −35.6 pcm against an RR's −21.2, which fits their being a dedicated
+local automatic bank, but their mode content is the same.) Position does
+differentiate: inner rods carry the radial content and outer rods the m = 2, so the
+two kinds of shaping come from opposite ends of the core.
+
+That leaves one real lever, and it is the whole reason a matrix was worth measuring:
+**combinations**. A single rod is 0.71 m = 1 and cannot be anything else, but a
+weighted set of rods whose m = 1 components cancel leaves the m ≥ 2 residue behind.
+Modes 3 to 5 of the response block carry only 6 % of the variance, so the residue is
+small — but it is not zero, and finding it is exactly what a per-rod feedback rule
+cannot do and an LP over the full matrix can. Whether 6 % is enough to flatten a
+chequerboard peak is the question the solve answers.
+
 ### The solve, and why it is an exact linear program
 
 Because the direction is fixed per rod, the model is linear in the **amplitude** even though it is
