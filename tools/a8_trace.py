@@ -56,8 +56,16 @@ def main():
             continue
         p0, rows = got
         n, t, p, r = rows[-1]
-        print("%-44s %4d steps to %6.3f s   P/P0 %.5f   rho %+7.1f pcm"
-              % (name, n, t, r, rho_pcm(r)))
+        # the gate is "a prompt power rise BEFORE the absorber takes over", so
+        # the peak and its timing are the two numbers that decide it.  A peak
+        # at the last step means the run is too short to have found one.
+        kpk, tpk, ppk, rpk = max(rows, key=lambda x: x[3])
+        tail = " (PEAK AT THE LAST STEP -- run is too short)" if kpk == n else ""
+        print("%-44s %4d steps to %6.3f s" % (name, n, t))
+        print("     peak  P/P0 %.5f at t = %.4f s (step %d)%s"
+              % (rpk, tpk, kpk, tail))
+        print("     final P/P0 %.5f   first-step rho %+.2f pcm"
+              % (r, rho_pcm(rows[0][3])))
         for k, tt, pp, rr in rows:
             if k in (1, 2, 5, 10, 20, 50, 100, 200, 400) or k == n:
                 print("     step %4d  t %7.4f s  P %10.2f MW  P/P0 %.6f"

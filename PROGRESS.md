@@ -5316,6 +5316,66 @@ A8 needs, since a rod at 0.4 m/s crosses a 25 cm plane in 0.625 s. The sub-node 
 therefore **unverified against anything** so far, and a timestep study is the only thing that will
 test it.
 
+## A8's last two unsourced inputs, both already in the repository — 2026-10-05 (23)
+
+### The fuel-failure criterion
+
+`PROJECT_PLAN` has carried "stops at a defined **fuel-failure criterion** (to be sourced, e.g. a
+fuel-enthalpy threshold)" since the plan was written. It is an enthalpy threshold, and it is in
+INSAG-7 p. 67 — a source that has been in `sources/` since 2026-09-26. Quoting the mechanism it
+attributes to Japanese direct experimental work (its Ref. [35]):
+
+| enthalpy, cal/g UO₂ | kJ/kg | behaviour |
+|---|---|---|
+| **220** (T = 3300 K) | **920.5** | the fuel elements begin to **disintegrate** |
+| 285 | 1192.4 | the fuel elements **rupture** |
+| 320 | 1338.9 | they **explode and disperse in small pieces** |
+
+at INSAG-7's own conversion of 1 cal = 4.184 J. The scope boundary in `PROJECT_PLAN` — "the
+scenario runs to fuel failure and stops" — therefore becomes **220 cal/g UO₂ = 920.5 kJ/kg**, the
+conservative end, and the other two are reported alongside rather than averaged.
+
+INSAG-7 attaches its own caveat and it is carried verbatim rather than paraphrased away: the RBMK
+fuel elements "are not entirely identical with the fuel elements used by the Japanese scientists",
+so "there may be quantitative discrepancies between the critical enthalpies of the model and the
+real fuel elements". A threshold with a stated provenance and a stated caveat is what a gate needs;
+a single number with neither is what rule 1 exists to prevent.
+
+This is the second time an input recorded as missing turned out to be in a source already on disk —
+the 01:22:30 per-rod depths were the first (section 14). The lesson is the cheap one: search the
+sources before scoping the work to find them.
+
+### The comparison target is a band, and the band is the initial state
+
+A8's gate says "compared (not tuned) with INSAG-7 Appendix II's three independent reconstructions".
+Reading what those reconstructions actually say changes how the comparison has to be framed.
+INSAG-7 p. 69, on Ref. [28]:
+
+> within the limits of a 20% variation in initial power density, the rate of thermal power
+> increase may be 400 MW/s or 1000 MW/s by 6 s to 7 s after the start of the transient.
+> Accordingly, after 6.5 s, the total reactor power may be **31 or 64 times** higher than the
+> initial level. The critical fuel enthalpy may be reached for either **5 or 40** fuel assemblies.
+
+and on Ref. [17], flatly: "The Commission cannot accept the conclusion drawn in Ref. [17], because
+the authors are unable to guarantee a high degree of accuracy and the reliability of the
+calculation techniques used."
+
+So **a 20 % change in the initial power distribution moves the published answer by a factor of two
+in power and a factor of eight in damaged assemblies**, and one of the three reconstructions is
+disclaimed by the body that collected it. Two things follow for A8.
+
+First, the comparison target is **31×–64× at 6.5 s and 400–1000 MW/s**, a band, not a number, and
+a result inside that band is agreement while a result outside it is the finding.
+
+Second, and this is the part that matters for the method: INSAG-7 is independently asserting that
+**the initial-state uncertainty dominates the transient's outcome** — which is exactly what the
+A6d row predicted in 2026-09-26 ("its uncertainty probably dominates the transient's") and exactly
+what section (13) then measured at up to +10 860 pcm across orderings of [PAV]'s histogram. The
+decision recorded in section (21) — that A8 does not wait for a burnup placement the sources cannot
+supply, and instead runs across the placement band the way the void coefficient is run across
+brackets A′ and B — is therefore not a convenience. It is the only form in which the published
+reference can be compared against at all.
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to
