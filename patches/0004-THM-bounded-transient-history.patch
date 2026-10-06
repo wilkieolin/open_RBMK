@@ -1,0 +1,83 @@
+--- a/Donjon/src/THM.f
++++ b/Donjon/src/THM.f
+@@ -70,6 +70,7 @@
+       REAL RPRAD(MAXRAD),FPRAD(MAXRAD),TERP(MAXRAD)
+       DOUBLE PRECISION DFLOT,DSUM
+       LOGICAL LPRAD
++      INTEGER NKEEP,IOLD
+       TYPE(C_PTR) IPTHM,IPMAP,JPMAP,KPMAP,JPTHM,KPTHM,LPTHM,MPTHM,
+      > KPTHMI,LPTHMI,MPTHMI
+ *----
+@@ -150,6 +151,7 @@
+       NDTOT=8
+       NPRAD=0
+       TIMEIT=0
++      NKEEP=0
+       NPOWER=0
+       RELAX=1.0
+       RTIME=0.0
+@@ -263,6 +265,13 @@
+           CALL XABORT('@THM: REAL FOR DTIME EXPECTED.')
+         ENDIF
+         ITIME=1
++      ELSE IF(TEXT.EQ.'HISTORY') THEN
++*       RBMK local patch 0004: keep only the last NKEEP transient time
++*       steps in HISTORY-DATA.  Upstream keeps every one, ~11 MB a step
++*       for a 1661-channel core, which a long transient cannot afford.
++        CALL REDGET(ITYP,NKEEP,FLOT,TEXT,DFLOT)
++        IF(ITYP.NE.1)CALL XABORT('@THM: INTEGER FOR HISTORY EXPECTED.')
++        IF(NKEEP.LT.2)CALL XABORT('@THM: HISTORY MUST BE >= 2.')
+       ELSE IF(TEXT.EQ.'FLUID') THEN
+ *       Read fluid type
+         CALL REDGET(ITYP,NITMA,FLOT,TEXT,DFLOT)
+@@ -1064,6 +1073,22 @@
+       CALL LCMGET(KPTHMI,'TIME',TIMEPR)
+       IF(ABS(RTIME-TIMEPR).LE.1.0E-3*DTIME) THEN
+         TIMEIT=1
++      ELSE IF(NKEEP.GT.0) THEN
++*       pruned history: search the steps still present, newest first
++        DO I=TIMEIT,1,-1
++          WRITE(TXTDIR,'(8HTIMESTEP,I4.4)') I
++          CALL LCMLEN(JPTHM,TXTDIR,ILONG,ITYLCM)
++          IF(ILONG.EQ.0) GO TO 312
++          KPTHMI=LCMGID(JPTHM,TXTDIR)
++          CALL LCMGET(KPTHMI,'TIME',TIMEPR)
++          IF(ABS(RTIME-TIMEPR).LE.1.0E-3*DTIME) THEN
++            TIMEIT=I+1
++            GO TO 315
++          ENDIF
++        ENDDO
++  312   WRITE(HSMG,'(45H@THM: UNABLE TO FIND INITIAL CONDITIONS AT T=,
++     >  1P,E14.4,3H S.)') RTIME
++        CALL XABORT(HSMG)
+       ELSE
+         DO I=1,TIMEIT
+           WRITE(TXTDIR,'(8HTIMESTEP,I4.4)') I
+@@ -1079,6 +1104,8 @@
+         CALL XABORT(HSMG)
+       ENDIF
+   315 LPTHMI=LCMGID(KPTHMI,'CHANNEL')
++*     I4.4 below would write '****' past 9999 and silently reuse one name
++      IF(TIMEIT.GT.9999) CALL XABORT('@THM: MORE THAN 9999 TIME STEPS.')
+       WRITE(TXTDIR,'(8HTIMESTEP,I4.4)') TIMEIT
+       KPTHM=LCMDID(JPTHM,TXTDIR)
+       LPTHM=LCMLID(KPTHM,'CHANNEL',NCH)
+@@ -1142,6 +1169,18 @@
+   355 CONTINUE
+       CALL LCMPUT(KPTHM,'TIME',1,2,RTIME+DTIME)
+       IF(IMPX.GT.1) WRITE(6,470) TXTDIR,RTIME+DTIME
++      IF(NKEEP.GT.0) THEN
++*       drop the steps that fell out of the window; older ones are gone
++*       already, so stop at the first missing one.  TIMESTEP0000 (the
++*       steady state) is never touched.
++        DO IOLD=TIMEIT-NKEEP,1,-1
++          WRITE(TXTDIR,'(8HTIMESTEP,I4.4)') IOLD
++          CALL LCMLEN(JPTHM,TXTDIR,ILONG,ITYLCM)
++          IF(ILONG.EQ.0) GO TO 345
++          CALL LCMDEL(JPTHM,TXTDIR)
++        ENDDO
++  345   CONTINUE
++      ENDIF
+ *----
+ *  RECOVER LOCAL PARAMETER INFORMATION COMPUTED BY THMDRV OR THMTRS
+ *----

@@ -224,6 +224,13 @@ _DEVSFX = (("" if not DEV else "_dev")
     + ("" if os.environ.get("U4_MOVGRP", "123") == "123"
        else "g" + os.environ.get("U4_MOVGRP", "123"))
     + ("" if os.environ.get("U4_MOVDIR", "1") == "1" else "out")
+    + ("" if os.environ.get("U4_KINFB", "1") != "0" else "nofb")
+    + ("" if os.environ.get("U4_FLOWIT", "30") == "30"
+       else "fi" + os.environ["U4_FLOWIT"])
+    + ("" if os.environ.get("U4_CYCCAP", "1.0E-2") == "1.0E-2"
+       else "cc" + os.environ["U4_CYCCAP"].replace(".", "").replace("-", "m"))
+    + ("" if os.environ.get("U4_ERMAXC", "1.0E-3") == "1.0E-3"
+       else "ec" + os.environ["U4_ERMAXC"].replace(".", "").replace("-", "m"))
     + ("" if os.environ.get("U4_DT", "0.001") == "0.001"
        else "dt" + os.environ.get("U4_DT", "0.001").replace(".", "").replace("-", ""))))
 _STEM = ("rbmk_unit4_core" if WITH_REFL else "rbmk_unit4_norefl") + (
@@ -240,6 +247,15 @@ if WITH_THM:
     _STEM = ("rbmk_unit4_a7" + ("" if _RODS0 == "wat" else "_" + _RODS0)
              + ("" if FLOW == "prop" else "_" + FLOW)
              + ("" if os.environ.get("U4_VOIDFB", "1") != "0" else "_nvf")
+             + ("" if os.environ.get("U4_TH", "nom") == "nom" else
+                "_" + os.environ["U4_TH"]
+                + ("" if os.environ.get("U4_SUBC", "3.0") == "3.0" else
+                   "s" + os.environ["U4_SUBC"].replace(".", "")))
+             # the channel powers 'prop' valves the flow by are an input too
+             # (standing rule 7): key the stem on their content when given
+             + ("" if not os.environ.get("U4_PCHAN") or FLOW != "prop" else
+                "_pc" + __import__("hashlib").md5(
+                    open(os.environ["U4_PCHAN"], "rb").read()).hexdigest()[:6])
              + _DEVSFX + _BSFX)
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), _STEM + ".don")
 
@@ -641,6 +657,49 @@ V_REF, P_REF = 4.7713, 3100.0   # m/s at kW: THM:'s OWN inlet velocity for
                                 # [D]'s 30 t/h at 3100 kW, measured in A7a, so
                                 # no steam table of ours enters the scaling
 PTOT_MW = 3200.0                # [D]: nominal thermal rating
+
+
+def tsat_if97(p_pa):
+    """Saturation temperature, K, from IAPWS-IF97 region 4 (the backward
+    equation, eq. 31).  THM:'s steam tables are freesteam, which IS IF97, so
+    this is THM:'s own saturation line and a subcooling quoted against it is
+    the subcooling THM: sees.  Checked: 7.0 MPa -> 558.98 K (285.83 C)."""
+    n = [0.11670521452767E4, -0.72421316703206E6, -0.17073846940092E2,
+         0.12020824702470E5, -0.32325550322333E7, 0.14915108613530E2,
+         -0.48232657361591E4, 0.40511340542057E6, -0.23855557567849,
+         0.65017534844798E3]
+    b = (p_pa / 1.0E6) ** 0.25
+    e = b * b + n[2] * b + n[5]
+    f = n[0] * b * b + n[3] * b + n[6]
+    g = n[1] * b * b + n[4] * b + n[7]
+    d = 2.0 * g / (-f - (f * f - 4.0 * e * g) ** 0.5)
+    return (n[9] + d - ((n[9] + d) ** 2 - 4.0 * (n[8] + n[9] * d)) ** 0.5) / 2.0
+
+
+assert abs(tsat_if97(7.0E6) - 558.98) < 0.01
+
+# --- U4_TH=acc: the 01:23 thermal-hydraulic state instead of nominal.  All
+# three numbers are INSAG-7 p. 64 (the Commission's initial condition "at
+# 01:23"): power 200 MW(th); coolant flow 56 000 m3/h (eight MCPs instead of
+# six, so ABOVE the full-power flow); subcooling at the core inlet 3 C, citing
+# its ref. [28].  The pressure is NOT given for 01:23: the design outlet
+# pressure above is kept and the inlet is placed 3 K below THM:'s own
+# saturation at it, because the subcooling, not the absolute temperature, is
+# what decides where boiling starts.  INSAG-7 p. 6 says "7 MPa"; 7.0 against
+# 7.38 MPa moves T_sat by 3.6 K but the subcooling not at all.
+# The flow is VOLUMETRIC, so the inlet velocity needs no density: 56 000 m3/h
+# over 1661 fuel channels through A7a's 22.427 cm2 flow area.  All of it is
+# taken through the fuel channels -- the CPS channels have their own circuit.
+TH_STATE = os.environ.get("U4_TH", "nom")
+if TH_STATE not in ("nom", "acc"):
+    raise SystemExit(f"U4_TH={TH_STATE!r}: want nom or acc")
+SUBC = float(os.environ.get("U4_SUBC", "3.0"))
+A_FLOW_M2 = 22.427082E-4        # m2, gen_rbmk_a7a.py's A_FLOW
+Q_ACC = 56000.0                 # m3/h, INSAG-7 p. 64
+if TH_STATE == "acc":
+    PTOT_MW = 200.0
+    T_IN = tsat_if97(P_OUT) - SUBC
+    V_ACC = Q_ACC / 3600.0 / 1661.0 / A_FLOW_M2
 # THM:'s inner temperature tolerance, in K.  Upstream's value is 0.5.
 # 0.05 was adopted on 2026-10-01 on the theory that the outer Picard test --
 # a max over 46 508 bundles -- could not be tighter than what the inner solve
@@ -651,6 +710,14 @@ PTOT_MW = 3200.0                # [D]: nominal thermal rating
 # inner solve should be tighter than anything the outer loop tests, not
 # because it fixed anything.
 ERMAXT = os.environ.get("U4_ERMAXT", "0.05")
+ERMAXC_TR = os.environ.get("U4_ERMAXC", "1.0E-3")     # transient flow tolerance
+CYCCAP = os.environ.get("U4_CYCCAP", "1.0E-2")       # limit-cycle cap, patch 0005
+# THMTRS flow iterations (CONV's third integer, passed as MAXITC).  A channel
+# on the limit cycle uses ALL of them before patch 0005 accepts it, so this
+# is a cost knob: measured 2026-10-06, ~300 cycling channels a step cost
+# ~40 s/step at 100.  Converging channels take < 10.
+FLOWIT = os.environ.get("U4_FLOWIT", "30")
+KINFB = os.environ.get("U4_KINFB", "1") != "0"
 # THM: relaxes ALL FIVE local feedback fields with one factor (THM.f:1187,
 # 1207-1245): FLOT = RELAX*new + (1-RELAX)*old.  So the residual THM reports
 # is already scaled by it.  RELAX is a solver parameter, not a physical one,
@@ -1413,20 +1480,20 @@ KINET := INIKIN: {macsys} TRACK SYSTEM FLUX ::
 ;
 
 REAL dt pw pw0 tt := {KINDT:.6E} 0.0 0.0 0.0 ;
-INTEGER istep := 0 ;
+INTEGER istep := 0 ;@@KIN_DECL@@
 GREP: KINET :: GETVAL E-POW 1 >>pw0<< ;
 ECHO "A8INIT POWER" pw0 ;
 
 REPEAT
   EVALUATE istep := istep 1 + ;
-  EVALUATE tt := tt dt + ;
+@@KIN_T0@@  EVALUATE tt := tt dt + ;
 {_mv}  MACRD SYSTEM := DELETE: MACRD SYSTEM ;
-  MACRD MATEX := NEWMAC: MATEX MACRO DEVICE :: EDIT 0 XFAC 1.0 ;
+@@KIN_NCR@@  MACRD MATEX := NEWMAC: MATEX MACRO DEVICE :: EDIT 0 XFAC 1.0 ;
   SYSTEM := TRIVAA: MACRD TRACK :: EDIT 0 UNIT ;
   KINET := KINSOL: KINET MACRD TRACK SYSTEM ::
     EDIT 0 DELTA <<dt>> SCHEME FLUX THETA 0.8 PREC THETA 0.8 ;
   GREP: KINET :: GETVAL E-POW 1 >>pw<< ;
-  ECHO "A8STEP" istep "T" tt "POWER" pw "P/P0" pw pw0 / ;
+  ECHO "A8STEP" istep "T" tt "POWER" pw "P/P0" pw pw0 / ;@@KIN_THM@@
 UNTIL istep {KIN} >= ;
 
 ECHO "A8DONE steps {KIN} dt {KINDT:g} vrod {VROD:g} power-ini" pw0 "power-fin" pw ;
@@ -1554,6 +1621,55 @@ CREATE ROD-GR {len([k for k, v in devn.items() if v])}
              "*  DCA axis to ~0.80, which is one more value in a 7-value list and belongs\n"
              "*  in the A6b rebuild.\n")
     NCRFUEL_IND = "\n".join("  " + l for l in NCRFUEL.splitlines())
+    # A8.3: THM feedback inside the kinetics loop.  Operator-split and
+    # EXPLICIT in the feedback: step n's cross sections come from the TH
+    # state at t(n-1), KINSOL: advances the flux over the step, and THM:
+    # then advances the TH state over the same step with the power at t(n).
+    # The lag is one step, which is why the timestep has to be converged
+    # with feedback on, not inherited from the frozen-TH runs.
+    #   TIME t0 dt   THMTRS, the transient driver; ITIME=1 forces RELAX=1
+    #                (THM.f:622), so no Picard damping leaks into time.
+    #   HISTORY 2    local patch 0004: keep two time steps, not all of them.
+    #                Upstream keeps every step, ~11 MB each here, which is
+    #                77 GB at 7000 steps on a 110 GB unified-memory machine.
+    #   CONV ... ERMAXC  the flow tolerance.  ONLY the transient driver reads
+    #                it (THMTRS.f:494; THMDRV never does), so the steady loop's
+    #                1.0E-6 was never tested until A8.3 -- where THMTRS could not
+    #                meet it in 100 iterations on the first step.  1.0E-6
+    #                relative is within a decade of single-precision epsilon.
+    #                Upstream's default is 1.0E-3; this is set tighter, and
+    #                the answer's dependence on it is measured, not assumed.
+    #   CYCLE-OK cap  local patch 0005: a channel whose flow iteration ends
+    #                on the boiling-onset limit cycle (THMTRS's K0 switch) is
+    #                accepted if the cycle's error is under the cap, and COUNTED
+    #                -- every step reports how many and the worst.  Over the
+    #                cap it aborts exactly as upstream does.
+    #   U4_KINFB=0   the CONTROL: same deck, same steady state, but the TH
+    #                state is frozen through the transient (no THM:, so the
+    #                fuel map never changes and NCR: need not re-run).  The
+    #                difference from KINFB=1 is the feedback and nothing else.
+    if KIN and WITH_THM and KINFB:
+        _kncr = ("  MACFUEL MACRO := DELETE: MACFUEL MACRO ;\n"
+                 + "\n".join("  " + l for l in NCRFUEL_IND.splitlines()) + "\n"
+                 "    MACRO MATEX := MACINI: MATEX MACREF MACFUEL :: EDIT 0 ;\n")
+        _kthm = f'''  POWER := DELETE: POWER ;
+  POWER FMAP := FLPOW: FMAP KINET TRACK MATEX :: EDIT 0 ;
+  THER FMAP := THM: THER FMAP :: EDIT 0 TIME <<t0>> <<dt>> HISTORY 2
+    CONV 100 100 {FLOWIT} {ERMAXT} {ERMAXC_TR} CYCLE-OK {CYCCAP} ;
+  GREP: THER :: GETVAL 'MAX-T-FUEL' 1 >>tmaxf<< ;
+  GREP: THER :: GETVAL 'MIN-D-COOL' 1 >>dmin<< ;
+  GREP: THER :: GETVAL 'FLOW-NCYCLE' 1 >>ncyc<< ;
+  GREP: THER :: GETVAL 'FLOW-ERRCYC' 1 >>ecyc<< ;
+  ECHO "A8THM" istep "T" tt "TMAXFUEL" tmaxf "DCOOLMIN" dmin
+       "NCYC" ncyc "ERRCYC" ecyc ;
+'''
+    else:
+        _kncr = _kthm = ""
+    _kthm = ("\n" + _kthm.rstrip("\n")) if _kthm else ""
+    _kdecl = ("\nINTEGER ncyc := 0 ;\nREAL ecyc t0 := 0.0 0.0 ;" if (KIN and WITH_THM and KINFB) else "")
+    _kt0 = "  EVALUATE t0 := tt ;\n" if (KIN and WITH_THM and KINFB) else ""
+    kin_block = (kin_block.replace("@@KIN_NCR@@", _kncr).replace("@@KIN_THM@@", _kthm)
+                 .replace("@@KIN_DECL@@", _kdecl).replace("@@KIN_T0@@", _kt0))
 
     param_block = "" if not WITH_THM else """*  THM: writes back by P-NAME and recognises exactly T-FUEL, D-COOL, T-COOL,
 *  T-SURF, P-COOL (THM.f:1172-1174); NCR: reads by PARKEY, which is the
@@ -1571,7 +1687,8 @@ CREATE ROD-GR {len([k for k, v in devn.items() if v])}
         if FLOW == "prop":
             pw, psrc = chan_power()
             assert len(pw) == nfuel, f"{len(pw)} channel powers, {nfuel} channels"
-            vel = [V_REF * q / P_REF for q in pw]
+            vel = ([V_REF * q / P_REF for q in pw] if TH_STATE == "nom" else
+                   [V_ACC * q * len(pw) / sum(pw) for q in pw])
             speed = ("  SPEED CHAN\n"
                      + fmt([f"{v:.4f}" for v in vel], 12, "    "))
             flowdoc = (f"*  U4_FLOW=prop: every channel valved to its own power, so each gets\n"
@@ -1586,11 +1703,22 @@ CREATE ROD-GR {len([k for k, v in devn.items() if v])}
                        f"*  intent and therefore also the uninformative end of the bracket.\n")
         else:
             pw, psrc = chan_power()
-            vbar = V_REF * (sum(pw) / len(pw)) / P_REF
+            vbar = (V_REF * (sum(pw) / len(pw)) / P_REF if TH_STATE == "nom"
+                    else V_ACC)
             speed = f"  SPEED {vbar:.4f}"
             flowdoc = (f"*  U4_FLOW=unif: one velocity everywhere, {vbar:.4f} m/s, the core-average\n"
                        f"*  of the same normalisation.  No valving at all, so the hot channels\n"
                        f"*  boil much harder than the cold ones -- the other end of the bracket.\n")
+        if TH_STATE == "acc":
+            flowdoc = (
+                f"*  U4_TH=acc -- THE 01:23 STATE, INSAG-7 p. 64: {PTOT_MW:.0f} MW(th), coolant\n"
+                f"*  {Q_ACC:.0f} m3/h (8 MCPs), inlet subcooling {SUBC:g} K.  Inlet at THM:'s own\n"
+                f"*  (IF97) T_sat {tsat_if97(P_OUT):.2f} K at {P_OUT / KGF:.1f} kgf/cm2 less {SUBC:g} K = {T_IN:.2f} K;\n"
+                f"*  the 01:23 pressure is not sourced, the subcooling is.  Mean inlet\n"
+                f"*  velocity {V_ACC:.4f} m/s = the volumetric flow over 1661 x 22.427 cm2.\n"
+                f"*  The NOMINAL normalisation text below is superseded by this: under\n"
+                f"*  prop each channel gets {V_ACC:.4f} m/s x P/<P>; under unif all get it.\n"
+                + flowdoc)
         thm_block = f"""{flowdoc}  THER FMAP := THM: FMAP ::
     EDIT 1
 *   CONV is <conduction its> <centre-pellet its> <flow its> <ERMAXT> <ERMAXC>
@@ -1845,7 +1973,7 @@ MACREF := NCR: CCpo ACpo DCpo{rcpo_arg} :: EDIT 0 MACRO LINEAR NMIX {3 + nring}
 *--- power shape.  PTOT is the nominal thermal rating; the shape, not the
 *    normalisation, is what this increment checks.
 POWER FMAP := FLPOW: FMAP FLUX TRACK MATEX ::
-  EDIT 2 PTOT 3200.0 PRINT DISTR POWER ;
+  EDIT 2 PTOT {PTOT_MW:.1f} PRINT DISTR POWER ;
 
 *--- the {nfuel} channel powers in CHANNEL ORDER -- the order RESPFM.f:74-82
 *    finds them, which is the order B-ZONE above is written in and the order

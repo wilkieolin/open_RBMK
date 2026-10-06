@@ -1,0 +1,81 @@
+--- a/Donjon/src/THM.f
++++ b/Donjon/src/THM.f
+@@ -71,6 +71,10 @@
+       DOUBLE PRECISION DFLOT,DSUM
+       LOGICAL LPRAD
+       INTEGER NKEEP,IOLD
++*     RBMK local patch 0005: opt-in acceptance of a flow limit cycle
++      REAL CYCCAP,ERRCYC
++      INTEGER NCYC
++      COMMON /THMCYC/ CYCCAP,ERRCYC,NCYC
+       TYPE(C_PTR) IPTHM,IPMAP,JPMAP,KPMAP,JPTHM,KPTHM,LPTHM,MPTHM,
+      > KPTHMI,LPTHMI,MPTHMI
+ *----
+@@ -152,6 +156,9 @@
+       NPRAD=0
+       TIMEIT=0
+       NKEEP=0
++      CYCCAP=0.0
++      NCYC=0
++      ERRCYC=0.0
+       NPOWER=0
+       RELAX=1.0
+       RTIME=0.0
+@@ -272,6 +279,11 @@
+         CALL REDGET(ITYP,NKEEP,FLOT,TEXT,DFLOT)
+         IF(ITYP.NE.1)CALL XABORT('@THM: INTEGER FOR HISTORY EXPECTED.')
+         IF(NKEEP.LT.2)CALL XABORT('@THM: HISTORY MUST BE >= 2.')
++      ELSE IF(TEXT.EQ.'CYCLE-OK') THEN
++*       RBMK local patch 0005: see THMTRS.  Error cap for accepting a
++*       flow limit cycle after MAXITC iterations; 0 (default) = abort.
++        CALL REDGET(ITYP,NITMA,CYCCAP,TEXT,DFLOT)
++        IF(ITYP.NE.2)CALL XABORT('@THM: REAL FOR CYCLE-OK EXPECTED.')
+       ELSE IF(TEXT.EQ.'FLUID') THEN
+ *       Read fluid type
+         CALL REDGET(ITYP,NITMA,FLOT,TEXT,DFLOT)
+@@ -1169,6 +1181,12 @@
+   355 CONTINUE
+       CALL LCMPUT(KPTHM,'TIME',1,2,RTIME+DTIME)
+       IF(IMPX.GT.1) WRITE(6,470) TXTDIR,RTIME+DTIME
++      IF(CYCCAP.GT.0.0) THEN
++*       patch 0005: how many channels this step ended on a limit cycle,
++*       and the worst relative flow error accepted, for the deck to report
++        CALL LCMPUT(IPTHM,'FLOW-NCYCLE',1,1,NCYC)
++        CALL LCMPUT(IPTHM,'FLOW-ERRCYC',1,2,ERRCYC)
++      ENDIF
+       IF(NKEEP.GT.0) THEN
+ *       drop the steps that fell out of the window; older ones are gone
+ *       already, so stop at the first missing one.  TIMESTEP0000 (the
+--- a/Donjon/src/THMTRS.f
++++ b/Donjon/src/THMTRS.f
+@@ -130,6 +130,10 @@
+       REAL XS(4)
+       DATA XS/-0.861136,-0.339981,0.339981,0.861136/
+       INTEGER IDFM
++*     RBMK local patch 0005: opt-in acceptance of a flow limit cycle
++      REAL CYCCAP,ERRCYC
++      INTEGER NCYC
++      COMMON /THMCYC/ CYCCAP,ERRCYC,NCYC
+ *----
+ *  ALLOCATABLE ARRAYS
+ *----
+@@ -255,6 +259,19 @@
+       ITERC=0
+    20 ITERC=ITERC+1
+       IF(ITERC.GT.MAXITC) THEN
++*        RBMK local patch 0005.  The flow iteration can lock into a limit
++*        cycle instead of converging: the boiling-onset node K0 is an
++*        integer reset every pass (K0=0 above, set in THMH2O), so a node at
++*        the onset threshold flips its density by a finite step, and the
++*        mass flux built from (DCOOL0-DCOOL)*DTINV*HZ moves by that step
++*        over 2*DTIME -- an amplitude that GROWS as the time step shrinks.
++*        With CYCLE-OK <cap> on THM:, accept the last iterate when the
++*        cycle's error is below the cap, and count it; above it, abort.
++         IF((CYCCAP.GT.0.0).AND.(ERR.LT.CYCCAP)) THEN
++           NCYC=NCYC+1
++           ERRCYC=MAX(ERRCYC,ERR)
++           GO TO 30
++         ENDIF
+          CALL XABORT('THMTRS: CONVERGENCE FAILURE IN FLOW CALCULATION.')
+       ENDIF
+ *----
