@@ -5525,6 +5525,88 @@ Moving the assignment after the `AXIS` read fixes it, and the three bundled devi
 nicety — it is the only thing that would have caught this, because our own decks never exercised
 the `DSET:` path.
 
+## A8's first transient, and what it is honestly evidence of — 2026-10-05 (25)
+
+With `MOVGRP.f` fixed and the anchor in place, the 1 s AZ-5 transient from the sourced 01:22:30
+pattern at the sourced 0.4 m/s:
+
+| t, s | 0.01 | 0.05 | 0.10 | 0.20 | 0.30 | 0.50 | 0.70 | 1.00 |
+|---|---|---|---|---|---|---|---|---|
+| **P/P₀** | 0.99986 | 0.99812 | 0.99412 | 0.98283 | 0.97024 | 0.94784 | 0.92733 | **0.86929** |
+
+Monotone decrease from the first step, and the **anchor is exact**: 40 cm of travel, k = 1.043293,
+ρ = −72.2 pcm against the static ramp's −72.2. The null transient on the same build holds power
+constant to every printed digit with its anchor at k = 1.044046, and ramp point zero still returns
+1.044046 after all five patches — so the whole chain is consistent on the final code.
+
+### The timestep is converged, and that sets the A8 budget
+
+The same 1.0 s at **200 × 5 ms** instead of 100 × 10 ms:
+
+| t, s | 0.10 | 0.20 | 0.30 | 0.50 | 0.70 | 0.90 | 1.00 |
+|---|---|---|---|---|---|---|---|
+| dt = 10 ms | 0.99412 | 0.98283 | 0.97024 | 0.94784 | 0.92733 | 0.88847 | 0.86929 |
+| dt = 5 ms | 0.99364 | 0.98165 | 0.96876 | 0.94720 | 0.92652 | 0.88674 | **0.86760** |
+| change | −0.05 % | −0.12 % | −0.15 % | −0.07 % | −0.09 % | −0.19 % | **−0.19 %** |
+
+Worst difference **0.00173 in P/P₀**, which is **4.4 % of the 0.0386 the prompt-lifetime sweep
+alone spans** at the same time — the discretisation error is some twenty times below the model's
+own parameter uncertainty. So **dt = 10 ms is adequate here**, and a 4 s scenario costs 44 minutes
+rather than the 7.4 hours a 1 ms step would.
+
+**Scoped deliberately.** This is a slow monotone ramp of −72 pcm over a second. A prompt excursion
+— the 31×-to-64× rise in 6.5 s that INSAG-7 reports — is a different regime and this says nothing
+about the step it would need. The convergence statement travels with the transient it was measured
+on, which is the same discipline section (20)'s trust region needed.
+
+### Point kinetics from the measured ramp, and the restraint it forces
+
+Six-group point kinetics driven by ρ(t) = ρ(speed · t) from the *measured* static ramp, with λ from
+the COMPO, the per-precursor β shape from the COMPO's own `NUSIGF0i/NUSIGF`, and the prompt
+lifetime swept rather than derived (`tools/a8_pk.py`):
+
+| t, s | DONJON 3-D | Λ = 0.5 ms | Λ = 1 ms | Λ = 2 ms |
+|---|---|---|---|---|
+| 0.05 | 0.99812 | 0.99818 | 0.99901 | 0.99948 |
+| 0.20 | 0.98283 | 0.98170 | 0.98795 | 0.99294 |
+| 0.50 | 0.94784 | 0.94949 | 0.95868 | 0.97108 |
+| 1.00 | 0.86929 | 0.88079 | 0.89639 | 0.91940 |
+
+Two methods sharing nothing but the core — 3-D space-time diffusion, and a six-group ODE driven by
+static eigenvalues — agree to 0.0009 in P/P₀ at 0.05 s and 0.0271 at 1.0 s.
+
+**And that is where the claim has to stop.** The Λ sweep alone spans **0.0386** at 1.0 s, so the
+3-D residual is *inside* it. It is not evidence of a spatial effect, and the temptation to read it
+as one is exactly the error that produced the retracted 9.3 % rise. What can be said is the
+negative: **in this regime the transient is point-kinetic to within what the prompt lifetime
+allows.** Which is what a symmetric whole-core scram ought to be — every rod moves together, so
+there is nothing to drive the shape.
+
+That is worth stating plainly because `PROJECT_PLAN` opens by arguing that spatial resolution is
+mandatory for this reactor. It is — but not because a *scram* is spatially interesting. It is
+mandatory because of the **initial** spatial non-uniformity: INSAG-7's Kv = 5.5 and its "strong
+power density deformations", and its statement (p. 69) that a 20 % change in the initial power
+density moves the answer between 31× and 64×. The spatial content of the accident is in the state
+the transient starts from, not in the rod motion. Our core, on flat burnup, does not have it.
+
+### What A8 has, and the one thing it still needs
+
+Everything the transient consumes is now built, sourced and checked: movable rods verified against
+the base map to seven figures, delayed data from the COMPO as a burnup field, a sourced rod speed,
+a sourced fuel-failure threshold, a converged timestep, a static anchor on every run, and an
+independent point-kinetics cross-check.
+
+What it does not have is a **bottom-peaked axial flux**, and section (24) showed that is what
+decides the sign of the scram. The axial shape follows the axial burnup and xenon distributions,
+and this model holds both uniform within a channel because the generator writes `INST-BVAL CHAN`.
+`RESPAR.f:518-531` shows **`INST-BVAL BUND`** accepts a burnup per channel *per bundle* — 1661 × 28
+= 46 508 values, bundle-major — and `RESPAR.f:690` adds `AXIAL-PFORM` beside it. The capability is
+there and unused; the sourced basis for it is INSAG-7 Figs. II-7 / II-8, already listed as A8's
+comparison targets and, being plots, digitisable the way Fig. II-6 was.
+
+So A8's remaining work is not solver work. It is the same thing A6b and A6d ran out of: the
+**initial state**, now narrowed from "the burnup placement" to one specific missing axis.
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to
