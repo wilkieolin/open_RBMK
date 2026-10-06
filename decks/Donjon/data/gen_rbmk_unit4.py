@@ -140,6 +140,21 @@ VROD = float(os.environ.get("U4_VROD", "40.0"))
 # the rod the reactivity came from.
 # U4_MOVDIR=-1 withdraws instead of inserting, which is the sign control.
 MOVGRP = os.environ.get("U4_MOVGRP", "123")
+# U4_DEVADV="<abs>,<dsp>,<usp>" advances each device GROUP's position by its
+# own amount, in cm, at generation time.  It exists to decompose the ramp
+# statically: advancing only the absorbers, or only the displacers, separates
+# the two contributions for the price of one static solve instead of a whole
+# transient.  Neither single-group case is a configuration of a real reactor --
+# a rod's absorber and its displacer are one rigid body -- so they are controls
+# and are named as such in the deck header.
+DEVADV = os.environ.get("U4_DEVADV", "")
+_ADV = [0.0, 0.0, 0.0]
+if DEVADV:
+    _p = [float(x) for x in DEVADV.split(",")]
+    if len(_p) != 3:
+        raise SystemExit("U4_DEVADV wants three comma-separated cm advances: "
+                         "absorbers,displacers,USP")
+    _ADV = _p
 MOVDIR = int(os.environ.get("U4_MOVDIR", "1"))
 if MOVDIR not in (1, -1):
     raise SystemExit("U4_MOVDIR must be 1 (insert) or -1 (withdraw)")
@@ -196,6 +211,8 @@ _STEM = ("rbmk_unit4_core" if WITH_REFL else "rbmk_unit4_norefl") + (
     "" if _TILT0 == "0" else "_t" + _TILT0) + (
     "" if _DCA0 == "0.72" else "_d" + _DCA0.replace(".", "")) + (
     "" if not DEV else "_dev") + (
+    "" if not os.environ.get("U4_DEVADV", "")
+    else "_a" + os.environ.get("U4_DEVADV", "").replace(",", "_").replace(".", "")) + (
     "" if os.environ.get("U4_RODFULL", "0") == "0" else "_rf") + (
     "" if not KIN else "_kin%dv%g" % (KIN, VROD)
     + ("" if os.environ.get("U4_MOVGRP", "123") == "123"
@@ -1101,6 +1118,14 @@ def devices(g, nx, ny):
             parts.append(("A", "H-", Z_HI - L_USP, Z_HI, M_ABS, lev_usp(d), 3))
         else:
             raise SystemExit(f"rod at ({i},{j}): unhandled CPS type {t}")
+        # apply the per-group static advance, by recomputing the LEVEL at the
+        # advanced depth rather than by nudging the LEVEL, so the two routes
+        # (advance here vs. a depth file) cannot disagree
+        if any(_ADV):
+            parts = [(tg, fr, z0, z1, mx,
+                      {1: lev_abs, 2: lev_dsp, 3: lev_usp}[g](
+                          min(NZ_ACTIVE * PITCH, d + _ADV[g - 1])), g)
+                     for tg, fr, z0, z1, mx, lv, g in parts]
         for tag, frm, z0, z1, mix, lev, gid in parts:
             rid = len(rods) + 1
             rods.append((rid, t, i, j, d, tag, lev))

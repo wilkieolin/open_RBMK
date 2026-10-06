@@ -5435,6 +5435,96 @@ supply, and instead runs across the placement band the way the void coefficient 
 brackets A′ and B — is therefore not a convenience. It is the only form in which the published
 reference can be compared against at all.
 
+## A8: the AZ-5 ramp is negative in this state, and A6.5 said it would be — 2026-10-05 (24)
+
+With the rods movable and anchored (section 22), the first question A8 can ask is the one the
+whole project was built for: what is the reactivity of the AZ-5 insertion from the sourced
+01:22:30 pattern? The static answer is cheaper and more reliable than the transient, so it comes
+first — `tools/a8_ramp.py` advances every CPS rod by d cm from its sourced depth and solves the
+core, quoting reactivity the way `KINSOL:` normalises it, ρ = 1 − k(0)/k(d).
+
+| travel, cm | 0 | 5 | 10 | 15 | 20 | 25 | 30 | 40 | 50 | 60 | 80 | 100 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **ρ, pcm** | 0 | −10.8 | −19.3 | −25.5 | −30.0 | −32.8 | −48.5 | −72.2 | −88.3 | −129.0 | −202.4 | **−293.1** |
+| peak channel, kW | 3025 | 3024 | 3022 | 3021 | 3019 | 3018 | 3016 | 3012 | 3008 | 3002 | 2990 | 3011 |
+
+**Monotonically negative throughout.** There is no positive window anywhere in the first metre of
+travel, and the peak channel power falls with it. So in this core state AZ-5 is an ordinary scram.
+
+### Which is what A6.5 predicted, with the condition it attached
+
+Section (5)'s gate measured the displacer sweep as **−175 pcm over the first 1.25 m with a
+centre-peaked flux**, turning positive **only once the axial peak is driven below the mid-plane** —
+"the sign tracks the peak in both directions". This core's axial peak is at **bundle 14 of 28**,
+i.e. the mid-plane, so the gate's condition for a positive sweep is **not met** and the gate
+predicts a negative ramp. It is negative. A6.5 was measured on a uniform bank driven from fully
+withdrawn and this is the sourced pattern driven by devices, two different configurations through
+two different mechanisms in the code, and they agree on sign and order of magnitude.
+
+That is the useful form of the result: **the positive scram is a property of the axial flux shape,
+not of the rod geometry**, and this model does not yet have the bottom-peaked shape the real core
+had at 01:23:40. What produces that shape — the axial xenon and burnup distribution — is the part
+A6b and A6d could not source.
+
+### What each part of the rod contributes
+
+`U4_DEVADV` advances one device group at a time, which decomposes the ramp for the price of a
+static solve. At 40 cm of travel:
+
+| moved 40 cm | ρ, pcm | share |
+|---|---|---|
+| the 190 top-entry absorbers | **−51.7** | 72 % |
+| the 178 graphite displacers | **−20.5** | 28 % |
+| the 21 bottom-entry USP absorbers | −11.2 | 16 % |
+| absorbers + displacers together | −56.3 | |
+| **all three together (measured)** | **−72.2** | |
+| the three parts summed | −83.5 | |
+| **non-additivity** | **+11.3** | **14 %** |
+
+Every part is negative, including the displacer. Nothing here is cancelling anything; the scram is
+negative because all three contributions point the same way. And the parts over-predict the total
+by 14 %, which is the same sub-additivity section (20) ran into from the other direction — the
+parts shield each other.
+
+Neither single-group row is a configuration of a real reactor: a rod's absorber and its displacer
+are one rigid body. They are controls, and the deck header says so.
+
+### A sawtooth with the period of the axial mesh
+
+The local slope of ρ(d) is not smooth. Per interval, in pcm/cm:
+
+| interval | 0–5 | 5–10 | 10–15 | 15–20 | 20–25 | 25–30 | 30–40 | 40–50 | 50–60 | 60–80 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| dρ/dd | −2.16 | −1.70 | −1.24 | −0.90 | −0.56 | **−3.14** | −2.37 | −1.61 | **−4.07** | −3.67 |
+
+The slope decays smoothly to near zero and then jumps by a factor of five, twice, **at 25 cm and
+at 50 cm** — exactly the 25 cm axial plane pitch. The reason is structural: every rod starts on a
+plane boundary, because `insag_col()` quantises the sourced depths to the mesh, so all 389 device
+tips cross a node boundary *simultaneously* and their individual slope breaks superpose instead of
+averaging out. The underlying trend is about −2.5 pcm/cm and the breaks modulate the local slope
+around it by roughly ±20 pcm of accumulated worth.
+
+Two things follow. **The 25 cm axial mesh, not only the timestep, limits how finely rod motion can
+be resolved in A8** — a rod at 0.4 m/s crosses a plane every 0.625 s, so a 4 s scram crosses six
+or seven and the ripple will appear in the power trace as a real feature of the discretisation.
+And the smoothness *within* each 25 cm interval is the only evidence that `NEWMVF:`'s sub-node
+volume-fraction interpolation works at all, the base map having no answer to compare against off
+the mesh: a broken interpolation would have given a staircase, and it gives a smooth curve with
+breaks only where the model must have them.
+
+### The regression caught a bug in the patch that the physics would have hidden
+
+Extending patch 0003 from two copies of the formula to five broke `AFMtest.x2m`, which stopped
+silently after `LZC:` with no abort message. The cause was mine: in `DSETGR.f` and `DSET1D.f` the
+`CORE-LIMITS` fetch happens **before** `IAXIS` is read, so `ILIM=2*IAXIS-1` placed beside the
+fetch indexed `LIMIT` with uninitialised memory. `MOVGRP.f` reads `AXIS` first and was
+unaffected, which is why our own decks ran correctly and only the bundled one fell over.
+
+Moving the assignment after the `AXIS` read fixes it, and the three bundled device decks are again
+**byte-identical across 18 423 comparable lines**. A patch that is invisible when unused is not a
+nicety — it is the only thing that would have caught this, because our own decks never exercised
+the `DSET:` path.
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to

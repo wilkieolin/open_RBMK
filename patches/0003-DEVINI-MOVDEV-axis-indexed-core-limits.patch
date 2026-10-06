@@ -116,21 +116,23 @@
              WRITE(IOUT,*) '    ADJ ',NXSEQ,' LEVEL ',LVNEW*100.,
 --- a/Donjon/src/DSETGR.f
 +++ b/Donjon/src/DSETGR.f
-@@ -81,6 +81,13 @@
- *  RECOVER GROUP INFORMATION
- *----
-    20 CALL LCMGET(IPDEV,'CORE-LIMITS',LIMIT)
-+*       LOCAL CHANGE (see patches/): core limits along the ROD'S OWN
-+*       axis, as in DEVGET.f.  All five copies of this formula in
-+*       Donjon/src -- DEVGET, MOVPOS, MOVGRP, DSETGR, DSET1D -- had
-+*       LIMIT(1)/LIMIT(2) hard-wired, i.e. the X faces, whatever AXIS
-+*       said.  They must agree or DEVINI:, DSET: and MOVDEV: put the
-+*       same rod in three different places.
-+        ILIM=2*IAXIS-1
-       IF(LROD)THEN
-         JPDEV=LCMGID(IPDEV,'ROD_GROUP')
-         KPDEV=LCMGIL(JPDEV,IGRP)
-@@ -141,11 +148,11 @@
+@@ -120,6 +120,15 @@
+           CALL LCMGET(KPDEV,'ROD-PARTS',NPART)
+           CALL LCMGET(KPDEV,'LENGTH',LENG)
+           CALL LCMGET(KPDEV,'AXIS',IAXIS)
++*         LOCAL CHANGE (see patches/): core limits along the ROD'S OWN
++*         axis.  All five copies of this formula in Donjon/src --
++*         DEVGET, MOVPOS, MOVGRP, DSETGR, DSET1D -- had LIMIT(1)/
++*         LIMIT(2) hard-wired, i.e. the X faces, whatever AXIS said.
++*         ILIM is set HERE, after the AXIS read, and not beside the
++*         CORE-LIMITS fetch: in these two routines that fetch happens
++*         BEFORE IAXIS is known, and computing ILIM there silently
++*         indexed LIMIT with uninitialised memory.
++          ILIM=2*IAXIS-1
+           CALL LCMGET(KPDEV,'FROM',ITOP)
+           CALL LCMLEN(KPDEV,'LEVEL',ILONG,ITYLCM)
+           CALL LCMGTC(KPDEV,'ROD-NAME',12,NXSEQ)
+@@ -141,11 +150,11 @@
            ELSE IF(IMODE.EQ.2) THEN
  *           MOVING ROD
              IF(ITOP.EQ.-1) THEN
@@ -147,21 +149,23 @@
       1                      '% OF INSERTION'
 --- a/Donjon/src/DSET1D.f
 +++ b/Donjon/src/DSET1D.f
-@@ -78,6 +78,13 @@
- *----
-    20 IF(LROD)THEN
-         CALL LCMGET(IPDEV,'CORE-LIMITS',LIMIT)
-+*       LOCAL CHANGE (see patches/): core limits along the ROD'S OWN
-+*       axis, as in DEVGET.f.  All five copies of this formula in
-+*       Donjon/src -- DEVGET, MOVPOS, MOVGRP, DSETGR, DSET1D -- had
-+*       LIMIT(1)/LIMIT(2) hard-wired, i.e. the X faces, whatever AXIS
-+*       said.  They must agree or DEVINI:, DSET: and MOVDEV: put the
-+*       same rod in three different places.
+@@ -95,6 +95,15 @@
+         CALL LCMGET(KPDEV,'ROD-PARTS',NPART)
+         CALL LCMGET(KPDEV,'LENGTH',LENG)
+         CALL LCMGET(KPDEV,'AXIS',IAXIS)
++*         LOCAL CHANGE (see patches/): core limits along the ROD'S OWN
++*         axis.  All five copies of this formula in Donjon/src --
++*         DEVGET, MOVPOS, MOVGRP, DSETGR, DSET1D -- had LIMIT(1)/
++*         LIMIT(2) hard-wired, i.e. the X faces, whatever AXIS said.
++*         ILIM is set HERE, after the AXIS read, and not beside the
++*         CORE-LIMITS fetch: in these two routines that fetch happens
++*         BEFORE IAXIS is known, and computing ILIM there silently
++*         indexed LIMIT with uninitialised memory.
 +        ILIM=2*IAXIS-1
-         JPDEV=LCMGID(IPDEV,'DEV_ROD')
-         KPDEV=LCMGIL(JPDEV,ID)
-         CALL LCMGTC(KPDEV,'ROD-NAME',12,TEXT)
-@@ -116,11 +123,11 @@
+         CALL LCMGET(KPDEV,'FROM',ITOP)
+         CALL LCMLEN(KPDEV,'LEVEL',ILONG,ITYLCM)
+         CALL LCMGTC(KPDEV,'ROD-NAME',12,NXSEQ)
+@@ -116,11 +125,11 @@
          ELSE IF(IMODE.EQ.2) THEN
  *         MOVING ROD
            IF(ITOP.EQ.-1) THEN
