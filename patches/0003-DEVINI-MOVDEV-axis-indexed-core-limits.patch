@@ -68,3 +68,111 @@
          ENDIF
          IF(IMPX.GT.3) THEN
            WRITE(IOUT,*) '    ADJ ',NXSEQ,' LEVEL ',LVNEW*100.,
+--- a/Donjon/src/MOVGRP.f
++++ b/Donjon/src/MOVGRP.f
+@@ -134,28 +134,35 @@
+         ELSE IF(IMODE.EQ.2) THEN
+ *         MOVING ROD
+           CALL LCMGET(IPDEV,'CORE-LIMITS',LIMIT)
++*       LOCAL CHANGE (see patches/): core limits along the ROD'S OWN
++*       axis, as in DEVGET.f.  All five copies of this formula in
++*       Donjon/src -- DEVGET, MOVPOS, MOVGRP, DSETGR, DSET1D -- had
++*       LIMIT(1)/LIMIT(2) hard-wired, i.e. the X faces, whatever AXIS
++*       said.  They must agree or DEVINI:, DSET: and MOVDEV: put the
++*       same rod in three different places.
++        ILIM=2*IAXIS-1
+           IF(ITOP.EQ.-1) THEN
+-            DELH0=LVOLD*(LENG(2)-LIMIT(1))+LIMIT(1)
++            DELH0=LVOLD*(LENG(2)-LIMIT(ILIM))+LIMIT(ILIM)
+             IF(IOPT.EQ.1)THEN
+               DELH=DELH0+MOVE*SPEED*DELT
+             ELSE IF(IOPT.EQ.2)THEN
+               DELH=DELH0+MOVE*DELHIN
+             ELSE IF(IOPT.EQ.3)THEN
+-              DELH=LVNEW*(LENG(2)-LIMIT(1))+LIMIT(1)
++              DELH=LVNEW*(LENG(2)-LIMIT(ILIM))+LIMIT(ILIM)
+             ENDIF
+-            DELH=MIN(LIMIT(2),MAX(LIMIT(1),DELH))
+-            LVNEW=(DELH-LIMIT(1))/(LENG(2)-LIMIT(1))
++            DELH=MIN(LIMIT(ILIM+1),MAX(LIMIT(ILIM),DELH))
++            LVNEW=(DELH-LIMIT(ILIM))/(LENG(2)-LIMIT(ILIM))
+           ELSE IF(ITOP.EQ.1) THEN
+-            DELH0=LIMIT(2)-LVOLD*(LIMIT(2)-LENG(1))
++            DELH0=LIMIT(ILIM+1)-LVOLD*(LIMIT(ILIM+1)-LENG(1))
+             IF(IOPT.EQ.1)THEN
+               DELH=DELH0-MOVE*SPEED*DELT
+             ELSE IF(IOPT.EQ.2)THEN
+               DELH=DELH0-MOVE*DELHIN
+             ELSE IF(IOPT.EQ.3)THEN
+-              DELH=LIMIT(2)-LVNEW*(LIMIT(2)-LENG(1))
++              DELH=LIMIT(ILIM+1)-LVNEW*(LIMIT(ILIM+1)-LENG(1))
+             ENDIF
+-            DELH=MIN(LIMIT(2),MAX(LIMIT(1),DELH))
+-            LVNEW=(LIMIT(2)-DELH)/(LIMIT(2)-LENG(1))
++            DELH=MIN(LIMIT(ILIM+1),MAX(LIMIT(ILIM),DELH))
++            LVNEW=(LIMIT(ILIM+1)-DELH)/(LIMIT(ILIM+1)-LENG(1))
+           ENDIF
+           IF(IMPX.GT.3) THEN
+             WRITE(IOUT,*) '    ADJ ',NXSEQ,' LEVEL ',LVNEW*100.,
+--- a/Donjon/src/DSETGR.f
++++ b/Donjon/src/DSETGR.f
+@@ -81,6 +81,13 @@
+ *  RECOVER GROUP INFORMATION
+ *----
+    20 CALL LCMGET(IPDEV,'CORE-LIMITS',LIMIT)
++*       LOCAL CHANGE (see patches/): core limits along the ROD'S OWN
++*       axis, as in DEVGET.f.  All five copies of this formula in
++*       Donjon/src -- DEVGET, MOVPOS, MOVGRP, DSETGR, DSET1D -- had
++*       LIMIT(1)/LIMIT(2) hard-wired, i.e. the X faces, whatever AXIS
++*       said.  They must agree or DEVINI:, DSET: and MOVDEV: put the
++*       same rod in three different places.
++        ILIM=2*IAXIS-1
+       IF(LROD)THEN
+         JPDEV=LCMGID(IPDEV,'ROD_GROUP')
+         KPDEV=LCMGIL(JPDEV,IGRP)
+@@ -141,11 +148,11 @@
+           ELSE IF(IMODE.EQ.2) THEN
+ *           MOVING ROD
+             IF(ITOP.EQ.-1) THEN
+-              DELH=LVNEW*(LENG(2)-LIMIT(1))+LIMIT(1)
++              DELH=LVNEW*(LENG(2)-LIMIT(ILIM))+LIMIT(ILIM)
+             ELSE IF(ITOP.EQ.1) THEN
+-              DELH=LIMIT(2)-LVNEW*(LIMIT(2)-LENG(1))
++              DELH=LIMIT(ILIM+1)-LVNEW*(LIMIT(ILIM+1)-LENG(1))
+             ENDIF
+-            DELH=MIN(LIMIT(2),MAX(LIMIT(1),DELH))
++            DELH=MIN(LIMIT(ILIM+1),MAX(LIMIT(ILIM),DELH))
+             IF(IMPX.GT.3) THEN
+               WRITE(IOUT,*) '    ADJ ',NXSEQ,' LEVEL ',LVNEW*100.,
+      1                      '% OF INSERTION'
+--- a/Donjon/src/DSET1D.f
++++ b/Donjon/src/DSET1D.f
+@@ -78,6 +78,13 @@
+ *----
+    20 IF(LROD)THEN
+         CALL LCMGET(IPDEV,'CORE-LIMITS',LIMIT)
++*       LOCAL CHANGE (see patches/): core limits along the ROD'S OWN
++*       axis, as in DEVGET.f.  All five copies of this formula in
++*       Donjon/src -- DEVGET, MOVPOS, MOVGRP, DSETGR, DSET1D -- had
++*       LIMIT(1)/LIMIT(2) hard-wired, i.e. the X faces, whatever AXIS
++*       said.  They must agree or DEVINI:, DSET: and MOVDEV: put the
++*       same rod in three different places.
++        ILIM=2*IAXIS-1
+         JPDEV=LCMGID(IPDEV,'DEV_ROD')
+         KPDEV=LCMGIL(JPDEV,ID)
+         CALL LCMGTC(KPDEV,'ROD-NAME',12,TEXT)
+@@ -116,11 +123,11 @@
+         ELSE IF(IMODE.EQ.2) THEN
+ *         MOVING ROD
+           IF(ITOP.EQ.-1) THEN
+-            DELH=LVNEW*(LENG(2)-LIMIT(1))+LIMIT(1)
++            DELH=LVNEW*(LENG(2)-LIMIT(ILIM))+LIMIT(ILIM)
+           ELSE IF(ITOP.EQ.1) THEN
+-            DELH=LIMIT(2)-LVNEW*(LIMIT(2)-LENG(1))
++            DELH=LIMIT(ILIM+1)-LVNEW*(LIMIT(ILIM+1)-LENG(1))
+           ENDIF
+-          DELH=MIN(LIMIT(2),MAX(LIMIT(1),DELH))
++          DELH=MIN(LIMIT(ILIM+1),MAX(LIMIT(ILIM),DELH))
+           IF(IMPX.GT.3) THEN
+             WRITE(IOUT,*) '    ADJ ',NXSEQ,' LEVEL ',LVNEW*100.,
+      1                    '% OF INSERTION'

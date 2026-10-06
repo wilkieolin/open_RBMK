@@ -1321,6 +1321,18 @@ REPEAT
 UNTIL istep {KIN} >= ;
 
 ECHO "A8DONE steps {KIN} dt {KINDT:g} vrod {VROD:g} power-ini" pw0 "power-fin" pw ;
+
+*--- THE STATIC EIGENVALUE OF THE FINAL ROD GEOMETRY.
+*    MOVDEV: advances each device's own LEVEL step by step, and nothing in the
+*    transient trace says whether it put the rods where the elapsed time and
+*    the speed imply.  Solving the final macrolib statically does: k here must
+*    equal a static deck built with every depth advanced by vrod * nstep * dt,
+*    and the reactivity 1 - k0/k must match what the power trace implies.
+*    SYSTEM carries TRIVAA:'s unitary weighting matrix, which FLUD: ignores.
+FLUX := DELETE: FLUX ;
+FLUX := FLUD: SYSTEM TRACK :: EDIT 0 ADI 2 EXTE 300 1.0E-6 ;
+GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>keff<< ;
+ECHO "A8KFINAL travel-cm" {VROD * KIN * KINDT:.4f} "keff" keff ;
 """
     dev_block = "" if not DEV else f"""*--- A8: the {len(devrods)} rod-devices.  THIS MUST PRECEDE RESINI:.
 *    DEVINI: appends its device mixtures to MATEX's MAT-INIT (DEVDRV.f:143),

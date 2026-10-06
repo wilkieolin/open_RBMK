@@ -5261,7 +5261,8 @@ z = [1359.375, 1859.375]       against a mesh that ends at 800
 
 and 1359.375 = 1450 − 0.0625 × 1450, where **1450 cm is the X extent of this core and 800 cm is
 the Z extent**. `DEVGET.f:220-222` and `MOVPOS.f:113-134` compute the rod position from
-`LIMIT(1)`/`LIMIT(2)` — the X faces — *regardless of `IAXIS`*. The `MAXPOS` validation in the
+`LIMIT(1)`/`LIMIT(2)` — the X faces — *regardless of `IAXIS`*. (Two of **five** copies of that
+formula; see the next subsection, where patching only these two produced a fake result.) The `MAXPOS` validation in the
 same routine is correctly axis-indexed; only the positioning is not.
 
 Why this has survived upstream: for `FROM H-` the formula is
@@ -5270,6 +5271,64 @@ origin** — so our displacers and USP rods worked, and so does every bundled de
 move their rods along Y in a core whose X and Y origins are both 0. For `FROM H+` a Z-axis rod is
 placed at `X+ − LEVEL·(X+ − LENG(1))` and lands outside the mesh entirely whenever the core is
 wider than it is tall. An RBMK is 14.5 m wide and 8 m tall.
+
+### Bug 3 again: the formula has FIVE copies, and patching two of them produced a fake result
+
+The axis fix above was applied to `DEVGET.f` (which `DEVINI:` uses to place a rod from its
+`LEVEL`) and to `MOVPOS.f` (which `MOVDEV:` uses for its `ROD` form). The static decks were then
+exact, the gate passed, and the first transient produced what looked like the result A8 exists to
+find: the power rising 9.3 % over 0.41 s and then turning over as the absorber took hold.
+
+**It was an artefact, and this is the retraction.** `MOVDEV:`'s `GROUP` form does not go through
+`MOVPOS.f` at all — it goes through **`MOVGRP.f`**, which carries its own copy of the same
+arithmetic. Running `MOVDEV: … EDIT 2` printed the rod it had just moved:
+
+```
+MOVCHK: MOVE A ROD BY 1319.3750
+Z- 1319.3750      Z+ 1819.3750
+```
+
+against a mesh that ends at 800 cm, and 1319.375 is exactly
+`(1450 − 0.0625 × 1450) − 40` — the unpatched X-limit formula, one 40 cm step on from where the
+unpatched `DEVGET:` had put it. So every absorber was being teleported out of the geometry, where
+`NEWMVF.f:78-82` clipped it to nothing. **The 9.3 % power rise was absorbers being deleted from
+the core.** It had the shape of the result, the right order of magnitude, and the right timing,
+and it was entirely spurious.
+
+Grepping for the formula rather than for the routine found **five** copies in `Donjon/src`:
+
+| routine | reached from |
+|---|---|
+| `DEVGET.f` | `DEVINI:`, placing a rod at its initial `LEVEL` |
+| `MOVPOS.f` | `MOVDEV:`, `ROD` form |
+| `MOVGRP.f` | `MOVDEV:`, `GROUP` form |
+| `DSETGR.f` | `DSET:`, `ROD-GROUP` form |
+| `DSET1D.f` | `DSET:`, `ROD` form |
+
+All five had `LIMIT(1)`/`LIMIT(2)` hard-wired. They must agree or `DEVINI:`, `DSET:` and `MOVDEV:`
+put the same rod in three different places, which is precisely what happened. The patch now
+covers all five.
+
+**What caught it was a check built to answer a different question.** `A8KFINAL` solves the final
+rod geometry statically at the end of a transient and prints its eigenvalue, so that the trace can
+be anchored to a static number. One `MOVDEV:` step of 1.0 s at 40 cm/s must therefore reproduce a
+static deck built independently with every depth advanced 40 cm:
+
+| | k |
+|---|---|
+| before the `MOVGRP.f` fix | 1.044095 |
+| after it | **1.043293** |
+| static deck at +40 cm, built from the depth file | **1.043293** |
+
+Seven figures, from two decks that share no code path beyond the core itself. That check is now
+emitted by every transient the generator writes, because a trace whose geometry has not been
+anchored to a static eigenvalue is not evidence.
+
+**Standing rule 6 is about our files; this is the same failure in someone else's.** "A fix that
+lives in a copy of the file is not a fix" was written after the bound-hydrogen correction sat in
+`RbmkLibH.c2m` while the decks being quoted called the broken original. Here the duplication was
+upstream's, and the lesson is the same with the search widened: grep for the *expression*, not for
+the routine you happened to be reading.
 
 ### Two patches, and the regression that says they are invisible when unused
 
