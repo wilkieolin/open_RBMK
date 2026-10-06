@@ -1,0 +1,156 @@
+--- a/Donjon/src/NEWMAC.f
++++ b/Donjon/src/NEWMAC.f
+@@ -68,8 +68,10 @@
+       CHARACTER HSIGN*12,TEXT*12,HSMG*131
+       INTEGER ISTATE(NSTATE)
+       DOUBLE PRECISION DFLOT
+-      TYPE(C_PTR) IPMAC,IPMTX,IPMAC2,IPDEV,JPMAC,KPMAC
+-      REAL, ALLOCATABLE, DIMENSION(:) :: HFAC
++      TYPE(C_PTR) IPMAC,IPMTX,IPMAC2,IPDEV,JPMAC,KPMAC,JPDEV,KPDEV
++      REAL, ALLOCATABLE, DIMENSION(:) :: HFAC,FISUM,FGRP
++      INTEGER, ALLOCATABLE, DIMENSION(:) :: DMIX
++      INTEGER ISTDEV(NSTATE)
+ *----
+ *  PARAMETER VALIDATION
+ *----
+@@ -122,6 +124,7 @@
+       NGRP=ISTATE(1)
+       NMIX=ISTATE(2)
+       NL=ISTATE(3)
++      NBFIS=ISTATE(4)
+       NDEL=ISTATE(7)
+       LEAK=ISTATE(9)
+       ISTATE(:NSTATE)=0
+@@ -166,6 +169,88 @@
+         CALL LCMLIB(IPMTX)
+         CALL LCMLIB(IPDEV)
+       ENDIF
++*----
++*  MULTI-ISOTOPE GUARD (local change -- see patches/ and PROGRESS.md)
++*
++*  A macrolib built by NCR: from a MULTICOMPO that kept its fissile isotopes
++*  separate stores NUSIGF and CHI with length NMIX*NBFIS (MACCRE.f:141).
++*  NEWMGT: cannot load that into its (NMIX,NGRP,NDEL+1) arrays, and NEWMPT:
++*  already declines to write such a record back -- its LCMPUT calls are
++*  guarded by IF(LENGT.EQ.NMIX).  Upstream therefore ABORTED in NEWMGT:,
++*  which made the whole device mechanism unusable with a multi-isotope
++*  macrolib.  Patched, NEWMGT: leaves the fission arrays at zero and the
++*  originals copied by LCMEQU below stand, so NO device delta is applied to
++*  NUSIGF or CHI.
++*
++*  That is EXACT when every device mixture has no fission of its own -- a B4C
++*  absorber, a graphite displacer, a water column -- and WRONG for a device
++*  that moves fuel.  So it is checked here for every rod part and every
++*  liquid-controller level, and refused if it does not hold.  NFTOT is not
++*  consulted: MACCRE.f files the 'NFT' prefix with the 1-D records, so it is
++*  loaded and differenced correctly whatever NBFIS is, and NUSIGF/CHI alone
++*  go unapplied.
++*----
++      IF(NBFIS.GT.1) THEN
++        JPMAC=LCMGID(IPMAC2,'GROUP')
++        KPMAC=LCMGIL(JPMAC,1)
++        CALL LCMLEN(KPMAC,'NUSIGF',LENGT,ITYP)
++        IF(LENGT.NE.NMIX*NBFIS) CALL XABORT('@NEWMAC: NUSIGF IS NEIT'
++     1  //'HER NMIX NOR NMIX*NBFIS LONG.')
++        ALLOCATE(FISUM(NMIX*NBFIS),FGRP(NMIX*NBFIS))
++        FISUM(:NMIX*NBFIS)=0.0
++        DO JGR=1,NGRP
++          KPMAC=LCMGIL(JPMAC,JGR)
++          CALL LCMGET(KPMAC,'NUSIGF',FGRP)
++          DO I=1,NMIX*NBFIS
++            FISUM(I)=FISUM(I)+ABS(FGRP(I))
++          ENDDO
++        ENDDO
++        DEALLOCATE(FGRP)
++        ISTDEV(:NSTATE)=0
++        CALL LCMGET(IPDEV,'STATE-VECTOR',ISTDEV)
++        NFISD=0
++        IF(ISTDEV(2).GT.0) THEN
++          JPDEV=LCMGID(IPDEV,'DEV_ROD')
++          DO ID=1,ISTDEV(2)
++            KPDEV=LCMGIL(JPDEV,ID)
++            CALL LCMGET(KPDEV,'ROD-PARTS',NPART)
++            ALLOCATE(DMIX(2*NPART))
++            CALL LCMGET(KPDEV,'ROD-MIX',DMIX)
++            DO I=1,2*NPART
++              IBM=DMIX(I)
++              IF((IBM.LT.1).OR.(IBM.GT.NMIX)) CALL XABORT('@NEWMAC: '
++     1        //'DEVICE MIXTURE INDEX OUT OF RANGE.')
++              DO INF=1,NBFIS
++                IF(FISUM((INF-1)*NMIX+IBM).NE.0.0) NFISD=NFISD+1
++              ENDDO
++            ENDDO
++            DEALLOCATE(DMIX)
++          ENDDO
++        ENDIF
++        IF(ISTDEV(4).GT.0) THEN
++          JPDEV=LCMGID(IPDEV,'DEV_LZC')
++          DO ID=1,ISTDEV(4)
++            KPDEV=LCMGIL(JPDEV,ID)
++            ALLOCATE(DMIX(4))
++            CALL LCMGET(KPDEV,'EMPTY-MIX',DMIX(1))
++            CALL LCMGET(KPDEV,'FULL-MIX',DMIX(3))
++            DO I=1,4
++              IBM=DMIX(I)
++              IF((IBM.GE.1).AND.(IBM.LE.NMIX)) THEN
++                DO INF=1,NBFIS
++                  IF(FISUM((INF-1)*NMIX+IBM).NE.0.0) NFISD=NFISD+1
++                ENDDO
++              ENDIF
++            ENDDO
++            DEALLOCATE(DMIX)
++          ENDDO
++        ENDIF
++        DEALLOCATE(FISUM)
++        IF(NFISD.GT.0) CALL XABORT('@NEWMAC: A DEVICE MIXTURE IS FISS'
++     1  //'ILE WHILE NBFIS > 1, SO ITS NUSIGF/CHI DELTA CANNOT BE APP'
++     2  //'LIED.')
++        IF(IMPX.GT.0) WRITE(6,1001) NBFIS
++      ENDIF
+       CALL LCMEQU(IPMAC2,IPMAC)
+       IF(IMPX.GT.2)CALL LCMLIB(IPMAC)
+       CALL NEWMDV(IPMTX,IPMAC,IPMAC2,IPDEV,NMIX,NGRP,NL,NDEL,LEAK,
+@@ -186,4 +271,7 @@
+       DEALLOCATE(HFAC)
+       IF(IMPX.GT.0) CALL LCMLIB(IPMAC)
+       RETURN
++ 1001 FORMAT(/5X,'NEWMAC: NBFIS =',I4,' > 1, so the NUSIGF and CHI de',
++     1 'ltas are NOT applied.'/13X,'Every device mixture was checked ',
++     2 'non-fissile, so this is exact.')
+       END
+--- a/Donjon/src/NEWMGT.f
++++ b/Donjon/src/NEWMGT.f
+@@ -106,6 +106,9 @@
+       CALL LCMLEN(KPMAC,'NUSIGF',LENGT,ITYLCM)
+       IF(LENGT.EQ.NMIX)THEN
+         CALL LCMGET(KPMAC,'NUSIGF',ZNUS(1,JGR,1))
++      ELSEIF((LENGT.GT.NMIX).AND.(MOD(LENGT,NMIX).EQ.0))THEN
++*       NMIX*NBFIS: several fissile isotopes.  Left at zero on purpose --
++*       see the header note and NEWMAC:'s LNOFIS check.
+       ELSEIF(LENGT.NE.0)THEN
+         CALL XABORT('@NEWMGT: INVALID NUSIGF DATA IN MACROLIB.')
+       ENDIF
+@@ -114,6 +117,7 @@
+         CALL LCMLEN(KPMAC,TEXT12,LENGT,ITYLCM)
+         IF(LENGT.EQ.NMIX)THEN
+           CALL LCMGET(KPMAC,TEXT12,ZNUS(1,JGR,IDEL+1))
++        ELSEIF((LENGT.GT.NMIX).AND.(MOD(LENGT,NMIX).EQ.0))THEN
+         ELSEIF(LENGT.NE.0)THEN
+           CALL XABORT('@NEWMGT: INVALID '//TEXT12//' DATA IN MACROLIB.')
+         ENDIF
+@@ -122,6 +126,7 @@
+       CALL LCMLEN(KPMAC,'CHI',LENGT,ITYLCM)
+       IF(LENGT.EQ.NMIX)THEN
+         CALL LCMGET(KPMAC,'CHI',CHI(1,JGR,1))
++      ELSEIF((LENGT.GT.NMIX).AND.(MOD(LENGT,NMIX).EQ.0))THEN
+       ELSEIF(LENGT.NE.0)THEN
+         CALL XABORT('@NEWMGT: INVALID CHI DATA IN MACROLIB.')
+       ENDIF
+@@ -130,6 +135,7 @@
+         CALL LCMLEN(KPMAC,TEXT12,LENGT,ITYLCM)
+         IF(LENGT.EQ.NMIX)THEN
+           CALL LCMGET(KPMAC,TEXT12,CHI(1,JGR,IDEL+1))
++        ELSEIF((LENGT.GT.NMIX).AND.(MOD(LENGT,NMIX).EQ.0))THEN
+         ELSEIF(LENGT.NE.0)THEN
+           CALL XABORT('@NEWMGT: INVALID '//TEXT12//' DATA IN MACROLIB.')
+         ENDIF

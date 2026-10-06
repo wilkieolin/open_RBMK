@@ -5180,6 +5180,142 @@ and would buy nothing an explicit band does not already give.
 
 Tier B and A9 stay parallel, after A8.
 
+## A8: the rods become devices, and three bugs between here and a moving rod — 2026-10-05 (22)
+
+A base-map rod cannot move. `insag_col()` writes the absorber and displacer straight into the
+`GEO:` `MIX` block, which is literal text in the deck: once `GEO:`/`USPLIT:`/`TRIVAT:` have run
+the mixture field is fixed, and nothing in CLE-2000 can rewrite 6700 integers between time
+steps. Regenerating the geometry mid-transient is not an option either, because `INIKIN:` carries
+the precursor field on the tracking object's unknown vector and a new `TRACK` invalidates it.
+
+So A8 needs `DEVINI:`/`DSET:`/`NEWMAC:`, and `U4_DEV=1` builds all 211 CPS rods as **389
+ROD-DEVICES**: 121 RR + 21 AZ + 36 AZOC each as an absorber *and* a displacer, 12 AR and 21 USP
+as an absorber alone.
+
+### Every design choice here was forced by the source, not chosen
+
+| Choice | What forces it |
+|---|---|
+| **two single-part devices per rod**, not one three-part rod | the real RR rod is 5.00 + 1.25 + 4.50 = **10.75 m** and `DEVGET.f:119-133` rejects any `MAXPOS` outside the 8 m mesh |
+| absorber `FROM H+`, displacer `FROM H-` | `DEVGET.f:216-223` **clamps** the position to the mesh, so each part must be declared from the end it never leaves through. A displacer declared `H+` stops the moment it starts leaving the bottom, 525 cm short |
+| `XFAC 1.0`, where the default is **2.0** | `NEWMXS.f:61` is σ += XFAC·VF·Δσ, and our Δσ is a whole-cell difference, not a CANDU supercell's |
+| `MOVE`, not the default `FADE` | a fading rod scales its deltas in place instead of moving |
+| single-part devices (again) | `MOVPOS.f:159` stores `ROD-POS` as **6** reals where `DEVGET.f:246` stored **6·NPART**, so `MOVDEV:` silently truncates a multi-part rod to its first part. With NPART = 1 the bug cannot bite, which is how `MOVDEV:` becomes usable |
+| `MOVDEV: … SPEED` for the scram | `MOVPOS.f:111-134` moves the position in **true cm/s along the axis**, so three group statements replace 389 per-rod updates, each rod starting from its own depth |
+
+The last two are worth putting together: the two-device split was forced by a geometry
+constraint, and it independently dodges a data-truncation bug and makes the whole scram
+expressible in three lines. That was luck, not design, and it is recorded as luck.
+
+### Bug 1: `DEVINI:` must precede `RESINI:`, and getting it wrong is silent
+
+`DEVINI:` appends its device mixtures to MATEX's **`MAT-INIT`** (`DEVDRV.f:143`). `RESINI:`
+builds the **`MAT`** record from `MAT-INIT` *at whatever length it has when `RESINI:` runs*
+(`RESIND.f:118-126`). And the fuel-map form of `MACINI:` reads **`MAT`**, not `MAT-INIT`
+(`MACINI.f:202`).
+
+Put `DEVINI:` after `RESINI:` and `MAT` is 778 entries short. Every device mixture is then read
+as a virtual region, and `MACCRE:` packs the macrolib at a stride 778 smaller than the `NMIX`
+every reader indexes it by. Two things follow and **neither aborts**: the device cross sections
+come out **zero**, so the rods do nothing; and the fission records come out **mis-strided**, so
+`NUSIGF` for isotope 9 is read out of isotope 10's data. The bundled `Example1.x2m` has the order
+right. This deck did not.
+
+### Bug 2: `U4_RODS=wat` is not an unrodded core
+
+`U4_DEV` needs the base map to hold **no rod material at all**, because `DMIX`'s reference
+mixture is the water column. `U4_RODS=wat` is not that: it leaves `RODCOL` water but keeps
+`BANKCOL` at `stack(0)`, so the 36 AZOC channels still carry their withdrawn displacer. That is
+correct for the base-map route and is exactly the 2026-10-04 fix recorded in section (14) — and
+it is a **double count** for the device route, which then adds its own (displacer − water) delta
+on top of a node that already holds the displacer:
+
+```
+NTOT0 = 0.391106 + (-0.175640) = 0.215466   against SIGW00 = 0.390100
+```
+
+a **negative removal cross section**, and `TRIVAA:` stopped with `TRISYS: NEGATIVE XS IN GROUP 2`.
+`U4_DEV=1` now forces `BANKCOL` to water and refuses `U4_TILT`.
+
+### Bug 3: DONJON positions every rod along the X axis, whatever `AXIS` says
+
+With the first two fixed the deck ran, and gave k = 1.044609 against the base map's 1.044059 —
+**+55 pcm**, with the peak channel the same. I attributed that to the axial-reflector overhang:
+the device route unavoidably puts a parked absorber in the reflector above the core, because
+`NEWMVF.f:78-82` clips a part to the **mesh**, not to the core, while the base map does not track
+rods outside the active core at all.
+
+**That attribution was wrong, and measuring it is what found the real bug.** `U4_RODFULL=1` tracks
+the rods over all 32 planes in the base map, making the two routes describe the same geometry;
+the overhang turned out to be worth **−1.3 pcm** (1.044059 → 1.044046) and to move the power
+distribution not at all. So +55 pcm was something else.
+
+Diffing the two macrolibs node by node localised it exactly: **542 nodes held water where the
+base map held absorber, and 190 of them were in each of planes 31 and 32** — that is *every*
+top-entry absorber, while every displacer and every bottom-entry USP absorber placed correctly.
+Instrumenting `NEWMVF:` at entry gave the rod's position as
+
+```
+z = [1359.375, 1859.375]       against a mesh that ends at 800
+```
+
+and 1359.375 = 1450 − 0.0625 × 1450, where **1450 cm is the X extent of this core and 800 cm is
+the Z extent**. `DEVGET.f:220-222` and `MOVPOS.f:113-134` compute the rod position from
+`LIMIT(1)`/`LIMIT(2)` — the X faces — *regardless of `IAXIS`*. The `MAXPOS` validation in the
+same routine is correctly axis-indexed; only the positioning is not.
+
+Why this has survived upstream: for `FROM H-` the formula is
+`LEVEL*(LENG(2) − LIMIT(1)) + LIMIT(1)`, which is **invisible whenever the two axes share a zero
+origin** — so our displacers and USP rods worked, and so does every bundled deck, all of which
+move their rods along Y in a core whose X and Y origins are both 0. For `FROM H+` a Z-axis rod is
+placed at `X+ − LEVEL·(X+ − LENG(1))` and lands outside the mesh entirely whenever the core is
+wider than it is tall. An RBMK is 14.5 m wide and 8 m tall.
+
+### Two patches, and the regression that says they are invisible when unused
+
+| Patch | What it does |
+|---|---|
+| `0002-NEWMAC-multi-isotope-macrolib` | `NEWMGT:` aborted on any macrolib whose `NUSIGF`/`CHI` are `NMIX*NBFIS` long, which is every macrolib `NCR:` builds from our MULTICOMPO (**NBFIS = 18**). `NEWMPT:` already declines to write those records back, so leaving them at zero applies no device delta to them — exact for a non-fissile device and wrong for one that moves fuel. `NEWMAC:` now **checks** every rod part and every liquid-controller level against the macrolib's own `NUSIGF` and refuses if any device mixture is fissile, so the degradation can never be silent |
+| `0003-DEVINI-MOVDEV-axis-indexed-core-limits` | index `LIMIT` by the rod's declared axis in both `DEVGET.f` and `MOVPOS.f`, which must agree or a rod moved by `MOVDEV:` would not land where `DEVINI:` put it |
+
+Both are in `patches/`, applied idempotently by `tools/apply_patches.sh`, because `5.1/` is
+gitignored and a change made only there is lost by a fresh clone. The three bundled decks that
+exercise devices — `AFMtest.x2m`, `Candu6.x2m`, `candu6_iram.x2m` — were run before and after and
+compared whole-listing: **18 423 comparable lines, 0 differences**. The same discipline the
+`THM:` patch shipped with.
+
+It was the NBFIS guard, added for an unrelated reason, that caught bug 1; `TRISYS:` that caught
+bug 2; and a node-by-node macrolib diff that caught bug 3 after my own explanation of it failed.
+None of the three was found by reading the deck.
+
+### The gate: two independent routes to the same core, agreeing exactly
+
+`U4_RODFULL=1` makes the base map describe the geometry the devices describe, so the two can be
+compared with nothing left over. `col32()` derives the full 32-plane column from the rod's
+absolute position and is asserted against `stack()`, `stack_abs()` and `stack_bot()` at all 29
+depths the 25 cm mesh allows, so the new path cannot drift from the one every A6d result used.
+
+| pattern | | k | peak channel | MAX/AVG | peak ch |
+|---|---|---|---|---|---|
+| the sourced 01:22:30 depths | base map, 32 planes | 1.044046 | 3025.1 kW | 1.5730 | 3244 |
+| | **389 devices** | **1.044046** | **3025.1 kW** | **1.5730** | **3244** |
+| every rod 24 planes in (600 cm) | base map, 32 planes | 0.9407398 | 4125.0 kW | 2.1514 | 3747 |
+| | **389 devices** | **0.9407398** | **4125.0 kW** | **2.1514** | **3747** |
+
+Writing a mixture map and letting `NEWMAC:` compute volume-fraction deltas from `MAXPOS` and
+`LEVEL` are completely different code paths through DONJON, and they agree to **seven figures in
+k** at both ends of the travel — the second pattern being a −10 300 pcm perturbation from the
+first. That is the regression that licenses moving the rods.
+
+### What this does NOT establish
+
+The devices reproduce the base map **on the 25 cm mesh**, which is the only geometry the base map
+can express. `U4_DEVQ=0` lets a rod tip sit mid-node, where `NEWMVF:` splits the node by volume
+fraction and there is no base-map answer to check against — and that is precisely the capability
+A8 needs, since a rod at 0.4 m/s crosses a 25 cm plane in 0.625 s. The sub-node interpolation is
+therefore **unverified against anything** so far, and a timestep study is the only thing that will
+test it.
+
 ## Standing rules
 
 1. **Every asserted value must come from a calculation, never from a constant chosen to

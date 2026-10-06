@@ -92,10 +92,33 @@ _RD0 = os.environ.get("U4_RODDEPTH", "")
 if _RD0:
     import hashlib as _hl
     _BSFX += "_rd" + _hl.md5(open(_RD0, "rb").read()).hexdigest()[:8]
+# U4_DEV=1 builds the 211 CPS rods as DONJON ROD-DEVICES (DEVINI:/NEWMAC:)
+# instead of writing their absorber and displacer into the GEO: MIX map.  A8
+# needs this: a base-map rod cannot move, and the mixture map is fixed once
+# GEO:/USPLIT:/TRIVAT: have run.  See devices() for the geometry and for why
+# each rod costs TWO single-part devices rather than one three-part one.
+_DEV0 = os.environ.get("U4_DEV", "0")
+DEV = _DEV0 != "0"
+# U4_DEVQ=0 lets a device sit off the 25 cm plane boundary, which is the whole
+# reason A8 needs devices.  It stays ON for the static comparison against the
+# base map, because a base-map rod CAN only sit on a boundary and the two
+# routes have to be asked the same question.
+DEVQ = os.environ.get("U4_DEVQ", "1") != "0"
+# U4_RODFULL=1 tracks the rods over ALL 32 planes instead of the 28 active
+# ones, i.e. it lets a parked absorber sit in the axial reflector above the
+# core and a driven displacer sit in the one below.  That is what the DEVICE
+# route does unavoidably (NEWMVF.f:78-82 clips a part to the mesh, not to the
+# core), so this is how the two routes are made to describe the SAME geometry
+# and compared exactly.  It is also the more faithful model -- the base map's
+# "rods are not tracked outside the active core" is an approximation -- but it
+# is off by default so that every A6d result stands as published.
+RODFULL = os.environ.get("U4_RODFULL", "0") != "0"
 _STEM = ("rbmk_unit4_core" if WITH_REFL else "rbmk_unit4_norefl") + (
     "" if _RODS0 == "wat" else "_" + _RODS0) + (
     "" if _TILT0 == "0" else "_t" + _TILT0) + (
-    "" if _DCA0 == "0.72" else "_d" + _DCA0.replace(".", "")) + _BSFX
+    "" if _DCA0 == "0.72" else "_d" + _DCA0.replace(".", "")) + (
+    "" if not DEV else "_dev") + (
+    "" if os.environ.get("U4_RODFULL", "0") == "0" else "_rf") + _BSFX
 if WITH_THM:
     _STEM = ("rbmk_unit4_a7" + ("" if _RODS0 == "wat" else "_" + _RODS0)
              + ("" if FLOW == "prop" else "_" + FLOW)
@@ -275,6 +298,53 @@ def stack_bot(n):
     return [_A if lo <= q <= hi else _W for q in range(1, NZ_ACTIVE + 1)]
 
 
+NZ_TOT = NZ_ACTIVE + 2 * NZ_REFL
+
+
+def col32(t, d):
+    """The mixture in every one of the 32 planes of a CPS channel, from the
+    rod's ABSOLUTE position at depth d -- the same geometry devices() hands to
+    DEVINI: as MAXPOS and LEVEL, but arrived at by writing a MIX map instead.
+
+    The two paths share only the lengths (N_ABS/N_GAP/N_DSP/N_USP) and the
+    parked positions; everything after that is independent, which is what
+    makes agreement between them a real check rather than a tautology.  The
+    asserts below tie this to stack()/stack_abs()/stack_bot() over the active
+    core, so the new path cannot drift from the one every A6d result used.
+    """
+    zlo = 0.0
+    ztop = NZ_TOT * PITCH                       # 800
+    zc_hi = (NZ_REFL + NZ_ACTIVE) * PITCH       # 750, absorber bottom parked
+    dsp_top = zc_hi - N_GAP * PITCH             # 625, displacer top parked
+    usp_top = NZ_REFL * PITCH                   # 50,  USP top parked
+    out = []
+    for k in range(1, NZ_TOT + 1):
+        zc = (k - 0.5) * PITCH                  # plane centre
+        m = _W
+        if t in ROD_DSP or t in ROD_BANK or t in ROD_ABS:
+            if zc_hi - d <= zc <= zc_hi - d + N_ABS * PITCH:
+                m = _A
+            elif (t not in ROD_ABS) and (
+                    dsp_top - d - N_DSP * PITCH <= zc <= dsp_top - d):
+                m = _D
+        elif t in ROD_BOT:
+            if usp_top + d - N_USP * PITCH <= zc <= usp_top + d:
+                m = _A
+        out.append(m)
+    assert len(out) == NZ_TOT
+    return out
+
+
+# col32 must reproduce the three hand-derived stacks over the active core at
+# every depth the 25 cm mesh allows, or it is not the same rod.
+for _n in range(0, NZ_ACTIVE + 1):
+    _d = _n * PITCH
+    _act = slice(NZ_REFL, NZ_REFL + NZ_ACTIVE)
+    assert col32("RR", _d)[_act] == stack(_n), ("RR", _n)
+    assert col32("AR", _d)[_act] == stack_abs(_n), ("AR", _n)
+    assert col32("USP", _d)[_act] == stack_bot(_n), ("USP", _n)
+
+
 def runs(col):
     """A plane-by-plane column as (mixture, count) runs, for the deck header."""
     out = []
@@ -336,9 +406,9 @@ CPS_RODS = ROD_DSP | ROD_BANK | ROD_ABS | ROD_BOT
 RODDEPTH = os.environ.get("U4_RODDEPTH", "")
 _RDMAP = {}
 if RODDEPTH:
-    if RODS != "insag":
-        raise SystemExit("U4_RODDEPTH needs U4_RODS=insag -- it overrides that "
-                         "construction's depths and keeps its types")
+    if RODS != "insag" and not DEV:
+        raise SystemExit("U4_RODDEPTH needs U4_RODS=insag (or U4_DEV=1) -- it "
+                         "overrides that construction's depths and keeps its types")
     _rd = [float(x) for x in open(RODDEPTH).read().split()]
     _rrows = [r for r in csv.DictReader(open(MAP)) if r["type"] in CPS_RODS]
     if len(_rd) != len(_rrows):
@@ -348,19 +418,36 @@ if RODDEPTH:
             raise SystemExit(f"{RODDEPTH}: depth {_d} outside the 0-700 cm travel")
         _RDMAP[(int(_r["i"]), int(_r["j"]))] = _d
 
+def rod_depth_raw(r):
+    """A CPS rod's depth in cm: the override file if one was given, else the
+    sourced depth_cm column."""
+    return float(_RDMAP.get((int(r["i"]), int(r["j"])), r["depth_cm"]) or 0)
+
+
+def rod_depth(r):
+    """The same depth quantised to the 25 cm axial mesh.  ONE definition,
+    shared by insag_col(), the RODFULL map and devices(), because three copies
+    of a rounding rule is three chances for the routes being compared to be
+    describing different rods.  28 planes over the 700 cm travel means
+    insertions of 20 and 30 cm round to one plane and to zero; that is a real
+    loss of resolution, reported by the generator rather than hidden, and it is
+    exactly what U4_DEVQ=0 lifts for the transient."""
+    return round(rod_depth_raw(r) / PITCH) * PITCH
+
+
 _COLCACHE = {}
 
 
 def insag_col(r):
     """The axial column of one CPS channel at its own sourced depth."""
-    _d = _RDMAP.get((int(r["i"]), int(r["j"])), r["depth_cm"])
+    _d = rod_depth(r)
     key = (r["type"], _d)
     if key not in _COLCACHE:
         # 28 planes over the 700 cm active height -> 25 cm a plane, so the
         # sourced depths quantise to the axial mesh.  Insertions of 20 and
         # 30 cm round to one plane and 0 respectively; that is a real loss of
         # resolution and is reported by the generator rather than hidden.
-        n = int(round(float(_d or 0) / (700.0 / NZ_ACTIVE)))
+        n = int(round(_d / PITCH))
         t = r["type"]
         if t in ROD_DSP or t in ROD_BANK:
             col = stack(n)
@@ -403,6 +490,21 @@ else:
 # uniform-bank deck against the per-rod INSAG-7 pattern, which builds every CPS
 # channel from its own class and depth and so never had the hole.
 BANKCOL = stack(TILT)
+# ...EXCEPT under U4_DEV, where the devices supply every absorber and every
+# displacer themselves and the base map must therefore hold NO rod material at
+# all.  U4_RODS=wat is not that: it leaves RODCOL water but keeps BANKCOL at
+# stack(0), so the 36 AZOC channels still carry their withdrawn displacer --
+# correct for the base-map route and the whole point of the 2026-10-04 fix
+# above, but a DOUBLE COUNT for the device route, which then adds its own
+# (displacer - water) delta on top of a node that already holds the displacer.
+# Measured before this guard existed: NTOT0 went 0.391106 + (-0.175640) =
+# 0.215466 against a thermal SIGW00 of 0.390100, i.e. a NEGATIVE removal cross
+# section, and TRIVAA: stopped with 'TRISYS: NEGATIVE XS IN GROUP 2'.
+if DEV:
+    BANKCOL = [_W] * NZ_ACTIVE
+    if TILT:
+        raise SystemExit("U4_DEV=1 and U4_TILT are two ways to say the same "
+                         "thing; put the AZOC bank depth in the depth file")
 
 
 # --- A7's thermal-hydraulic inputs.  Every one of these is either sourced or
@@ -813,6 +915,134 @@ def planes(g, ni, nj, nz, cell):
     return "\n".join(out), len(seen)
 
 
+# ---------------------------------------------------------------- A8 devices
+# Geometry of the rod as a DONJON ROD-DEVICE, derived from the SAME constants
+# the base-map stacks are built from (N_ABS/N_GAP/N_DSP/N_USP) so the two
+# routes cannot drift apart.
+Z_LO = 0.0                                    # the mesh, not the core
+Z_HI = (NZ_ACTIVE + 2 * NZ_REFL) * PITCH      # 800 cm
+ZC_LO = NZ_REFL * PITCH                       # 50 cm, active core bottom
+ZC_HI = (NZ_REFL + NZ_ACTIVE) * PITCH         # 750 cm, active core top
+L_ABS, L_GAP, L_DSP, L_USP = (n * PITCH for n in (N_ABS, N_GAP, N_DSP, N_USP))
+# The withdrawn displacer's top, two independent ways: down from the core top
+# by the water gap, and up from the core bottom through gap + displacer.  Three
+# separately-sourced lengths filling a separately-sourced core height exactly
+# is the same check stack() makes, restated here because the device route needs
+# the ABSOLUTE coordinates rather than a plane count.
+assert abs((ZC_HI - L_GAP) - (ZC_LO + L_GAP + L_DSP)) < 1.0E-9
+DSP_TOP0 = ZC_HI - L_GAP                      # 625 cm, displacer top, rod up
+ABS_BOT0 = ZC_HI                              # 750 cm, absorber bottom, rod up
+USP_TOP0 = ZC_LO                              # 50 cm, USP absorber top, rod down
+
+
+# LEVEL is a FRACTION, not a depth (DEVGET.f:79-80 rejects anything outside
+# [0,1]).  DEVGET.f:216-223 fixes what it means, and the two forms differ:
+#
+#   FROM H+ : DELH = LIMIT(2) - LEVEL*(LIMIT(2) - LENG(1))   -- DELH is the
+#             rod's BOTTOM, and MOVCHK stacks the parts upward from it
+#   FROM H- : DELH = LEVEL*(LENG(2) - LIMIT(1)) + LIMIT(1)   -- DELH is the
+#             rod's TOP, and MOVCHK stacks the parts downward from it
+#
+# and in both cases DELH is CLAMPED to the mesh.  That clamp is why each part
+# is declared from the end it never leaves through: an absorber declared H+
+# clamps at the bottom, which it never reaches (its deepest bottom is the core
+# bottom at 50 cm), while a displacer declared H+ would clamp the moment it
+# started leaving through the bottom and simply stop, 525 cm short.  Declaring
+# the displacer H- puts its clamp at the TOP, which it never reaches, and lets
+# it slide out of the bottom correctly.  This is a parameterisation of one
+# rigid rod by two devices, not a claim that the displacer enters from below.
+def lev_abs(d):
+    """Top-entry absorber: LEVEL such that the absorber's bottom is at
+    ABS_BOT0 - d.  With MAXPOS z = [0, L_ABS], LENG(1) = 0."""
+    return (Z_HI - (ABS_BOT0 - d)) / (Z_HI - Z_LO)
+
+
+def lev_dsp(d):
+    """Displacer: LEVEL such that its top is at DSP_TOP0 - d.  With
+    MAXPOS z = [Z_HI - L_DSP, Z_HI], LENG(2) = Z_HI.  Clamped at 0, which is
+    the displacer fully out of the bottom (reached at d = 625 cm, inside the
+    700 cm travel) -- NEWMDV.f:92 then skips the device entirely, which is
+    exactly right because it occupies no node."""
+    return max(0.0, (DSP_TOP0 - d) / (Z_HI - Z_LO))
+
+
+def lev_usp(d):
+    """USP: a bottom-entry absorber whose top is at USP_TOP0 + d.  Genuinely
+    FROM H-, unlike the displacer."""
+    return (USP_TOP0 + d) / (Z_HI - Z_LO)
+
+
+def devices(g, nx, ny):
+    """The DEVINI: block for every CPS rod, and the group lists.
+
+    Two devices per RR/AZ/AZOC rod (absorber + displacer) and one for each AR
+    and USP.  Not one three-part rod, because the real rod is
+    5.00 + 1.25 + 4.50 = 10.75 m and DEVGET.f:119-133 rejects any MAXPOS
+    coordinate outside the 8 m mesh.  Splitting it also sidesteps a known bug:
+    MOVDEV: stores ROD-POS as 6 reals (MOVPOS.f:159) where DEVGET: stored
+    6*NPART (DEVGET.f:246), so it silently truncates a multi-part rod to its
+    first part -- harmless here only because every device has NPART = 1.
+    """
+    rods, blocks = [], []
+    grp = {1: [], 2: [], 3: []}
+    for r in (x for x in csv.DictReader(open(MAP)) if x["type"] in CPS_RODS):
+        i, j, t = int(r["i"]), int(r["j"]), r["type"]
+        d = rod_depth_raw(r)
+        if DEVQ:
+            # the base map can only place a rod on a 25 cm plane boundary
+            # (insag_col rounds the depth to one), so the comparison between the
+            # two routes has to ask them the same question.  Off by default is
+            # NOT available for the static gate and IS the point for A8.
+            d = rod_depth(r)
+        if d < 0.0 or d > NZ_ACTIVE * PITCH:
+            raise SystemExit(f"rod at ({i},{j}): depth {d} outside the travel")
+        I, J = i + NPAD, j + NPAD
+        x0, x1 = I * PITCH, (I + 1) * PITCH
+        # GEOMIX.f:212-222 reads the MIX rows with IY = 1 FIRST, and MESHY(1)
+        # is the lowest y -- but plane() writes the highest map j first, so the
+        # map's j axis is MIRRORED onto DONJON's y.  Harmless for the geometry
+        # (a mirrored core is the same reactor, and NXNAME/NYNAME are written in
+        # the same order so RESINI's printed cartogram stays self-consistent),
+        # but the devices are the first thing in this deck that needs an
+        # ABSOLUTE y coordinate, so the mirror has to be undone here.
+        iy = ny - J                                  # 1-based DONJON row
+        y0, y1 = (iy - 1) * PITCH, iy * PITCH
+        parts = []
+        if t in ROD_DSP or t in ROD_BANK:
+            parts.append(("A", "H+", Z_LO, Z_LO + L_ABS, M_ABS, lev_abs(d), 1))
+            parts.append(("D", "H-", Z_HI - L_DSP, Z_HI, M_DSP, lev_dsp(d), 2))
+        elif t in ROD_ABS:
+            parts.append(("A", "H+", Z_LO, Z_LO + L_ABS, M_ABS, lev_abs(d), 1))
+        elif t in ROD_BOT:
+            parts.append(("A", "H-", Z_HI - L_USP, Z_HI, M_ABS, lev_usp(d), 3))
+        else:
+            raise SystemExit(f"rod at ({i},{j}): unhandled CPS type {t}")
+        for tag, frm, z0, z1, mix, lev, gid in parts:
+            rid = len(rods) + 1
+            rods.append((rid, t, i, j, d, tag, lev))
+            grp[gid].append(rid)
+            blocks.append(
+                f"ROD {rid}\n"
+                f"  ROD-NAME {t}{tag}{len(rods):04d}\n"
+                f"  AXIS Z FROM {frm}\n"
+                f"  LEVEL {lev:.6f}\n"
+                f"  MAXPOS {x0:9.3f} {x1:9.3f} {y0:9.3f} {y1:9.3f}"
+                f" {z0:9.3f} {z1:9.3f}\n"
+                # DMIX mix1 mix2: mix1 is the PERTURBED state and mix2 the
+                # REFERENCE (SectDEVINI).  NEWMXS.f:61 then does
+                # sigma(node) += XFAC*VF*(sigma(mix1) - sigma(mix2)), so with
+                # the node already holding M_WAT, VF = 1 and XFAC = 1 this
+                # lands exactly on sigma(mix1) -- which is what makes the
+                # device route reproduce the base map rather than approximate
+                # it.  XFAC DEFAULTS TO 2.0 and must be set.
+                f"  DMIX {mix} {M_WAT}\n"
+                "ENDROD")
+    gtext = "\n".join(
+        f"GROUP-ID {k} ROD-ID\n" + wrap([f"{n:4d}" for n in v], "  ")
+        for k, v in sorted(grp.items()) if v)
+    return rods, "\n".join(blocks), gtext, {k: len(v) for k, v in grp.items()}
+
+
 def main():
     g, ni, nj = load()
     ring, stack = rings(g, ni, nj)
@@ -829,6 +1059,8 @@ def main():
             ring_k = ring.get((i, j))
             return M_REFL[ring_k - 1] if ring_k else 0
         active = NZ_REFL < k <= NZ_REFL + NZ_ACTIVE
+        if RODFULL and r["type"] in CPS_RODS:
+            return M_OF[col32(r["type"], rod_depth(r))[k - 1]]
         if not active:
             # Above and below the core the graphite columns continue unchanged,
             # but every channel loses its fuel and becomes a coolant tube in
@@ -916,6 +1148,50 @@ def main():
     ncps = sum(1 for r in g.values() if r["type"] in CPS_TYPES)
     assert nfuel + ncps == len(g), f"{nfuel} + {ncps} != {len(g)}"
     assert nfuel == 1661, nfuel
+
+    if DEV and RODS != "wat":
+        raise SystemExit("U4_DEV=1 needs U4_RODS=wat: the devices ARE the rods, "
+                         "and DMIX's reference mixture is the water column the "
+                         "base map must therefore hold")
+    devrods, devblk, devgrp, devn = (devices(g, nx, ny) if DEV
+                                     else ([], "", "", {}))
+    # NEWMAC: rebuilds the macrolib with each device's delta sigmas folded in,
+    # so it has to run AFTER MACINI: (which sizes the extended macrolib from
+    # MATEX, one mixture per region -- MACCRE.f's own words) and BEFORE
+    # TRIVAA:.  DEVINI: must in turn run before MACINI:, because it APPENDS
+    # 2*NPART mixtures per device to MATEX and NEWMAC.f:130-133 aborts if the
+    # macrolib and MATEX disagree on the count.
+    macsys = "MACRD" if DEV else "MACRO"
+    macrd = " MACRD" if DEV else ""
+    newmac = ("" if not DEV else
+              "MACRD MATEX := NEWMAC: MATEX MACRO DEVICE :: EDIT 0 XFAC 1.0 ;\n")
+    newmac_i = "" if not DEV else "  " + newmac
+    dev_block = "" if not DEV else f"""*--- A8: the {len(devrods)} rod-devices.  THIS MUST PRECEDE RESINI:.
+*    DEVINI: appends its device mixtures to MATEX's MAT-INIT (DEVDRV.f:143),
+*    while RESINI: builds the MAT record from MAT-INIT at whatever length it
+*    has when RESINI: runs (RESIND.f:118-126) -- and the fuel-map form of
+*    MACINI: reads MAT, not MAT-INIT (MACINI.f:202).  With DEVINI: after
+*    RESINI:, MAT is 778 entries short, every device mixture is read as a
+*    virtual region, and MACCRE: then packs the macrolib at a stride 778
+*    smaller than the NMIX every reader indexes it by: the device cross
+*    sections come out ZERO and the fission records come out MIS-STRIDED.
+*    Nothing aborts.  The bundled Example1.x2m has the order right; this deck
+*    did not, and the NBFIS guard in our NEWMAC: patch is what caught it.  Each RR/AZ/AZOC rod is TWO devices,
+*    its absorber and its displacer, because the real rod is 10.75 m and
+*    DEVGET.f:119-133 rejects a MAXPOS outside the 8 m mesh; see devices().
+*    MOVE, not the default FADE: a fading rod scales its delta sigmas in place
+*    instead of moving, which is not what a scram does.
+DEVICE MATEX := DEVINI: MATEX :: EDIT 0 NUM-ROD {len(devrods)} MOVE
+{devblk}
+*--- groups, so MOVDEV: can scram the whole core in three statements: the
+*    {devn.get(1, 0)} top-entry absorbers insert, the {devn.get(2, 0)} displacers follow them down
+*    (declared FROM H-, so EXTR is what moves them downward), and the
+*    {devn.get(3, 0)} bottom-entry USP absorbers insert upward.
+CREATE ROD-GR {len([k for k, v in devn.items() if v])}
+{devgrp}
+;
+
+"""
 
     nrefl_col = len(ring)
     ncol = len(stack)
@@ -1076,7 +1352,7 @@ REPEAT
   EVALUATE iter := iter 1 + ;
 {NCRFUEL_IND}
   MACRO MATEX := MACINI: MATEX MACREF MACFUEL :: EDIT 0 ;
-  SYSTEM := TRIVAA: MACRO TRACK :: EDIT 0 ;
+{newmac_i}  SYSTEM := TRIVAA: {macsys} TRACK :: EDIT 0 ;
   FLUX := FLUD: SYSTEM TRACK :: EDIT 0 ADI 2 EXTE 300 1.0E-6 ;
   GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>keff<< ;
   POWER FMAP := FLPOW: FMAP FLUX TRACK MATEX :: EDIT 0 PTOT {PTOT_MW:.1f} ;
@@ -1125,8 +1401,8 @@ REPEAT
   IF iter {MAXIT} > THEN
     EVALUATE conv := iter 0 > ;
   ENDIF ;
-  MACFUEL MACRO SYSTEM FLUX POWER := DELETE:
-    MACFUEL MACRO SYSTEM FLUX POWER ;
+  MACFUEL MACRO{macrd} SYSTEM FLUX POWER := DELETE:
+    MACFUEL MACRO{macrd} SYSTEM FLUX POWER ;
 UNTIL conv ;
 ECHO "{tag} CONVERGED keff" keff "after" iter "iterations, errt" errt "errd" errd ;
 
@@ -1140,7 +1416,7 @@ ECHO "{tag} CONVERGED keff" keff "after" iter "iterations, errt" errt "errd" err
 *    belongs to the previous temperature field, not the converged one.
 {NCRFUEL}
 MACRO MATEX := MACINI: MATEX MACREF MACFUEL :: EDIT 0 ;
-SYSTEM := TRIVAA: MACRO TRACK :: EDIT 0 ;
+{newmac}SYSTEM := TRIVAA: {macsys} TRACK :: EDIT 0 ;
 FLUX := FLUD: SYSTEM TRACK :: EDIT 0 ADI 2 EXTE 300 1.0E-6 ;
 GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>keff<< ;
 ECHO "{tag} FINAL keff" keff ;
@@ -1159,7 +1435,7 @@ ECHO "{tag} TMAXFUEL" tmaxf "DCOOL" dmin dmax ;"""
 MACRO MATEX := MACINI: MATEX MACREF MACFUEL :: EDIT 0 ;
 
 TRACK := TRIVAT: GEO2 :: EDIT 0 MAXR {nel} DUAL 1 1 ;
-SYSTEM := TRIVAA: MACRO TRACK :: EDIT 0 ;
+{newmac}SYSTEM := TRIVAA: {macsys} TRACK :: EDIT 0 ;
 FLUX := FLUD: SYSTEM TRACK :: EDIT 1 ADI 2 EXTE 300 1.0E-6 ;
 GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>keff<< ;
 ECHO "{tag} KEFF" keff ;"""
@@ -1170,6 +1446,8 @@ ECHO "{tag} KEFF" keff ;"""
                  "NO RADIAL REFLECTOR (U4_REFL=0): the VOID boundary sits on "
                  "the core outline.")
     ther_obj = " THER" if WITH_THM else ""
+    dev_obj = " DEVICE MACRD" if DEV else ""
+    dev_mod = " DEVINI: DSET: NEWMAC: MOVDEV:" if DEV else ""
     thm_mod = " THM:" if WITH_THM else ""
     extra_reals = " tmaxf dmin dmax" if WITH_THM else ""
     refl_mixes = ("  COMPO RCpo 'EDIREFL'\n" + "".join(
@@ -1215,14 +1493,14 @@ ECHO "{tag} KEFF" keff ;"""
 *  flat; the gate here is that the geometry, the fuel map and the solver chain
 *  are right and FLUD: converges.
 *----
-LINKED_LIST GEOM GEO2 MATEX FMAP MACREF MACFUEL MACRO
+LINKED_LIST GEOM GEO2 MATEX FMAP MACREF MACFUEL MACRO{dev_obj}
             TRACK SYSTEM FLUX POWER{ther_obj} FCpo CCpo ACpo DCpo{rcpo_arg} ;
 SEQ_ASCII   _ACompo    :: FILE './_ACompo' ;
 SEQ_ASCII   _CCompoWAT :: FILE './_CCompoWAT' ;
 SEQ_ASCII   _CCompoABS :: FILE './_CCompoABS' ;
 SEQ_ASCII   _CCompoDSP :: FILE './_CCompoDSP' ;{rcpo_seq}
 MODULE      GEO: USPLIT: RESINI: NCR: MACINI: TRIVAT: TRIVAA: FLUD:
-            FLPOW:{thm_mod} UTL: GREP: DELETE: END: ;
+            FLPOW:{thm_mod}{dev_mod} UTL: GREP: DELETE: END: ;
 REAL keff{extra_reals} ;
 
 FCpo := _ACompo ;
@@ -1249,7 +1527,7 @@ GEO2 MATEX := USPLIT: GEOM :: EDIT 0
   NREFL {3 + nring} RMIX {M_WAT} {M_ABS} {M_DSP} {" ".join(str(m) for m in M_REFL)}
   NFUEL {XEBINS} FMIX {fmixlist} ;
 
-*--- the fuel map: {nfuel} channels, numbered in the B-ZONE block below
+{dev_block}*--- the fuel map: {nfuel} channels, numbered in the B-ZONE block below
 FMAP MATEX := RESINI: MATEX ::
   ::: GEO: CAR3D {nx} {ny} {nz}
       EDIT 0

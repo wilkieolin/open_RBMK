@@ -1,0 +1,70 @@
+--- a/Donjon/src/DEVGET.f
++++ b/Donjon/src/DEVGET.f
+@@ -216,12 +216,21 @@
+           DELH=LEVEL*(LENG(2)-LENG(1))
+         ELSE IF(IMODE.EQ.2) THEN
+ *         MOVING ROD
++*         LOCAL CHANGE (see patches/): the core limits must be taken along the
++*         ROD'S OWN AXIS.  LIMIT holds all six faces as X-,X+,Y-,Y+,Z-,Z+
++*         (DEVINI.f:91-110) and the lines below used LIMIT(1)/LIMIT(2)
++*         unconditionally, i.e. the X extent, whatever AXIS said.  For FROM H-
++*         that is invisible whenever the two axes share a zero origin, which is
++*         why every bundled AXIS Y deck is unaffected; for FROM H+ a Z-axis rod
++*         is placed at X+ - LEVEL*(X+ - LENG(1)) and lands outside the mesh
++*         entirely whenever the core is wider than it is tall.
++          ILIM=2*IAXIS-1
+           IF(ITOP.EQ.-1) THEN
+-            DELH=LEVEL*(LENG(2)-LIMIT(1))+LIMIT(1)
++            DELH=LEVEL*(LENG(2)-LIMIT(ILIM))+LIMIT(ILIM)
+           ELSE IF(ITOP.EQ.1) THEN
+-            DELH=LIMIT(2)-LEVEL*(LIMIT(2)-LENG(1))
++            DELH=LIMIT(ILIM+1)-LEVEL*(LIMIT(ILIM+1)-LENG(1))
+           ENDIF
+-          DELH=MIN(LIMIT(2),MAX(LIMIT(1),DELH))
++          DELH=MIN(LIMIT(ILIM+1),MAX(LIMIT(ILIM),DELH))
+           IF(IMPX.GT.3) THEN
+             WRITE(IOUT,*) '    ADJ ',NXSEQ,' LEVEL ',LEVEL*100.,
+      1                    '% OF INSERTION'
+--- a/Donjon/src/MOVPOS.f
++++ b/Donjon/src/MOVPOS.f
+@@ -109,28 +109,32 @@
+         LVNEW=DELH/(LENG(2)-LENG(1))
+       ELSE IF(IMODE.EQ.2) THEN
+         CALL LCMGET(IPDEV,'CORE-LIMITS',LIMIT)
++*       LOCAL CHANGE (see patches/): index the core limits by the rod's own
++*       axis, exactly as in DEVGET.f -- the two must agree or a rod moved by
++*       MOVDEV: would not land where DEVINI: would have put it.
++        ILIM=2*IAXIS-1
+         IF(ITOP.EQ.-1) THEN
+-          DELH0=LVOLD*(LENG(2)-LIMIT(1))+LIMIT(1)
++          DELH0=LVOLD*(LENG(2)-LIMIT(ILIM))+LIMIT(ILIM)
+           IF(IOPT.EQ.1)THEN
+             DELH=DELH0+MOVE*SPEED*DELT
+           ELSE IF(IOPT.EQ.2)THEN
+             DELH=DELH0+MOVE*DELHIN
+           ELSE IF(IOPT.EQ.3)THEN
+-            DELH=LVNEW*(LENG(2)-LIMIT(1))+LIMIT(1)
++            DELH=LVNEW*(LENG(2)-LIMIT(ILIM))+LIMIT(ILIM)
+           ENDIF
+-          DELH=MIN(LIMIT(2),MAX(LIMIT(1),DELH))
+-          LVNEW=(DELH-LIMIT(1))/(LENG(2)-LIMIT(1))
++          DELH=MIN(LIMIT(ILIM+1),MAX(LIMIT(ILIM),DELH))
++          LVNEW=(DELH-LIMIT(ILIM))/(LENG(2)-LIMIT(ILIM))
+         ELSE IF(ITOP.EQ.1) THEN
+-          DELH0=LIMIT(2)-LVOLD*(LIMIT(2)-LENG(1))
++          DELH0=LIMIT(ILIM+1)-LVOLD*(LIMIT(ILIM+1)-LENG(1))
+           IF(IOPT.EQ.1)THEN
+             DELH=DELH0-MOVE*SPEED*DELT
+           ELSE IF(IOPT.EQ.2)THEN
+             DELH=DELH0-MOVE*DELHIN
+           ELSE IF(IOPT.EQ.3)THEN
+-            DELH=LIMIT(2)-LVNEW*(LIMIT(2)-LENG(1))
++            DELH=LIMIT(ILIM+1)-LVNEW*(LIMIT(ILIM+1)-LENG(1))
+           ENDIF
+-          DELH=MIN(LIMIT(2),MAX(LIMIT(1),DELH))
+-          LVNEW=(LIMIT(2)-DELH)/(LIMIT(2)-LENG(1))
++          DELH=MIN(LIMIT(ILIM+1),MAX(LIMIT(ILIM),DELH))
++          LVNEW=(LIMIT(ILIM+1)-DELH)/(LIMIT(ILIM+1)-LENG(1))
+         ENDIF
+         IF(IMPX.GT.3) THEN
+           WRITE(IOUT,*) '    ADJ ',NXSEQ,' LEVEL ',LVNEW*100.,
