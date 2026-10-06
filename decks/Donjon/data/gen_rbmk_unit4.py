@@ -206,25 +206,34 @@ def lambda_d():
 
 if KIN and not DEV:
     raise SystemExit("U4_KIN needs U4_DEV=1: a base-map rod cannot move")
-_STEM = ("rbmk_unit4_core" if WITH_REFL else "rbmk_unit4_norefl") + (
-    "" if _RODS0 == "wat" else "_" + _RODS0) + (
-    "" if _TILT0 == "0" else "_t" + _TILT0) + (
-    "" if _DCA0 == "0.72" else "_d" + _DCA0.replace(".", "")) + (
-    "" if not DEV else "_dev") + (
-    "" if not os.environ.get("U4_DEVADV", "")
-    else "_a" + os.environ.get("U4_DEVADV", "").replace(",", "_").replace(".", "")) + (
-    "" if os.environ.get("U4_RODFULL", "0") == "0" else "_rf") + (
-    "" if not KIN else "_kin%dv%g" % (KIN, VROD)
+# ONE definition of the device/kinetics part of the stem, used by both the
+# core stem and the A7 stem below (standing rule 6).
+_DEVSFX = (("" if not DEV else "_dev")
+           + ("" if not os.environ.get("U4_DEVADV", "")
+              else "_a" + os.environ.get("U4_DEVADV", "")
+              .replace(",", "_").replace(".", ""))
+           + ("" if os.environ.get("U4_RODFULL", "0") == "0" else "_rf")
+           + ("" if not KIN else "_kin%dv%g" % (KIN, VROD)
     + ("" if os.environ.get("U4_MOVGRP", "123") == "123"
        else "g" + os.environ.get("U4_MOVGRP", "123"))
     + ("" if os.environ.get("U4_MOVDIR", "1") == "1" else "out")
     + ("" if os.environ.get("U4_DT", "0.001") == "0.001"
-       else "dt" + os.environ.get("U4_DT", "0.001").replace(".", "").replace("-", ""))) + _BSFX
+       else "dt" + os.environ.get("U4_DT", "0.001").replace(".", "").replace("-", ""))))
+_STEM = ("rbmk_unit4_core" if WITH_REFL else "rbmk_unit4_norefl") + (
+    "" if _RODS0 == "wat" else "_" + _RODS0) + (
+    "" if _TILT0 == "0" else "_t" + _TILT0) + (
+    "" if _DCA0 == "0.72" else "_d" + _DCA0.replace(".", "")) + _DEVSFX + _BSFX
 if WITH_THM:
+    # The A7 stem is built separately, but it MUST carry the same device,
+    # kinetics and advance suffixes the non-THM stem does.  It did not, so a
+    # U4_THM=1 U4_DEV=1 U4_KIN=5 deck was named plain "rbmk_unit4_a7" and
+    # silently overwrote the A7 deck and invalidated its result -- standing
+    # rule 7 exactly ("a cache without a key is a silent substitution"), and
+    # the same provenance hazard section (20) was bitten by once already.
     _STEM = ("rbmk_unit4_a7" + ("" if _RODS0 == "wat" else "_" + _RODS0)
              + ("" if FLOW == "prop" else "_" + FLOW)
              + ("" if os.environ.get("U4_VOIDFB", "1") != "0" else "_nvf")
-             + _BSFX)
+             + _DEVSFX + _BSFX)
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), _STEM + ".don")
 
 PITCH = 25.0            # cm, the lattice pitch ([D], closed in the A6.1 sources)
