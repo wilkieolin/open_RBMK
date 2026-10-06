@@ -213,6 +213,13 @@ _DEVSFX = (("" if not DEV else "_dev")
               else "_a" + os.environ.get("U4_DEVADV", "")
               .replace(",", "_").replace(".", ""))
            + ("" if os.environ.get("U4_RODFULL", "0") == "0" else "_rf")
+           + ("" if not os.environ.get("U4_AXBURN", "") else "_ax"
+              + __import__("hashlib").md5(os.environ["U4_AXBURN"].encode()
+                                          + (open(os.environ["U4_AXBURN"][5:],
+                                                  "rb").read()
+                                             if os.environ["U4_AXBURN"]
+                                             .startswith("file:") else b""))
+              .hexdigest()[:6])
            + ("" if not KIN else "_kin%dv%g" % (KIN, VROD)
     + ("" if os.environ.get("U4_MOVGRP", "123") == "123"
        else "g" + os.environ.get("U4_MOVGRP", "123"))
@@ -664,6 +671,49 @@ PAV_BURNUP = [(721, 13.7), (392, 12.3), (154, 10.5), (101, 8.8),
 #   edge  the reverse, freshest in the middle
 #   ring  burnup rising monotonically with radius in bands -- the smooth version
 BURNMAP = os.environ.get("U4_BURNMAP", "flat")
+# U4_AXBURN redistributes each channel's burnup ALONG the channel, keeping
+# the channel average exactly.  It exists because the axial flux shape decides
+# the sign of the scram (gate A6.5; PROGRESS (24)) and the axial shape follows
+# the axial burnup and xenon -- which INST-BVAL CHAN holds uniform.
+# RESPAR.f:518-531 reads INST-BVAL BUND as one value per channel PER BUNDLE,
+# bundle-major (IB outer, ICH inner), and RESPFM.f:65-72 counts IB upward in
+# IZ over the fuel-bearing planes, so bundle 1 is the core BOTTOM (z 50-75 cm)
+# and bundle 28 the top.
+#
+#   cos:<a>    1 + a*cos(pi*(z - mid)/H)  -- more burnup at mid-height, the
+#              shape a channel accumulates under a centre-peaked flux
+#   tilt:<t>   1 + t*(z - mid)/(H/2)      -- t > 0 burns the TOP harder
+#   file:<p>   28 multipliers, bottom to top
+#
+# Every form is renormalised to a mean of exactly 1 over the 28 equal
+# bundles.  THESE ARE SENSITIVITIES, NOT SOURCED PROFILES: no axial burnup
+# map for Unit 4 has been found.  The sourced target is the axial FLUX
+# shape, INSAG-7 Fig. II-9 at t = 0.
+AXBURN = os.environ.get("U4_AXBURN", "")
+
+
+def axial_shape():
+    """The 28 per-bundle burnup multipliers, bottom to top, mean exactly 1."""
+    import math
+    if not AXBURN:
+        return None
+    kind, _, arg = AXBURN.partition(":")
+    zc = [(k + 0.5) / NZ_ACTIVE for k in range(NZ_ACTIVE)]   # 0..1, bottom up
+    if kind == "cos":
+        f = [1.0 + float(arg) * math.cos(math.pi * (z - 0.5)) for z in zc]
+    elif kind == "tilt":
+        f = [1.0 + float(arg) * (z - 0.5) * 2.0 for z in zc]
+    elif kind == "file":
+        f = [float(x) for x in open(arg).read().split()]
+        if len(f) != NZ_ACTIVE:
+            raise SystemExit(f"{arg}: {len(f)} values, want {NZ_ACTIVE}")
+    else:
+        raise SystemExit(f"U4_AXBURN={AXBURN!r}: want cos:<a>, tilt:<t> "
+                         "or file:<path>")
+    if min(f) <= 0.0:
+        raise SystemExit(f"U4_AXBURN={AXBURN!r} makes a burnup <= 0")
+    m = sum(f) / len(f)
+    return [x / m for x in f]
 BURNSEED = int(os.environ.get("U4_BURNSEED", "20260404"))
 
 # XENON.  The COMPO's MICR list carries Xe135 and I135 (rbmk_a5b_compo.x2m:263),
@@ -1219,7 +1269,23 @@ def main():
     xebin, xeval, xewhy = xenon_bins(cells, nfuel)
     assert len(xebin) == nfuel and len(xeval) == XEBINS
 
-    if BURNMAP == "flat":
+    _axf = axial_shape()
+    if _axf is not None:
+        # bundle-major, IB = 1 (bottom) .. 28 (top) outer, channels inner in
+        # B-ZONE order -- RESPAR.f:518-531
+        _vals = [f"{b * f:8.1f}" for f in _axf for b in bulist]
+        assert len(_vals) == NZ_ACTIVE * nfuel
+        _chk = [sum(bulist[c] * _axf[k] for k in range(NZ_ACTIVE)) / NZ_ACTIVE
+                for c in range(nfuel)]
+        assert max(abs(a - b) for a, b in zip(_chk, bulist)) < 1e-6
+        INSTB = (
+            f"*  PER-BUNDLE BURNUP (U4_AXBURN={AXBURN}): each channel's burnup\n"
+            "*  redistributed along the channel with its average kept exactly.\n"
+            "*  A SENSITIVITY, not a sourced profile.  Multipliers bottom to top:\n"
+            + "".join("*   " + " ".join(f"{x:.3f}" for x in _axf[i:i + 14]) + "\n"
+                      for i in range(0, NZ_ACTIVE, 14))
+            + "  INST-BVAL BUND\n" + wrap(_vals, "    "))
+    elif BURNMAP == "flat":
         INSTB = "  INST-BVAL SAME 10900.0"
     else:
         # fixed field width: wrap() sizes its rows from the FIRST element,
@@ -1288,6 +1354,10 @@ def main():
     # INIKIN:/KINSOL: -- TRIVAA.f:174 -- and it only adds that matrix, so the
     # same SYSTEM still serves FLUD:.
     tvopt = " UNIT" if KIN else ""
+    # U4_PBUND=1 prints POWER-BUND (NCH*NB, FLPDRV.f:209) so the AXIAL power
+    # shape can be read back; tools/a8_axial.py sums it plane by plane.
+    pbund = ("" if os.environ.get("U4_PBUND", "0") == "0" else
+             "\nUTL: POWER :: IMPR POWER-BUND * ;")
     # group 2 is the displacers, declared FROM H-, so INSERTING the rod is EXTR
     # for them; MOVDIR flips every sense at once.
     _sense = {1: ("INSR", "EXTR", "INSR"), -1: ("EXTR", "INSR", "EXTR")}[MOVDIR]
@@ -1430,8 +1500,9 @@ CREATE ROD-GR {len([k for k, v in devn.items() if v])}
     # bundle -- which is exactly what RESINI's INST-BVAL CHAN wrote.  Without
     # the PARKEY the keyword has nothing to bind to; without INST-BURN the
     # per-channel values sit in the map and are silently ignored.
-    _bkey = " 'burnup'" if BURNMAP != "flat" else ""
-    _bmix = "INST-BURN" if BURNMAP != "flat" else "SET 'burnup' 10900.0"
+    _perb = BURNMAP != "flat" or bool(AXBURN)
+    _bkey = " 'burnup'" if _perb else ""
+    _bmix = "INST-BURN" if _perb else "SET 'burnup' 10900.0"
     if XENON == "stored":
         _xe = ""
     elif XENON == "none":
@@ -1776,7 +1847,7 @@ POWER FMAP := FLPOW: FMAP FLUX TRACK MATEX ::
 *    THMINP reads a per-channel list in.  A7b sets each channel's coolant flow
 *    from its power, so this is the handover and it has to be the flat list
 *    rather than the radial-plane table FLPOW: prints.
-UTL: POWER :: IMPR POWER-CHAN * ;
+UTL: POWER :: IMPR POWER-CHAN * ;{pbund}
 
 {kin_block}
 ECHO "UNIT4 geometry {nx} x {ny} x {nz}, {nfuel} fuel, {ncps} CPS, {nrefl_col} reflector" ;
