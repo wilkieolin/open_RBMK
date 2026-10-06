@@ -113,12 +113,96 @@ DEVQ = os.environ.get("U4_DEVQ", "1") != "0"
 # "rods are not tracked outside the active core" is an approximation -- but it
 # is off by default so that every A6d result stands as published.
 RODFULL = os.environ.get("U4_RODFULL", "0") != "0"
+# --- A8.  U4_KIN=<n> appends n KINSOL: steps to the steady solve.
+#
+# U4_VROD is the rod speed in cm/s.  0.4 m/s is SOURCED: INSAG-7 p. 103 gives
+# the EPS insertion speed, and it is consistent with the ~18 s the AZ-5 rods
+# are reported to have taken over the 7 m travel.  U4_VROD=0 moves no rod,
+# which is the null transient the kinetics assembly is checked with -- and it
+# also avoids MOVPOS.f:80, which aborts on a speed <= 0.
+#
+# The DELAYED-NEUTRON DATA IS DELIBERATELY NOT GIVEN HERE.  KINRD1.f:130-141
+# reads BETA-D and LAMBDA-D from the macrolib when BETA and LAMBDA are absent
+# from the input, and KINXSD.f:106-146 then uses the macrolib's per-precursor
+# NUSIGF01..06 and CHI01..06 directly (LFISD branch) instead of forming
+# SGF*beta with a single scalar.  Our COMPO carries all of it -- NDEL=6 reaches
+# the macrolib through NCRMAC.f:151-169 and MACINI.f:256-259 -- so leaving the
+# keywords out keeps A5b's MEASURED beta as a burnup-dependent FIELD.  Passing
+# BETA would replace that field with one core-uniform scalar (KINXSD.f:131).
+KIN = int(os.environ.get("U4_KIN", "0"))
+KINDT = float(os.environ.get("U4_DT", "0.001"))
+VROD = float(os.environ.get("U4_VROD", "40.0"))
+# U4_MOVGRP selects which device groups move, so the scram can be decomposed:
+# "123" is the whole CPS (the default and the only physical case), "13" moves
+# the absorbers while every displacer stays put, "2" moves only the displacers.
+# The last two are NOT configurations of a real reactor -- the absorber and its
+# displacer are one rigid rod -- they are the controls that say which part of
+# the rod the reactivity came from.
+# U4_MOVDIR=-1 withdraws instead of inserting, which is the sign control.
+MOVGRP = os.environ.get("U4_MOVGRP", "123")
+MOVDIR = int(os.environ.get("U4_MOVDIR", "1"))
+if MOVDIR not in (1, -1):
+    raise SystemExit("U4_MOVDIR must be 1 (insert) or -1 (withdraw)")
+
+
+def lambda_d():
+    """The six precursor decay constants, READ OUT OF THE COMPO rather than
+    transcribed, so they cannot drift from the library the cross sections came
+    from (standing rules 1 and 7).
+
+    They have to be given to INIKIN: explicitly, and the reason is an
+    inconsistency in DONJON that only shows up when NBFIS > 1: NCRMAC.f:165
+    stores LAMBDA-D with NDEL values, while MACINI.f:226-231 only propagates
+    it when the length is NDEL*NF.  With our 18 fissile isotopes it looks for
+    108 numbers, finds 6, and silently carries none -- so KINRD1.f:138 then
+    stops with 'MISSING DATA FOR THE PRECURSOR DECAY CONSTANTS'.
+
+    Supplying LAMBDA is exact, unlike supplying BETA: LLAD only fills PD, a
+    6-vector either way, while LNUD would replace the macrolib's per-precursor
+    NUSIGF01..06 with SGF*beta for one scalar beta (KINXSD.f:127-134).
+
+    Both the fuel COMPO and the CPS COMPO are checked to agree, because
+    MACINI: would otherwise have had a choice to make between them.
+    """
+    import itertools
+    out = {}
+    for name in ("_ACompo", "_CCompoABS"):
+        f = os.path.join(ROOT, "5.1", "Dragon", "compo", name)
+        if not os.path.exists(f):
+            raise SystemExit(f"{f}: not found, and U4_KIN needs its LAMBDA-D")
+        vals = None
+        with open(f) as fh:
+            for line in fh:
+                if line.strip() == "LAMBDA-D":
+                    vals = []
+                    for nxt in fh:
+                        if nxt.lstrip().startswith("->"):
+                            break
+                        vals.extend(float(x) for x in nxt.split())
+                    break
+        if not vals:
+            raise SystemExit(f"{name}: no LAMBDA-D record found")
+        out[name] = vals
+    a, b = out["_ACompo"], out["_CCompoABS"]
+    if len(a) != len(b) or max(abs(x - y) for x, y in zip(a, b)) > 1e-10:
+        raise SystemExit(f"LAMBDA-D differs between the COMPOs: {a} vs {b}")
+    return a
+
+
+if KIN and not DEV:
+    raise SystemExit("U4_KIN needs U4_DEV=1: a base-map rod cannot move")
 _STEM = ("rbmk_unit4_core" if WITH_REFL else "rbmk_unit4_norefl") + (
     "" if _RODS0 == "wat" else "_" + _RODS0) + (
     "" if _TILT0 == "0" else "_t" + _TILT0) + (
     "" if _DCA0 == "0.72" else "_d" + _DCA0.replace(".", "")) + (
     "" if not DEV else "_dev") + (
-    "" if os.environ.get("U4_RODFULL", "0") == "0" else "_rf") + _BSFX
+    "" if os.environ.get("U4_RODFULL", "0") == "0" else "_rf") + (
+    "" if not KIN else "_kin%dv%g" % (KIN, VROD)
+    + ("" if os.environ.get("U4_MOVGRP", "123") == "123"
+       else "g" + os.environ.get("U4_MOVGRP", "123"))
+    + ("" if os.environ.get("U4_MOVDIR", "1") == "1" else "out")
+    + ("" if os.environ.get("U4_DT", "0.001") == "0.001"
+       else "dt" + os.environ.get("U4_DT", "0.001").replace(".", "").replace("-", ""))) + _BSFX
 if WITH_THM:
     _STEM = ("rbmk_unit4_a7" + ("" if _RODS0 == "wat" else "_" + _RODS0)
              + ("" if FLOW == "prop" else "_" + FLOW)
@@ -1166,6 +1250,78 @@ def main():
     newmac = ("" if not DEV else
               "MACRD MATEX := NEWMAC: MATEX MACRO DEVICE :: EDIT 0 XFAC 1.0 ;\n")
     newmac_i = "" if not DEV else "  " + newmac
+    # TRIVAA: must build the unitary weighting matrix for anything feeding
+    # INIKIN:/KINSOL: -- TRIVAA.f:174 -- and it only adds that matrix, so the
+    # same SYSTEM still serves FLUD:.
+    tvopt = " UNIT" if KIN else ""
+    # group 2 is the displacers, declared FROM H-, so INSERTING the rod is EXTR
+    # for them; MOVDIR flips every sense at once.
+    _sense = {1: ("INSR", "EXTR", "INSR"), -1: ("EXTR", "INSR", "EXTR")}[MOVDIR]
+    _glines = "\n".join(f"    GROUP {g} {_sense[g - 1]} SPEED {VROD:.4f}"
+                         for g in (1, 2, 3) if str(g) in MOVGRP)
+    if not _glines:
+        raise SystemExit(f"U4_MOVGRP={MOVGRP!r} selects no group")
+    _mv = "" if not VROD else f"""  DEVICE := MOVDEV: DEVICE :: EDIT 0 DELT <<dt>>
+*   The absorbers insert; the displacers FOLLOW THEM DOWN, which is EXTR
+*   because they are declared FROM H- (see devices()); the bottom-entry USP
+*   absorbers insert upward.  One statement per group, each rod moving from
+*   its own 01:22:30 depth at the same sourced speed.
+{_glines} ;
+"""
+    _lamd = lambda_d() if KIN else []
+    kin_block = "" if not KIN else f"""
+*==============================================================
+*  A8: THE TRANSIENT
+*
+*  {KIN} steps of {KINDT:g} s = {KIN * KINDT:g} s.
+*  {f"Rods at {VROD:g} cm/s = {VROD / 100.0:g} m/s, which is SOURCED: INSAG-7 p. 103" if VROD else "NO ROD MOVES (U4_VROD=0): this is the null transient."}
+*  {"gives the EPS insertion speed." if VROD else ""}
+*
+*  NO BETA/LAMBDA/CHID IS GIVEN: the macrolib carries NDEL=6 with
+*  per-precursor NUSIGF01..06 and CHI01..06 from the COMPO, and KINRD1.f
+*  reads BETA-D/LAMBDA-D from there when the keywords are absent.  That keeps
+*  A5b's measured beta as a burnup-dependent field; passing BETA would flatten
+*  it to one scalar everywhere (KINXSD.f:131).
+*
+*  NEWMAC: is re-run every step because the device positions moved, which is
+*  what its own documentation requires, and TRIVAA: is re-assembled and
+*  re-factored every step because the cross sections changed.  Phase 0
+*  measured that cost: 0.430 s/step with the macrolib moving.
+*
+*  {'THE CHECK: no rod moves, so the power MUST hold constant.  Drift means the' if not VROD else 'The power is reported, not asserted: what it does is the result.'}
+*  {'kinetics assembly is wrong, not that the reactor did something.' if not VROD else ''}
+*==============================================================
+KINET := INIKIN: {macsys} TRACK SYSTEM FLUX ::
+  EDIT 1
+  NDEL {len(_lamd)}
+*  LAMBDA, read out of the COMPO by lambda_d() -- see it for WHY this has to
+*  be given at all (NCRMAC: stores NDEL values, MACINI: only forwards
+*  NDEL*NF of them, and NF is 18 here).  Half-lives {" ".join("%.1f" % (0.693147 / x) for x in _lamd)} s.
+*  BETA and CHID are deliberately absent so the macrolib's own per-precursor
+*  NUSIGF01..06 / CHI01..06 are used instead of one scalar beta.
+  LAMBDA {" ".join("%.6E" % x for x in _lamd)}
+  NORM POWER-INI {PTOT_MW:.1f}
+;
+
+REAL dt pw pw0 tt := {KINDT:.6E} 0.0 0.0 0.0 ;
+INTEGER istep := 0 ;
+GREP: KINET :: GETVAL E-POW 1 >>pw0<< ;
+ECHO "A8INIT POWER" pw0 ;
+
+REPEAT
+  EVALUATE istep := istep 1 + ;
+  EVALUATE tt := tt dt + ;
+{_mv}  MACRD SYSTEM := DELETE: MACRD SYSTEM ;
+  MACRD MATEX := NEWMAC: MATEX MACRO DEVICE :: EDIT 0 XFAC 1.0 ;
+  SYSTEM := TRIVAA: MACRD TRACK :: EDIT 0 UNIT ;
+  KINET := KINSOL: KINET MACRD TRACK SYSTEM ::
+    EDIT 0 DELTA <<dt>> SCHEME FLUX THETA 0.8 PREC THETA 0.8 ;
+  GREP: KINET :: GETVAL E-POW 1 >>pw<< ;
+  ECHO "A8STEP" istep "T" tt "POWER" pw "P/P0" pw pw0 / ;
+UNTIL istep {KIN} >= ;
+
+ECHO "A8DONE steps {KIN} dt {KINDT:g} vrod {VROD:g} power-ini" pw0 "power-fin" pw ;
+"""
     dev_block = "" if not DEV else f"""*--- A8: the {len(devrods)} rod-devices.  THIS MUST PRECEDE RESINI:.
 *    DEVINI: appends its device mixtures to MATEX's MAT-INIT (DEVDRV.f:143),
 *    while RESINI: builds the MAT record from MAT-INIT at whatever length it
@@ -1352,7 +1508,7 @@ REPEAT
   EVALUATE iter := iter 1 + ;
 {NCRFUEL_IND}
   MACRO MATEX := MACINI: MATEX MACREF MACFUEL :: EDIT 0 ;
-{newmac_i}  SYSTEM := TRIVAA: {macsys} TRACK :: EDIT 0 ;
+{newmac_i}  SYSTEM := TRIVAA: {macsys} TRACK :: EDIT 0{tvopt} ;
   FLUX := FLUD: SYSTEM TRACK :: EDIT 0 ADI 2 EXTE 300 1.0E-6 ;
   GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>keff<< ;
   POWER FMAP := FLPOW: FMAP FLUX TRACK MATEX :: EDIT 0 PTOT {PTOT_MW:.1f} ;
@@ -1416,7 +1572,7 @@ ECHO "{tag} CONVERGED keff" keff "after" iter "iterations, errt" errt "errd" err
 *    belongs to the previous temperature field, not the converged one.
 {NCRFUEL}
 MACRO MATEX := MACINI: MATEX MACREF MACFUEL :: EDIT 0 ;
-{newmac}SYSTEM := TRIVAA: {macsys} TRACK :: EDIT 0 ;
+{newmac}SYSTEM := TRIVAA: {macsys} TRACK :: EDIT 0{tvopt} ;
 FLUX := FLUD: SYSTEM TRACK :: EDIT 0 ADI 2 EXTE 300 1.0E-6 ;
 GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>keff<< ;
 ECHO "{tag} FINAL keff" keff ;
@@ -1435,7 +1591,7 @@ ECHO "{tag} TMAXFUEL" tmaxf "DCOOL" dmin dmax ;"""
 MACRO MATEX := MACINI: MATEX MACREF MACFUEL :: EDIT 0 ;
 
 TRACK := TRIVAT: GEO2 :: EDIT 0 MAXR {nel} DUAL 1 1 ;
-{newmac}SYSTEM := TRIVAA: {macsys} TRACK :: EDIT 0 ;
+{newmac}SYSTEM := TRIVAA: {macsys} TRACK :: EDIT 0{tvopt} ;
 FLUX := FLUD: SYSTEM TRACK :: EDIT 1 ADI 2 EXTE 300 1.0E-6 ;
 GREP: FLUX :: GETVAL 'K-EFFECTIVE' 1 >>keff<< ;
 ECHO "{tag} KEFF" keff ;"""
@@ -1446,8 +1602,9 @@ ECHO "{tag} KEFF" keff ;"""
                  "NO RADIAL REFLECTOR (U4_REFL=0): the VOID boundary sits on "
                  "the core outline.")
     ther_obj = " THER" if WITH_THM else ""
-    dev_obj = " DEVICE MACRD" if DEV else ""
-    dev_mod = " DEVINI: DSET: NEWMAC: MOVDEV:" if DEV else ""
+    dev_obj = (" DEVICE MACRD" if DEV else "") + (" KINET" if KIN else "")
+    dev_mod = ((" DEVINI: DSET: NEWMAC: MOVDEV:" if DEV else "")
+               + (" INIKIN: KINSOL:" if KIN else ""))
     thm_mod = " THM:" if WITH_THM else ""
     extra_reals = " tmaxf dmin dmax" if WITH_THM else ""
     refl_mixes = ("  COMPO RCpo 'EDIREFL'\n" + "".join(
@@ -1575,6 +1732,7 @@ POWER FMAP := FLPOW: FMAP FLUX TRACK MATEX ::
 *    rather than the radial-plane table FLPOW: prints.
 UTL: POWER :: IMPR POWER-CHAN * ;
 
+{kin_block}
 ECHO "UNIT4 geometry {nx} x {ny} x {nz}, {nfuel} fuel, {ncps} CPS, {nrefl_col} reflector" ;
 ECHO "{stem} completed" ;
 END: ;
