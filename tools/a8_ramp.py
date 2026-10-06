@@ -61,6 +61,9 @@ def run(adv):
     m = re.findall(r"KEFF\s+([0-9.]+e[-+][0-9]+)", txt)
     pk = re.findall(r"MAXIMUM CHANNEL POWER\s*=\s*([0-9.]+)", txt)
     ff = re.findall(r"MAX/AVG\s*=\s*([0-9.]+)\)", txt)
+    if os.environ.get("U4_PBUND"):          # keep the axial shape alongside
+        import shutil
+        shutil.copy(res, os.path.join(WORK, "shape_%+07.2f.result" % adv))
     return float(m[-1]), float(pk[-1]), float(ff[-1])
 
 
@@ -75,8 +78,17 @@ def main():
         if k0 is None:
             k0 = k
         rho = (1.0 - k0 / k) * 1.0e5
-        print("  %7.2f  %.6f  %+9.1f  %9.1f  %8.4f   %5.2f"
-              % (adv, k, rho, pk, ff, adv / 25.0))
+        ax = ""
+        if os.environ.get("U4_PBUND"):
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from a8_axial import shape, NB, PITCH
+            sh, _ = shape(os.path.join(WORK, "shape_%+07.2f.result" % adv))
+            kp = max(range(NB), key=lambda i: sh[i])
+            up, lo = max(sh[NB // 2:]), max(sh[:NB // 2])
+            ax = "   axial peak %.2f at D %3.0f, upper/lower %.2f" % (
+                sh[kp], 700 - (kp + 0.5) * PITCH, up / lo)
+        print("  %7.2f  %.6f  %+9.1f  %9.1f  %8.4f   %5.2f%s"
+              % (adv, k, rho, pk, ff, adv / 25.0, ax))
         sys.stdout.flush()
 
 

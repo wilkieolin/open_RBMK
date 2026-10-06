@@ -1,0 +1,37 @@
+# Per-bundle burnup multipliers, bundle 1 (core BOTTOM) first, mean 1, for
+# U4_AXBURN=file:<this>.  FITTED, not sourced: tools/a8_axinvert.py solved
+# for the 6-Legendre-mode profile that makes the static device-model core
+# (U4_DEV=1 U4_RODS=wat, flat 10 900 MWd/t channels) reproduce INSAG-7
+# Fig. II-9's t = 0 axial flux (sources/derived/insag7_fig_II9_axial.csv).
+# rms 0.020, max 0.048 against the 28-bundle target; k 1.023557.
+# An EFFECTIVE profile: it lumps the real axial burnup, xenon, void and rod
+# shading into the one knob the model has.  Stopped where further iterations
+# only grew the high modes (rms 0.0214 -> 0.0200), i.e. were fitting noise.
+0.517346
+0.691189
+0.831983
+0.934162
+1.003791
+1.051074
+1.085466
+1.113665
+1.139362
+1.163725
+1.186099
+1.204719
+1.217403
+1.222179
+1.217792
+1.204021
+1.181725
+1.152625
+1.118872
+1.082476
+1.044699
+1.005452
+0.962738
+0.912253
+0.847407
+0.760385
+0.645093
+0.502300

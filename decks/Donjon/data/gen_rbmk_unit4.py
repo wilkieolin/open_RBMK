@@ -704,7 +704,8 @@ def axial_shape():
     elif kind == "tilt":
         f = [1.0 + float(arg) * (z - 0.5) * 2.0 for z in zc]
     elif kind == "file":
-        f = [float(x) for x in open(arg).read().split()]
+        f = [float(x) for line in open(arg)
+             for x in line.split("#", 1)[0].split()]
         if len(f) != NZ_ACTIVE:
             raise SystemExit(f"{arg}: {len(f)} values, want {NZ_ACTIVE}")
     else:
@@ -1278,8 +1279,12 @@ def main():
         _chk = [sum(bulist[c] * _axf[k] for k in range(NZ_ACTIVE)) / NZ_ACTIVE
                 for c in range(nfuel)]
         assert max(abs(a - b) for a, b in zip(_chk, bulist)) < 1e-6
+        _axlabel = (AXBURN if not AXBURN.startswith("file:")
+                    else "file:" + os.path.basename(AXBURN[5:]))
         INSTB = (
-            f"*  PER-BUNDLE BURNUP (U4_AXBURN={AXBURN}): each channel's burnup\n"
+            # a file: path can be long enough to break the 120-column limit;
+            # its basename identifies it and the multipliers are printed below
+            f"*  PER-BUNDLE BURNUP (U4_AXBURN={_axlabel}): each channel's burnup\n"
             "*  redistributed along the channel with its average kept exactly.\n"
             "*  A SENSITIVITY, not a sourced profile.  Multipliers bottom to top:\n"
             + "".join("*   " + " ".join(f"{x:.3f}" for x in _axf[i:i + 14]) + "\n"
