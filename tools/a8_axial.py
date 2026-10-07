@@ -17,11 +17,13 @@ NB = 28
 PITCH = 25.0
 
 
-def shape(path):
+def shape(path, which=0):
+    """The which-th printed POWER-BUND block (0 = first, -1 = last)."""
     txt = open(path, "rb").read().decode("latin1")
-    i = txt.find("CONTENT OF BLOCK 'POWER-BUND")
-    if i < 0:
+    starts = [m.start() for m in __import__("re").finditer("CONTENT OF BLOCK 'POWER-BUND", txt)]
+    if not starts:
         sys.exit(f"{path}: no POWER-BUND block -- generate with U4_PBUND=1")
+    i = starts[which]
     j = txt.find("\n\n\n", i)
     vals = [float(x) for x in txt[txt.index("\n", i):j].split()]
     if len(vals) % NB:

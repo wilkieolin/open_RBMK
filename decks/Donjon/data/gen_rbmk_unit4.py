@@ -225,6 +225,7 @@ _DEVSFX = (("" if not DEV else "_dev")
        else "g" + os.environ.get("U4_MOVGRP", "123"))
     + ("" if os.environ.get("U4_MOVDIR", "1") == "1" else "out")
     + ("" if os.environ.get("U4_KINFB", "1") != "0" else "nofb")
+    + ("" if not os.environ.get("U4_KINSHAPE") else "sh")
     + ("" if float(os.environ.get("U4_FRLX", "1.0")) == 1.0
        else "fr" + os.environ["U4_FRLX"].replace(".", ""))
     + ("" if os.environ.get("U4_FLOWIT", "30") == "30"
@@ -723,6 +724,7 @@ KINFB = os.environ.get("U4_KINFB", "1") != "0"
 # Density under-relaxation in THMTRS's flow iteration, local patch 0006.
 # Not a physics knob: it changes the path to the fixed point, not the point.
 FRLX = os.environ.get("U4_FRLX", "1.0")
+KINSHAPE = [float(x) for x in os.environ.get("U4_KINSHAPE", "").split(",") if x]
 # THM: relaxes ALL FIVE local feedback fields with one factor (THM.f:1187,
 # 1207-1245): FLOT = RELAX*new + (1-RELAX)*old.  So the residual THM reports
 # is already scaled by it.  RELAX is a solver parameter, not a physical one,
@@ -1677,6 +1679,15 @@ CREATE ROD-GR {len([k for k, v in devn.items() if v])}
 '''
     else:
         _kncr = _kthm = ""
+    # U4_KINSHAPE=4,6,7 prints POWER-BUND at those times (s), for the
+    # comparison against INSAG-7 Fig. II-9's 4/6/7 s curves.  The in-loop
+    # FLPOW: refreshes it from the kinetics flux every step.
+    if _kthm and KINSHAPE:
+        for _ts in KINSHAPE:
+            _k = int(round(_ts / KINDT))
+            if 1 <= _k <= KIN:
+                _kthm += (f'  IF istep {_k} = THEN\n    ECHO "A8SHAPE" istep "T" tt ;\n'
+                          f'    UTL: POWER :: IMPR POWER-BUND * ;\n  ENDIF ;\n')
     _kthm = ("\n" + _kthm.rstrip("\n")) if _kthm else ""
     _kdecl = ("\nINTEGER ncyc := 0 ;\nREAL ecyc t0 := 0.0 0.0 ;" if (KIN and WITH_THM and KINFB) else "")
     _kt0 = "  EVALUATE t0 := tt ;\n" if (KIN and WITH_THM and KINFB) else ""
