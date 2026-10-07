@@ -1,0 +1,77 @@
+--- a/Donjon/src/THM.f
++++ b/Donjon/src/THM.f
+@@ -75,6 +75,9 @@
+       REAL CYCCAP,ERRCYC
+       INTEGER NCYC
+       COMMON /THMCYC/ CYCCAP,ERRCYC,NCYC
++*     RBMK local patch 0006: density under-relaxation in the flow loop
++      REAL FRLX
++      COMMON /THMFRX/ FRLX
+       TYPE(C_PTR) IPTHM,IPMAP,JPMAP,KPMAP,JPTHM,KPTHM,LPTHM,MPTHM,
+      > KPTHMI,LPTHMI,MPTHMI
+ *----
+@@ -157,6 +160,7 @@
+       TIMEIT=0
+       NKEEP=0
+       CYCCAP=0.0
++      FRLX=1.0
+       NCYC=0
+       ERRCYC=0.0
+       NPOWER=0
+@@ -279,6 +283,13 @@
+         CALL REDGET(ITYP,NKEEP,FLOT,TEXT,DFLOT)
+         IF(ITYP.NE.1)CALL XABORT('@THM: INTEGER FOR HISTORY EXPECTED.')
+         IF(NKEEP.LT.2)CALL XABORT('@THM: HISTORY MUST BE >= 2.')
++      ELSE IF(TEXT.EQ.'FLOW-RELAX') THEN
++*       RBMK local patch 0006: see THMTRS.  Density under-relaxation
++*       factor in the transient flow iteration, 0 < w <= 1.
++        CALL REDGET(ITYP,NITMA,FRLX,TEXT,DFLOT)
++        IF(ITYP.NE.2)CALL XABORT('@THM: REAL FOR FLOW-RELAX EXPECTED.')
++        IF((FRLX.LE.0.0).OR.(FRLX.GT.1.0))
++     >  CALL XABORT('@THM: FLOW-RELAX MUST BE IN (0,1].')
+       ELSE IF(TEXT.EQ.'CYCLE-OK') THEN
+ *       RBMK local patch 0005: see THMTRS.  Error cap for accepting a
+ *       flow limit cycle after MAXITC iterations; 0 (default) = abort.
+--- a/Donjon/src/THMTRS.f
++++ b/Donjon/src/THMTRS.f
+@@ -134,6 +134,10 @@
+       REAL CYCCAP,ERRCYC
+       INTEGER NCYC
+       COMMON /THMCYC/ CYCCAP,ERRCYC,NCYC
++*     RBMK local patch 0006: density under-relaxation in the flow loop
++      REAL FRLX
++      COMMON /THMFRX/ FRLX
++      REAL DSAVE(NZ)
+ *----
+ *  ALLOCATABLE ARRAYS
+ *----
+@@ -258,6 +262,10 @@
+       ENDDO
+       ITERC=0
+    20 ITERC=ITERC+1
++*     patch 0006: the density this pass starts from, for under-relaxation
++      DO K=1,NZ
++        DSAVE(K)=DCOOL(K)
++      ENDDO
+       IF(ITERC.GT.MAXITC) THEN
+ *        RBMK local patch 0005.  The flow iteration can lock into a limit
+ *        cycle instead of converging: the boiling-onset node K0 is an
+@@ -456,6 +464,18 @@
+          ELSE
+            DCOOL(K)=DLIQT(K)
+          ENDIF
++*        RBMK local patch 0006.  The pass is a fixed point on the density:
++*        node K's mass flux and enthalpy use THIS array's DCOOL(K) through
++*        0.5*DCOOL(K)*DTINV*HZ(K), before THMH2O replaces it.  In a boiling
++*        node d(rho)/dh is ~(rho_l-rho_g)/h_fg, so the gain of that map
++*        grows as 1/DTIME and as 1/G and exceeds one in a low-flow boiling
++*        channel at a small time step: the iteration then oscillates with
++*        a finite amplitude instead of converging (measured: relative mass
++*        flux error 0.07-0.13 for 30 passes in a 1.33 m/s channel).
++*        FLOW-RELAX w on THM: carries w*new + (1-w)*start-of-pass into the
++*        next pass.  It changes the path, not the fixed point: at
++*        convergence new = start-of-pass.  Default 1 = upstream.
++         IF(FRLX.LT.1.0) DCOOL(K)=FRLX*DCOOL(K)+(1.0-FRLX)*DSAVE(K)
+          VELOT(K)=MFLXT(K)/DCOOL(K)
+        ENDDO
+ *----

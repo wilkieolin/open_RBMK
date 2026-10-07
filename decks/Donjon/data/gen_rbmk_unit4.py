@@ -225,6 +225,8 @@ _DEVSFX = (("" if not DEV else "_dev")
        else "g" + os.environ.get("U4_MOVGRP", "123"))
     + ("" if os.environ.get("U4_MOVDIR", "1") == "1" else "out")
     + ("" if os.environ.get("U4_KINFB", "1") != "0" else "nofb")
+    + ("" if float(os.environ.get("U4_FRLX", "1.0")) == 1.0
+       else "fr" + os.environ["U4_FRLX"].replace(".", ""))
     + ("" if os.environ.get("U4_FLOWIT", "30") == "30"
        else "fi" + os.environ["U4_FLOWIT"])
     + ("" if os.environ.get("U4_CYCCAP", "1.0E-2") == "1.0E-2"
@@ -718,6 +720,9 @@ CYCCAP = os.environ.get("U4_CYCCAP", "1.0E-2")       # limit-cycle cap, patch 00
 # ~40 s/step at 100.  Converging channels take < 10.
 FLOWIT = os.environ.get("U4_FLOWIT", "30")
 KINFB = os.environ.get("U4_KINFB", "1") != "0"
+# Density under-relaxation in THMTRS's flow iteration, local patch 0006.
+# Not a physics knob: it changes the path to the fixed point, not the point.
+FRLX = os.environ.get("U4_FRLX", "1.0")
 # THM: relaxes ALL FIVE local feedback fields with one factor (THM.f:1187,
 # 1207-1245): FLOT = RELAX*new + (1-RELAX)*old.  So the residual THM reports
 # is already scaled by it.  RELAX is a solver parameter, not a physical one,
@@ -1648,6 +1653,13 @@ CREATE ROD-GR {len([k for k, v in devn.items() if v])}
     #                state is frozen through the transient (no THM:, so the
     #                fuel map never changes and NCR: need not re-run).  The
     #                difference from KINFB=1 is the feedback and nothing else.
+    #   FLOW-RELAX w  local patch 0006.  THMTRS's flow pass is a fixed point
+    #                on the coolant density whose gain grows as 1/dt and 1/G;
+    #                in a low-flow boiling channel it exceeds one and the pass
+    #                oscillates (measured: channel 1433, 1.33 m/s, errors
+    #                0.07-0.13 for 30 passes at t = 0.345 s).  w < 1 damps
+    #                the carried density; the fixed point is unchanged.
+    _frlx = "" if float(FRLX) == 1.0 else f" FLOW-RELAX {FRLX}"
     if KIN and WITH_THM and KINFB:
         _kncr = ("  MACFUEL MACRO := DELETE: MACFUEL MACRO ;\n"
                  + "\n".join("  " + l for l in NCRFUEL_IND.splitlines()) + "\n"
@@ -1655,7 +1667,7 @@ CREATE ROD-GR {len([k for k, v in devn.items() if v])}
         _kthm = f'''  POWER := DELETE: POWER ;
   POWER FMAP := FLPOW: FMAP KINET TRACK MATEX :: EDIT 0 ;
   THER FMAP := THM: THER FMAP :: EDIT 0 TIME <<t0>> <<dt>> HISTORY 2
-    CONV 100 100 {FLOWIT} {ERMAXT} {ERMAXC_TR} CYCLE-OK {CYCCAP} ;
+    CONV 100 100 {FLOWIT} {ERMAXT} {ERMAXC_TR} CYCLE-OK {CYCCAP}{_frlx} ;
   GREP: THER :: GETVAL 'MAX-T-FUEL' 1 >>tmaxf<< ;
   GREP: THER :: GETVAL 'MIN-D-COOL' 1 >>dmin<< ;
   GREP: THER :: GETVAL 'FLOW-NCYCLE' 1 >>ncyc<< ;
