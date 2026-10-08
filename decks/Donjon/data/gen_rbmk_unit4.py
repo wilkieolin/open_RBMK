@@ -254,7 +254,8 @@ if WITH_THM:
     # the same provenance hazard section (20) was bitten by once already.
     _STEM = ("rbmk_unit4_a7" + ("" if _RODS0 == "wat" else "_" + _RODS0)
              + ("" if FLOW == "prop" else "_" + FLOW)
-             + ("" if os.environ.get("U4_VOIDFB", "1") != "0" else "_nvf")
+             + ("" if os.environ.get("U4_VOIDFB", "1") != "0" else "_nvf"
+                + ("" if _DCA0 == "0.72" else "_d" + _DCA0.replace(".", "")))
              + ("" if os.environ.get("U4_TH", "nom") == "nom" else
                 "_" + os.environ["U4_TH"]
                 + ("" if os.environ.get("U4_SUBC", "3.0") == "3.0" else
@@ -266,6 +267,7 @@ if WITH_THM:
              + ("" if not os.environ.get("U4_PCHAN") or FLOW != "prop" else
                 "_pc" + __import__("hashlib").md5(
                     open(os.environ["U4_PCHAN"], "rb").read()).hexdigest()[:6])
+             + ("" if os.environ.get("U4_THDUMP", "0") == "0" else "_thd")
              + _DEVSFX + _BSFX)
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), _STEM + ".don")
 
@@ -1445,6 +1447,18 @@ def main():
     tvopt = " UNIT" if KIN else ""
     # U4_PBUND=1 prints POWER-BUND (NCH*NB, FLPDRV.f:209) so the AXIAL power
     # shape can be read back; tools/a8_axial.py sums it plane by plane.
+    # U4_THDUMP=1 prints every channel's converged axial profiles (void
+    # fraction, flow quality, density, power) for tools/a8_thcheck.py: the
+    # check that the steam is where the sources put it, not just how much.
+    thdump = ("" if os.environ.get("U4_THDUMP", "0") == "0" else f"""
+INTEGER ich := 0 ;
+WHILE ich {nfuel} < DO
+  EVALUATE ich := ich 1 + ;
+  ECHO "THDUMP" ich ;
+  UTL: THER :: STEP UP 'HISTORY-DATA' STEP UP 'TIMESTEP0000'
+               STEP UP 'CHANNEL' STEP AT <<ich>>
+    IMPR EPSILON * IMPR XFL * IMPR DENSITY * IMPR POWER * IMPR ENTHALPY * ;
+ENDWHILE ;""")
     pbund = ("" if os.environ.get("U4_PBUND", "0") == "0" else
              "\nUTL: POWER :: IMPR POWER-BUND * ;")
     # group 2 is the displacers, declared FROM H-, so INSERTING the rod is EXTR
@@ -1867,7 +1881,7 @@ UTL: THER :: STEP UP 'HISTORY-DATA' STEP UP 'TIMESTEP0000'
 GREP: THER :: GETVAL 'MAX-T-FUEL' 1 >>tmaxf<< ;
 GREP: THER :: GETVAL 'MIN-D-COOL' 1 >>dmin<< ;
 GREP: THER :: GETVAL 'MAX-D-COOL' 1 >>dmax<< ;
-ECHO "{tag} TMAXFUEL" tmaxf "DCOOL" dmin dmax ;"""
+ECHO "{tag} TMAXFUEL" tmaxf "DCOOL" dmin dmax ;{thdump}"""
     else:
         solver = f"""{NCRFUEL}
 
