@@ -26,6 +26,13 @@ BINDIR = os.path.join(RUNDIR, "Linux_aarch64")
 MAP = os.path.join(ROOT, "sources", "derived", "unit4_channel_map.csv")
 CPS = {"RR", "AZ", "AZOC", "AR", "USP"}
 WORK = "/tmp/a6d_rods"
+# A8_USP=0 leaves the 21 bottom-entry USP rods at their sourced depths.  In
+# 1986 the EPS signal did not drive them: INSAG-7 p. 46 lists "to insert
+# shortened absorber rods into the core in response to an emergency protection
+# signal" among the proposals made BEFORE the accident and implemented only
+# after it.  The default (1) keeps every result of PROGRESS (24)-(27).
+MOVE_USP = os.environ.get("A8_USP", "1") != "0"
+TAG = "" if MOVE_USP else "_nousp"
 
 
 def depths(adv):
@@ -33,8 +40,10 @@ def depths(adv):
     out = []
     for r in rows:
         q = round(float(r["depth_cm"] or 0) / 25.0) * 25.0
-        out.append(min(700.0, q + adv))
-    path = os.path.join(WORK, "ramp_%+07.2f.txt" % adv)
+        out.append(q if (r["type"] == "USP" and not MOVE_USP)
+                   else min(700.0, q + adv))
+    path = os.path.join(WORK, "ramp_%+07.2f%s.txt"
+                        % (adv, TAG))
     open(path, "w").write("\n".join("%.4f" % x for x in out) + "\n")
     return path
 
@@ -63,7 +72,7 @@ def run(adv):
     ff = re.findall(r"MAX/AVG\s*=\s*([0-9.]+)\)", txt)
     if os.environ.get("U4_PBUND"):          # keep the axial shape alongside
         import shutil
-        shutil.copy(res, os.path.join(WORK, "shape_%+07.2f.result" % adv))
+        shutil.copy(res, os.path.join(WORK, "shape_%+07.2f%s.result" % (adv, TAG)))
     return float(m[-1]), float(pk[-1]), float(ff[-1])
 
 
@@ -82,7 +91,7 @@ def main():
         if os.environ.get("U4_PBUND"):
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
             from a8_axial import shape, NB, PITCH
-            sh, _ = shape(os.path.join(WORK, "shape_%+07.2f.result" % adv))
+            sh, _ = shape(os.path.join(WORK, "shape_%+07.2f%s.result" % (adv, TAG)))
             kp = max(range(NB), key=lambda i: sh[i])
             up, lo = max(sh[NB // 2:]), max(sh[:NB // 2])
             ax = "   axial peak %.2f at D %3.0f, upper/lower %.2f" % (

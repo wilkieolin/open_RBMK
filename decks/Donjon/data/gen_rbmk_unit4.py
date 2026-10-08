@@ -133,11 +133,16 @@ KIN = int(os.environ.get("U4_KIN", "0"))
 KINDT = float(os.environ.get("U4_DT", "0.001"))
 VROD = float(os.environ.get("U4_VROD", "40.0"))
 # U4_MOVGRP selects which device groups move, so the scram can be decomposed:
-# "123" is the whole CPS (the default and the only physical case), "13" moves
+# "123" is the whole CPS (the default, kept so earlier results reproduce), "13" moves
 # the absorbers while every displacer stays put, "2" moves only the displacers.
 # The last two are NOT configurations of a real reactor -- the absorber and its
 # displacer are one rigid rod -- they are the controls that say which part of
 # the rod the reactivity came from.
+# "12" is the 1986 AZ-5: the EPS signal did NOT drive the 21 bottom-entry USP
+# rods.  INSAG-7 p. 46 lists "to insert shortened absorber rods into the core
+# in response to an emergency protection signal" among proposals made before
+# the accident and only implemented after it.  Driving them upward puts
+# absorber exactly where the displacers' positive reactivity is (PROGRESS (29)).
 # U4_MOVDIR=-1 withdraws instead of inserting, which is the sign control.
 MOVGRP = os.environ.get("U4_MOVGRP", "123")
 # U4_DEVADV="<abs>,<dsp>,<usp>" advances each device GROUP's position by its
@@ -253,7 +258,9 @@ if WITH_THM:
              + ("" if os.environ.get("U4_TH", "nom") == "nom" else
                 "_" + os.environ["U4_TH"]
                 + ("" if os.environ.get("U4_SUBC", "3.0") == "3.0" else
-                   "s" + os.environ["U4_SUBC"].replace(".", "")))
+                   "s" + os.environ["U4_SUBC"].replace(".", ""))
+                + ("" if os.environ.get("U4_PACC", "200") == "200" else
+                   "p" + os.environ["U4_PACC"].replace(".", "")))
              # the channel powers 'prop' valves the flow by are an input too
              # (standing rule 7): key the stem on their content when given
              + ("" if not os.environ.get("U4_PCHAN") or FLOW != "prop" else
@@ -699,8 +706,11 @@ if TH_STATE not in ("nom", "acc"):
 SUBC = float(os.environ.get("U4_SUBC", "3.0"))
 A_FLOW_M2 = 22.427082E-4        # m2, gen_rbmk_a7a.py's A_FLOW
 Q_ACC = 56000.0                 # m3/h, INSAG-7 p. 64
+# U4_PACC overrides the 200 MW only to measure the static power coefficient of
+# the 01:23 state (flow and inlet held); it is not a state of the accident.
+PACC = os.environ.get("U4_PACC", "200")
 if TH_STATE == "acc":
-    PTOT_MW = 200.0
+    PTOT_MW = float(PACC)
     T_IN = tsat_if97(P_OUT) - SUBC
     V_ACC = Q_ACC / 3600.0 / 1661.0 / A_FLOW_M2
 # THM:'s inner temperature tolerance, in K.  Upstream's value is 0.5.
