@@ -155,7 +155,15 @@ def xenon_at_0123(scale=1.0, r=R_U235, dt=5.0):
     estimate and the error is in the direction of understating the spread.
     """
     sig_phi0 = LAM_I * (I_EQ / XE_EQ) * (1.0 + r) - LAM_XE
-    xi, xe = I_EQ, XE_EQ
+    # Start at equilibrium FOR THIS CHANNEL'S RATIO.  Until 2026-10-08 every
+    # channel started at the core-average I_EQ/XE_EQ whatever its scale, so a
+    # 0.1x bundle carried full-average iodine into the run-down, where it
+    # decayed into xenon that low power could not burn: 0.944x equilibrium at
+    # 01:23 instead of the ~0.3x its own history gives.  The frozen-shape
+    # assumption says the ratio held before 01:06 too, so its own equilibrium
+    # is the consistent start; at scale 1 nothing changes.
+    xi = I_EQ * scale
+    xe = xenon_equilibrium(scale, 1.0, r)
     prod_i = LAM_I * I_EQ
     n = int(T_END / dt)
 

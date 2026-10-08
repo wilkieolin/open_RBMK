@@ -79,9 +79,28 @@ PCHAN = os.environ.get("U4_PCHAN", "")
 _TILT0 = os.environ.get("U4_TILT", "0")
 _DCA0 = os.environ.get("U4_DCA", "0.72")
 _BURN0 = os.environ.get("U4_BURNMAP", "flat")
-_BSFX = ("" if _BURN0 == "flat" else "_b" + _BURN0) + (
+# U4_VOIDB=1 stages _ACompoVB (tools/compo_voidB.py: bracket B's OpenMC void
+# worth written into the fuel COMPO as a thermal-absorption edit) in place of
+# _ACompo.  Keyed on the file's content, so a rebuilt correction can never be
+# served a deck generated against an older one (standing rule 7).
+VOIDB = os.environ.get("U4_VOIDB", "0") != "0"
+_VBFILE = os.path.join(ROOT, "5.1", "Dragon", "compo", "_ACompoVB")
+if VOIDB:
+    if not os.path.exists(_VBFILE):
+        raise SystemExit(f"U4_VOIDB=1: {_VBFILE} not found; run tools/compo_voidB.py")
+    import hashlib as _hl
+    _VSFX = "_vB" + _hl.md5(open(_VBFILE, "rb").read()).hexdigest()[:6]
+else:
+    _VSFX = ""
+_BSFX = _VSFX + ("" if _BURN0 == "flat" else "_b" + _BURN0) + (
     "" if os.environ.get("U4_XEBINS", "1") == "1"
     else "_n" + os.environ.get("U4_XEBINS", "1")
+         + ("" if os.environ.get("U4_XEAX", "0") == "0" else "ax")
+         # the field is built from these channel powers (chan_power), so the
+         # stem carries their content whenever a field exists (rule 7)
+         + ("" if not os.environ.get("U4_PCHAN") else
+            "p" + __import__("hashlib").md5(
+                open(os.environ["U4_PCHAN"], "rb").read()).hexdigest()[:6])
          + ("" if os.environ.get("U4_XEHIST", "0123") == "0123"
             else "_h" + os.environ.get("U4_XEHIST", "0123").replace(".", ""))) + (
     "" if os.environ.get("U4_XENON", "stored") == "stored"
@@ -231,6 +250,7 @@ _DEVSFX = (("" if not DEV else "_dev")
     + ("" if os.environ.get("U4_MOVDIR", "1") == "1" else "out")
     + ("" if os.environ.get("U4_KINFB", "1") != "0" else "nofb")
     + ("" if not os.environ.get("U4_KINSHAPE") else "sh")
+    + ("" if os.environ.get("U4_KINVOID", "0") == "0" else "vd")
     + ("" if float(os.environ.get("U4_FRLX", "1.0")) == 1.0
        else "fr" + os.environ["U4_FRLX"].replace(".", ""))
     + ("" if os.environ.get("U4_FLOWIT", "30") == "30"
@@ -341,6 +361,13 @@ M_FUEL = 4 + len(M_REFL)
 # because USPLIT.f:180 requires NREFL + NFUEL to equal the highest material
 # index exactly.
 XEBINS = int(os.environ.get("U4_XEBINS", "1"))
+# U4_XEAX=1 makes the xenon field PER BUNDLE instead of per channel: each
+# bundle's frozen power ratio is its channel's radial share times the MEASURED
+# t = 0 axial shape (INSAG-7 Fig. II-9, sources/derived/insag7_fig_II9_axial.csv),
+# so the field does not depend on the burnup profile it is used to separate
+# from.  INSAG-7 p. 64 names "xenon poisoning higher in the central parts than
+# at the edge of the core" as one cause of the double-humped field.
+XEAX = os.environ.get("U4_XEAX", "0") != "0"
 if XEBINS < 1:
     raise SystemExit("U4_XEBINS must be >= 1")
 M_FUEL_HI = M_FUEL + XEBINS - 1
@@ -737,6 +764,7 @@ KINFB = os.environ.get("U4_KINFB", "1") != "0"
 # Not a physics knob: it changes the path to the fixed point, not the point.
 FRLX = os.environ.get("U4_FRLX", "1.0")
 KINSHAPE = [float(x) for x in os.environ.get("U4_KINSHAPE", "").split(",") if x]
+KINVOID = os.environ.get("U4_KINVOID", "0") != "0"
 # THM: relaxes ALL FIVE local feedback fields with one factor (THM.f:1187,
 # 1207-1245): FLOT = RELAX*new + (1-RELAX)*old.  So the residual THM reports
 # is already scaled by it.  RELAX is a solver parameter, not a physical one,
@@ -956,6 +984,11 @@ def xenon_bins(cells, nfuel):
         raise SystemExit(f"{len(pw)} channel powers, {nfuel} channels")
     mean = sum(pw) / len(pw)
     scales = [q / mean for q in pw]
+    if XEAX:
+        ax = measured_axial_t0()
+        prod = [sc * a_ for sc in scales for a_ in ax]       # channel-major
+        m_ = sum(prod) / len(prod)
+        scales = [x / m_ for x in prod]
     # UNDER-RELAXATION, and it is not optional.  Rebuilding the field from the
     # latest power each pass diverges: measured 2026-10-05, the peak channel
     # went 5609 -> 4137 -> 5870 -> 4561 -> 6568 kW.  The loop gain exceeds one
@@ -1006,21 +1039,52 @@ def xenon_bins(cells, nfuel):
         return gval[-1]
 
     dens = [interp(x) for x in scales]
-    order = sorted(range(nfuel), key=lambda c: dens[c])
-    xebin = [0] * nfuel
+    nval = len(dens)                  # nfuel, or nfuel * NZ_ACTIVE with XEAX
+    order = sorted(range(nval), key=lambda c: dens[c])
+    xebin = [0] * nval
     vals = []
     for b in range(XEBINS):
-        a = b * nfuel // XEBINS
-        z = (b + 1) * nfuel // XEBINS
+        a = b * nval // XEBINS
+        z = (b + 1) * nval // XEBINS
         members = order[a:z]
         for c in members:
             xebin[c] = b
         vals.append(sum(dens[c] for c in members) / len(members))
-    why = (f"{XEBINS} equal-population bins over a frozen-shape field from "
+    if XEAX:                          # [channel][bundle from the bottom]
+        xebin = [xebin[c * NZ_ACTIVE:(c + 1) * NZ_ACTIVE] for c in range(nfuel)]
+    why = (f"{XEBINS} equal-population bins over a frozen-shape "
+           f"{'per-bundle (measured t=0 axial shape) ' if XEAX else ''}field from "
            f"{os.path.basename(psrc)}; Xe spans "
            f"{min(dens) / _xe.XE_EQ:.3f} to {max(dens) / _xe.XE_EQ:.3f} "
            f"x equilibrium")
     return xebin, vals, why
+
+
+def measured_axial_t0():
+    """INSAG-7 Fig. II-9 at t = 0, linearly interpolated to the 28 bundle
+    mid-planes (bottom first, as RESPFM.f numbers them), flat beyond the end
+    markers, normalised to mean 1."""
+    pts = []
+    for line in open(os.path.join(ROOT, "sources", "derived", "insag7_fig_II9_axial.csv")):
+        f = line.strip().split(",")
+        if len(f) >= 4 and f[0] == "0":
+            pts.append((float(f[2]), float(f[3])))
+    pts.sort()
+    out = []
+    for kb in range(NZ_ACTIVE):                  # kb 0 = bottom bundle
+        d = NZ_ACTIVE * PITCH - (kb + 0.5) * PITCH
+        if d <= pts[0][0]:
+            out.append(pts[0][1])
+            continue
+        if d >= pts[-1][0]:
+            out.append(pts[-1][1])
+            continue
+        for (d0, v0), (d1, v1) in zip(pts, pts[1:]):
+            if d0 <= d <= d1:
+                out.append(v0 + (d - d0) / (d1 - d0) * (v1 - v0))
+                break
+    m = sum(out) / len(out)
+    return [v / m for v in out]
 
 
 def chan_power():
@@ -1324,7 +1388,7 @@ def main():
             # piece.  Rods are not tracked outside the active core.
             return M_WAT
         if r["type"] in FUEL_TYPES:
-            return M_FUEL + xebin[num[(i + NPAD, j + NPAD)] - 1]
+            return M_FUEL + xbin(num[(i + NPAD, j + NPAD)] - 1, k)
         if INSAG_RODS and r["type"] in CPS_RODS:
             return M_OF[insag_col(r)[k - NZ_REFL - 1]]
         if r["type"] in ROD_DSP:
@@ -1335,7 +1399,7 @@ def main():
 
     def fmap_mix(i, j, k, r):
         active = NZ_REFL < k <= NZ_REFL + NZ_ACTIVE
-        return (M_FUEL + xebin[num[(i + NPAD, j + NPAD)] - 1]
+        return (M_FUEL + xbin(num[(i + NPAD, j + NPAD)] - 1, k)
                 if (active and r is not None
                     and r["type"] in FUEL_TYPES) else 0)
 
@@ -1355,6 +1419,12 @@ def main():
     assert len(bulist) == nfuel
     xebin, xeval, xewhy = xenon_bins(cells, nfuel)
     assert len(xebin) == nfuel and len(xeval) == XEBINS
+
+    def xbin(c, k):
+        """Xenon bin of fuel channel c (0-based) in plane k (1-based)."""
+        if XEAX:
+            return xebin[c][k - NZ_REFL - 1]
+        return xebin[c]
 
     _axf = axial_shape()
     if _axf is not None:
@@ -1710,8 +1780,13 @@ CREATE ROD-GR {len([k for k, v in devn.items() if v])}
         for _ts in KINSHAPE:
             _k = int(round(_ts / KINDT))
             if 1 <= _k <= KIN:
+                # U4_KINVOID=1 also prints the fuel map's D-COOL (PARAM 2,
+                # NCH x NB like POWER-BUND, bottom bundle first): where the
+                # steam is during the transient, for tools/a8_voidz.py
+                _kvd = ("    UTL: FMAP :: STEP UP PARAM STEP AT 2 IMPR P-VALUE * ;\n"
+                        if KINVOID else "")
                 _kthm += (f'  IF istep {_k} = THEN\n    ECHO "A8SHAPE" istep "T" tt ;\n'
-                          f'    UTL: POWER :: IMPR POWER-BUND * ;\n  ENDIF ;\n')
+                          f'    UTL: POWER :: IMPR POWER-BUND * ;\n{_kvd}  ENDIF ;\n')
     _kthm = ("\n" + _kthm.rstrip("\n")) if _kthm else ""
     _kdecl = ("\nINTEGER ncyc := 0 ;\nREAL ecyc t0 := 0.0 0.0 ;" if (KIN and WITH_THM and KINFB) else "")
     _kt0 = "  EVALUATE t0 := tt ;\n" if (KIN and WITH_THM and KINFB) else ""
@@ -2045,8 +2120,9 @@ QUIT .
                          "# Generated by gen_rbmk_unit4.py: stage the MULTICOMPOs into the\n"
                          "# scratch run directory, as the A6.4 gate decks do.\n"
                          'src="$1"/../Dragon/compo\n'
-                         'cp "$src"/_ACompo . || exit 1\n'
-                         'cp "$src"/_CCompoWAT . || exit 1\n'
+                         + ('cp "$src"/_ACompoVB ./_ACompo || exit 1\n' if VOIDB else
+                            'cp "$src"/_ACompo . || exit 1\n')
+                         + 'cp "$src"/_CCompoWAT . || exit 1\n'
                          'cp "$src"/_CCompoABS . || exit 1\n'
                          'cp "$src"/_CCompoDSP . || exit 1\n'
                          + ('cp "$src"/_RCompo . || exit 1\n' if WITH_REFL else ""))
