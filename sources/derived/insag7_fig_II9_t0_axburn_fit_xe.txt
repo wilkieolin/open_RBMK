@@ -1,0 +1,31 @@
+# Per-bundle burnup multiplier, bottom bundle first, fitted to INSAG-7 Fig. II-9 t=0 WITH the
+# per-bundle xenon field (U4_XEBINS=16 U4_XEAX=1, a8_fit_pchan radial shares); rms 0.0201, k 1.021102.
+# tools/a8_axinvert.py, 2026-10-08.  An inverse problem, not a sourced profile.
+0.537692
+0.720531
+0.863399
+0.961700
+1.024337
+1.064161
+1.092278
+1.116073
+1.139256
+1.162614
+1.184889
+1.203633
+1.216009
+1.219545
+1.212747
+1.195466
+1.168940
+1.135498
+1.098003
+1.059173
+1.020872
+0.983433
+0.945024
+0.901080
+0.844111
+0.764563
+0.653950
+0.511023
