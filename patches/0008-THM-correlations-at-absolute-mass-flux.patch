@@ -1,0 +1,111 @@
+--- a/Donjon/src/THMH2O.f
++++ b/Donjon/src/THMH2O.f
+@@ -75,6 +75,8 @@
+ *  LOCAL VARIABLES
+ *----
+       REAL W(4),HL(4),JL,JG,REL,PRL,VGJ,UL
++*     RBMK local patch 0008: correlations at |G| (see below)
++      REAL GABS
+       CHARACTER HSMG*131
+       LOGICAL LFIRST
+ *----
+@@ -86,6 +88,18 @@
+ *  COMPUTE THE PROPERTIES OF THE SATURATED STEAM
+ *----
+       IF(HMAVG.LT.0.0) CALL XABORT('THMH2O: NEGATIVE INPUT ENTHALPY.')
++*----
++*  RBMK local patch 0008.  THMTRS builds the mass flux from continuity
++*  with a fixed inlet flow, so a step change in node density (the
++*  boiling-onset switch K0) moves it by HZ/(2*DTIME) per unit density;
++*  in a low-flow channel near saturation that can reverse the flow at
++*  the outlet.  The correlations below were taking powers of the signed
++*  Reynolds number (REL**0.8 = NaN for G<0), and MAX(273.15,NaN) then
++*  returned a 273.15 K wall, a ~1E7 W/m^2 heat flux and an enthalpy
++*  runaway into THMPH.  Heat transfer and void depend on |G|: evaluate
++*  them there.  Identical to upstream whenever G>0.
++*----
++      GABS=ABS(MFLOW)
+       IF(IFLUID.EQ.0) THEN
+          CALL THMSAT(PINLET,TSAT)
+          CALL THMTX(TSAT,0.0,RHOL,HLSAT,ZKL,ZMUL,CPL)
+@@ -159,7 +173,7 @@
+           IF(ISUBM.EQ.1) THEN
+ *           Use the Paul Gallet thesis model.
+             PI=RHOLAV*CPLAV*(TSCLAD-TL)/(RHOG*HLV)
+-            XFL=XFL0+PCH*PHI*DZ/(MFLOW*ACOOL*HLV)/(1.0+PI)
++            XFL=XFL0+PCH*PHI*DZ/(GABS*ACOOL*HLV)/(1.0+PI)
+           ELSE IF(ISUBM.EQ.2) THEN
+ *           Use a profile fit model.
+             XFL=MAX(XFL0,(F2+F3)/(1.0+F3))
+@@ -187,10 +201,10 @@
+             PR=PINLET/10**6
+             SIGM=-7.2391E-6*PR**3+2.8345E-4*PR**2-5.1566E-3*PR+4.2324E-2
+             VGJ=1.18*((SIGM*9.81*(RHOL-RHOG))/RHOL**2)**0.25
+-            F4=CO*((XFL*RHOL)+((1.0-XFL)*RHOG))+(RHOL*RHOG*VGJ/MFLOW)
++            F4=CO*((XFL*RHOL)+((1.0-XFL)*RHOG))+(RHOL*RHOG*VGJ/GABS)
+             EPS=(XFL*RHOL)/F4
+-            JL=(1.0-XFL)*MFLOW/RHOL
+-            JG=XFL*MFLOW/RHOG
++            JL=(1.0-XFL)*GABS/RHOL
++            JG=XFL*GABS/RHOG
+             IF(EPS.NE.0) SLIP=JG*(1.0-EPS)/(JL*EPS)
+           ENDIF
+         ELSE
+@@ -223,7 +237,7 @@
+           CALL THMHPT(PINLET,TCALO,R1,R2,ZKONE,ZMUONE,CPONE)
+         ENDIF
+         RHO=RHOLAV
+-        REL=MFLOW*HD/ZMUONE
++        REL=GABS*HD/ZMUONE
+         PRL=ZMUONE*CPONE/ZKONE
+       ELSE IF(HMAVG.LT.HGSAT) THEN
+ *       Two-phase flow
+@@ -235,22 +249,22 @@
+             REL = ABS(UL*RHOL) * HD / ZMUL
+             PRL = ZMUL*CPL/ZKL
+         ELSE
+-            REL=MFLOW*(1.0-XFL)*HD/ZMUL
++            REL=GABS*(1.0-XFL)*HD/ZMUL
+             PRL=ZMUL*CPL/ZKL
+         ENDIF
+         TCALO=EPS*TSAT+(1.0-EPS)*TL
+         ZKONE=ZKL
+         CPONE=CPL
+         RHO=EPS*RHOG+(1.0-EPS)*RHOL 
+-        JL=(1.0-XFL)*MFLOW/RHOL
+-        JG=XFL*MFLOW/RHOG
++        JL=(1.0-XFL)*GABS/RHOL
++        JG=XFL*GABS/RHOG
+         IF(EPS.NE.0) THEN
+         SLIP=JG*(1.0-EPS)/(JL*EPS) 
+         ENDIF
+       ELSE
+ *       superheated steam
+         RHO=RHOG
+-        REL=MFLOW*HD/ZMUG
++        REL=GABS*HD/ZMUG
+         PRL=ZMUG*CPG/ZKG
+       ENDIF
+ *----
+@@ -366,18 +380,18 @@
+ *         Detachment, and Calculation of Steam Voidage in the Subcooled
+ *         Region of a Heated Channel," OECD Report HPR-10, 1962.
+ *         Equation3 (3) and (17)
+-          VC=MFLOW/RHOL
++          VC=GABS/RHOL
+           ETA=14.0+0.1*PINLET/1.01325E+05
+           DTSUB=ETA*PHI/VC*1.0E-6
+          ELSE IF(ISUBM.EQ.2) THEN
+ *         Saha-Zuber subcooling model
+ *         PE: Peclet number
+-          PE=MFLOW*CPL*HD/ZKL
++          PE=GABS*CPL*HD/ZKL
+           IF(PE.LE.70000.0) THEN
+             DTSUB=PHI*HD/(455.0*ZKL)
+           ELSE
+ *           reactor conditions
+-            DTSUB=154.0*PHI/(MFLOW*CPL)
++            DTSUB=154.0*PHI/(GABS*CPL)
+           ENDIF
+         ENDIF
+         IF(TCALO.GE.TSAT-DTSUB) K0=K
