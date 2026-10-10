@@ -281,7 +281,9 @@ if WITH_THM:
                 + ("" if os.environ.get("U4_SUBC", "3.0") == "3.0" else
                    "s" + os.environ["U4_SUBC"].replace(".", ""))
                 + ("" if os.environ.get("U4_PACC", "200") == "200" else
-                   "p" + os.environ["U4_PACC"].replace(".", "")))
+                   "p" + os.environ["U4_PACC"].replace(".", ""))
+                + ("" if os.environ.get("U4_QFRAC", "1.0") == "1.0" else
+                   "q" + os.environ["U4_QFRAC"].replace(".", "")))
              # the channel powers 'prop' valves the flow by are an input too
              # (standing rule 7): key the stem on their content when given
              + ("" if not os.environ.get("U4_PCHAN") or FLOW != "prop" else
@@ -735,6 +737,18 @@ if TH_STATE not in ("nom", "acc"):
 SUBC = float(os.environ.get("U4_SUBC", "3.0"))
 A_FLOW_M2 = 22.427082E-4        # m2, gen_rbmk_a7a.py's A_FLOW
 Q_ACC = 56000.0                 # m3/h, INSAG-7 p. 64
+# U4_QFRAC scales that flow for the state at AZ-5 rather than at 01:23.  The
+# 56 000 m3/h is the Commission's value immediately BEFORE the test (p. 64);
+# INSAG-7 Sec. 1-4.6.2 (PDF p. 65): "Thirty-five seconds after the start of
+# the transient it had fallen by 10-15% of the initial value" -- i.e. at
+# 01:23:39, one second before EPS-5.  So 0.85-0.90 is a sourced band for the
+# A8 initial state, not a fitted constant.  Power is kept at 200 MW: the same
+# section says there was no power increase during the rundown.
+QFRAC = float(os.environ.get("U4_QFRAC", "1.0"))
+Q_ACC *= QFRAC
+QNOTE = ("" if QFRAC == 1.0 else
+         f"*  [U4_QFRAC={QFRAC:g}: 56000 m3/h x {QFRAC:g}, the flow at AZ-5 after the\n"
+         f"*  10-15 % rundown fall of INSAG-7 Sec. 1-4.6.2.]\n")
 # U4_PACC overrides the 200 MW only to measure the static power coefficient of
 # the 01:23 state (flow and inlet held); it is not a state of the accident.
 PACC = os.environ.get("U4_PACC", "200")
@@ -1835,6 +1849,7 @@ CREATE ROD-GR {len([k for k, v in devn.items() if v])}
             flowdoc = (
                 f"*  U4_TH=acc -- THE 01:23 STATE, INSAG-7 p. 64: {PTOT_MW:.0f} MW(th), coolant\n"
                 f"*  {Q_ACC:.0f} m3/h (8 MCPs), inlet subcooling {SUBC:g} K.  Inlet at THM:'s own\n"
+                f"{QNOTE}"
                 f"*  (IF97) T_sat {tsat_if97(P_OUT):.2f} K at {P_OUT / KGF:.1f} kgf/cm2 less {SUBC:g} K = {T_IN:.2f} K;\n"
                 f"*  the 01:23 pressure is not sourced, the subcooling is.  Mean inlet\n"
                 f"*  velocity {V_ACC:.4f} m/s = the volumetric flow over 1661 x 22.427 cm2.\n"
