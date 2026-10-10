@@ -92,6 +92,20 @@ if VOIDB:
     _VSFX = "_vB" + _hl.md5(open(_VBFILE, "rb").read()).hexdigest()[:6]
 else:
     _VSFX = ""
+# U4_CPSB=1 stages _CCompoABScB/_CCompoDSPcB (tools/compo_cpsB.py) in place of
+# the ABS and DSP CPS COMPOs: mixture 5 rebuilt as WAT + f (T - WAT) so the
+# core-equivalent A64V supercell carries OpenMC's absorber and displacer worth
+# at the core's CPS state (PROGRESS (35)).  Keyed on both files' content.
+CPSB = os.environ.get("U4_CPSB", "0") != "0"
+_CBFILES = [os.path.join(ROOT, "5.1", "Dragon", "compo", f"_CCompo{t}cB")
+            for t in ("ABS", "DSP")]
+if CPSB:
+    for _f in _CBFILES:
+        if not os.path.exists(_f):
+            raise SystemExit(f"U4_CPSB=1: {_f} not found; run tools/compo_cpsB.py fit")
+    import hashlib as _hl
+    _VSFX += "_cB" + _hl.md5(b"".join(open(_f, "rb").read()
+                                      for _f in _CBFILES)).hexdigest()[:6]
 _BSFX = _VSFX + ("" if _BURN0 == "flat" else "_b" + _BURN0) + (
     "" if os.environ.get("U4_XEBINS", "1") == "1"
     else "_n" + os.environ.get("U4_XEBINS", "1")
@@ -2138,8 +2152,10 @@ QUIT .
                          + ('cp "$src"/_ACompoVB ./_ACompo || exit 1\n' if VOIDB else
                             'cp "$src"/_ACompo . || exit 1\n')
                          + 'cp "$src"/_CCompoWAT . || exit 1\n'
-                         'cp "$src"/_CCompoABS . || exit 1\n'
-                         'cp "$src"/_CCompoDSP . || exit 1\n'
+                         + ('cp "$src"/_CCompoABScB ./_CCompoABS || exit 1\n'
+                            'cp "$src"/_CCompoDSPcB ./_CCompoDSP || exit 1\n' if CPSB else
+                            'cp "$src"/_CCompoABS . || exit 1\n'
+                            'cp "$src"/_CCompoDSP . || exit 1\n')
                          + ('cp "$src"/_RCompo . || exit 1\n' if WITH_REFL else ""))
     os.chmod(acc, 0o755)
     print(f"wrote {os.path.relpath(OUT, ROOT)}")

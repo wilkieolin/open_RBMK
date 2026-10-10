@@ -1,0 +1,30 @@
+# INSAG-7 Fig. II-9 t=0 axial inversion with the CPS worths corrected to OpenMC (U4_CPSB=1, compo_cpsB.py f_ABS 0.802622 f_DSP 1.201581).
+# tools/a8_axinvert.py, N=6 Legendre, start from insag7_fig_II9_t0_axburn_fit.txt; rms 0.0194, k 1.027709, 59 solves. Bottom bundle first.
+0.467512
+0.656023
+0.813741
+0.929397
+1.007349
+1.058622
+1.094300
+1.122555
+1.148088
+1.172609
+1.195636
+1.215317
+1.229214
+1.235033
+1.231225
+1.217376
+1.194300
+1.163812
+1.128254
+1.089854
+1.050034
+1.008741
+0.963825
+0.910605
+0.841938
+0.749518
+0.627371
+0.477749
