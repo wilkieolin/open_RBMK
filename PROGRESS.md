@@ -6360,8 +6360,15 @@ The frozen-TH twin runs on to a peak of **223×** at 6.5 s and 210× at 7 s (486
   It matters less than it did, because the surge above is rod-driven and void feedback joins
   late.
 
+**Timestep (5 ms twin, `kin1400…dt0005`).** P/P0 at 1.0 / 1.5 / 3.0 / 3.5 / 4.0 s is
+0.7632 / 0.8820 / 5.137 / 11.12 / 20.85, against 0.7631 / 0.8791 / 5.034 / 10.78 / 19.98 at 10 ms:
++0.0, +0.3, +2.0, +3.1 and +4.4 %. That is a time shift of about 0.03 s at a 0.6–0.8 s period, so
+the excursion is timestep-converged to a few percent through 4 s. The 5 ms run stops at 4.095 s
+(24×) on `THMTRS: CONVERGENCE FAILURE IN FLOW CALCULATION`. This is the flow fixed point whose
+gain grows as 1/dt (patches 0005/0006), now in rapidly boiling channels, so the halved step
+cannot follow the run to dryout. The 10 ms run reaches it.
+
 **Caveats.**
-- The 10 ms step has not yet been checked at this speed; a 5 ms twin is running.
 - U4_PCHAN (the flow valving) still comes from the original fit's channel powers.
 - The CPS correction is fitted at one state (10.9 MWd/kg, dca 0.72, TF 900) and applied at all
   18 points; the core reads only that state.
