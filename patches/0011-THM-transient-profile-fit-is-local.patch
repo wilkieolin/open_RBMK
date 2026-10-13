@@ -1,6 +1,6 @@
 --- a/Donjon/src/THMH2O.f
 +++ b/Donjon/src/THMH2O.f
-@@ -189,7 +189,20 @@
+@@ -189,7 +189,22 @@
              XFL=XFL0+PCH*PHI*DZ/(GABS*ACOOL*HLV)/(1.0+PI)
            ELSE IF(ISUBM.EQ.2) THEN
  *           Use a profile fit model.
@@ -13,11 +13,13 @@
 +*           below what their enthalpy gives, and continuity turns that
 +*           error into a mass flux of -3000 kg/m2/s at the outlet and a
 +*           negative enthalpy.  The profile fit is a local function of the
-+*           local enthalpy: in a transient, use it alone.
++*           local enthalpy: in a transient, use it alone, floored at zero
++*           (at xe = xd it rounds to -1E-10, and a negative quality makes
++*           the Martinelli parameter below NaN).
 +            IF(ITIME.EQ.0) THEN
 +              XFL=MAX(XFL0,(F2+F3)/(1.0+F3))
 +            ELSE
-+              XFL=(F2+F3)/(1.0+F3)
++              XFL=MAX(0.0,(F2+F3)/(1.0+F3))
 +            ENDIF
            ENDIF
            HLAVG=MIN(HLSAT,(HMAVG-XFL*HGSAT)/(1.0-XFL))
