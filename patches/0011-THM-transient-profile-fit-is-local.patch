@@ -1,0 +1,24 @@
+--- a/Donjon/src/THMH2O.f
++++ b/Donjon/src/THMH2O.f
+@@ -189,7 +189,20 @@
+             XFL=XFL0+PCH*PHI*DZ/(GABS*ACOOL*HLV)/(1.0+PI)
+           ELSE IF(ISUBM.EQ.2) THEN
+ *           Use a profile fit model.
+-            XFL=MAX(XFL0,(F2+F3)/(1.0+F3))
++*           RBMK local patch 0011.  XFL0 is the quality of the slice below
++*           (THMTRS sets XFL(K)=XFL(K-1) before the call).  In a steady
++*           channel enthalpy rises upward and the MAX never acts; in a
++*           transient a boiling bottom under not-yet-heated water above
++*           would hand its quality to every slice above, at a density far
++*           below what their enthalpy gives, and continuity turns that
++*           error into a mass flux of -3000 kg/m2/s at the outlet and a
++*           negative enthalpy.  The profile fit is a local function of the
++*           local enthalpy: in a transient, use it alone.
++            IF(ITIME.EQ.0) THEN
++              XFL=MAX(XFL0,(F2+F3)/(1.0+F3))
++            ELSE
++              XFL=(F2+F3)/(1.0+F3)
++            ENDIF
+           ENDIF
+           HLAVG=MIN(HLSAT,(HMAVG-XFL*HGSAT)/(1.0-XFL))
+         ENDIF

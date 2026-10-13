@@ -1,0 +1,21 @@
+--- a/Donjon/src/THMH2O.f
++++ b/Donjon/src/THMH2O.f
+@@ -163,7 +163,17 @@
+       F3=0.0
+       IF(K0.GT.0) THEN
+         HLV=HGSAT-HLSAT
+-        IF((HLV.GT.0.0).AND.(DHSUB.GT.0.0)) THEN
++*       RBMK local patch 0010.  The profile fit x = (xe + F3)/(1 + F3),
++*       F3 = -xd*EXP(xe/xd - 1), xd = -DHSUB/HLV, holds only from the
++*       point of net vapour generation up, xe >= xd.  Below it the
++*       exponent is positive: a slice 100 J/kg subcooled with a small
++*       DHSUB gets F3 ~ 1E15 and x = 1, then REL = 0, F = Inf, S = NaN
++*       and a NaN HCONV ("DRY OUT"), and XFL(K)=XFL(K-1) carries x = 1
++*       to every slice above.  K0 > 0 does not guarantee xe >= xd in a
++*       transient.  Below xd the fit's own value is x = 0 (continuous at
++*       xe = xd), so F2 = F3 = 0 is left there.
++        IF((HLV.GT.0.0).AND.(DHSUB.GT.0.0).AND.
++     >     (HMAVG.GE.HLSAT-DHSUB)) THEN
+           F2=(HMAVG-HLSAT)/HLV
+           F3=(DHSUB/HLV)*EXP(-(HMAVG-HLSAT)/DHSUB-1.0)
+         ENDIF

@@ -1,0 +1,80 @@
+--- a/Donjon/src/THMTRS.f
++++ b/Donjon/src/THMTRS.f
+@@ -139,6 +139,8 @@
+ *     RBMK local patch 0006: density under-relaxation in the flow loop
+       REAL FRLX
+       COMMON /THMFRX/ FRLX
++*     RBMK local patch 0013: this channel's working relaxation weight
++      REAL WRLX,ERRPRV
+       REAL DSAVE(NZ)
+ *----
+ *  ALLOCATABLE ARRAYS
+@@ -263,6 +265,8 @@
+         ENDIF
+       ENDDO
+       ITERC=0
++      WRLX=FRLX
++      ERRPRV=1.0E30
+    20 ITERC=ITERC+1
+ *     patch 0006: the density this pass starts from, for under-relaxation
+       DO K=1,NZ
+@@ -400,6 +404,13 @@
+      >    IDFM,PHI(K),XFL(K),EPS(K),SLIP(K),ACOOL(K),PCH(K),HZ(K),TCALO,
+      >    DCOOL(K),DLIQT(K),DGCOOL(K),TRE11(NDTOT),
+      >    KWA(K),VGJprime,HLV(K))
++*         RBMK local patch 0013 (cont.).  THMH2O has just written this
++*         slice's new density into DCOOL(K), and the continuity equation
++*         of slice K+1 reads it later in this same pass, so the
++*         post-pass relaxation below never damped the march: a pass
++*         could still move the outlet mass flux by 1200 kg/m2/s at any
++*         weight.  Relax it here, against the same start-of-pass value.
++          IF(FRLX.LT.1.0) DCOOL(K)=WRLX*DCOOL(K)+(1.0-WRLX)*DSAVE(K)
+         ELSEIF (IFLUID.EQ.2) THEN
+           IF(XFL(K).NE.0.0) THEN
+             CALL XABORT('THMTRS: INVALID VALUE OF FLOW QUALITY(1).')
+@@ -507,7 +518,7 @@
+ *        FLOW-RELAX w on THM: carries w*new + (1-w)*start-of-pass into the
+ *        next pass.  It changes the path, not the fixed point: at
+ *        convergence new = start-of-pass.  Default 1 = upstream.
+-         IF(FRLX.LT.1.0) DCOOL(K)=FRLX*DCOOL(K)+(1.0-FRLX)*DSAVE(K)
++         IF(FRLX.LT.1.0) DCOOL(K)=WRLX*DCOOL(K)+(1.0-WRLX)*DSAVE(K)
+          VELOT(K)=MFLXT(K)/DCOOL(K)
+        ENDDO
+ *----
+@@ -544,7 +555,16 @@
+            CALL THMSPT(STP,TB,R11,H11,K11,MUT(K),C11,IMPX)
+           ENDIF
+         ENDIF
+-        ERRG=MAX(ERRG,ABS(MFLXT(K)-RESM(K))/MFLXT(K))
++*       RBMK local patch 0013 (cont.).  Relative to the local flux the
++*       test is meaningless where the flow reverses: at G = +29 kg/m2/s a
++*       converged slice reads as a 100 % error, and for G < 0 the ratio
++*       is negative and never counts.  Measure it against |G| floored
++*       at the inlet flux, the scale every slice's flux is built from
++*       (G = G_in + sum of density changes); a 10 % floor was tried and
++*       still failed a converged channel on a 10 kg/m2/s outlet wobble.
++*       Identical to upstream wherever G >= G_inlet.
++        ERRG=MAX(ERRG,ABS(MFLXT(K)-RESM(K))/
++     >  MAX(ABS(MFLXT(K)),ABS(MFLXIN)))
+         ERRP=MAX(ERRP,ABS(PREST(K)-RESP(K))/PREST(K))
+         ERRH=MAX(ERRH,ABS(ENTHT(K)-RESH(K))/ENTHT(K))
+         RESM(K)=MFLXT(K)
+@@ -553,6 +573,18 @@
+       ENDDO
+       ERR=MAX(ERRG,ERRP,ERRH)
+       IF(IMPX.GT.1) WRITE(6,200) ITERC,ERRG,ERRP,ERRH
++*     RBMK local patch 0013.  A fixed FLOW-RELAX w that damps the slowest
++*     channel slows every other one, and 0.25 does not damp a high-flow
++*     channel whose upper half sits at saturation, where a local quality
++*     makes d(rho)/dh steep (a period-3 cycle of 12 % in G, measured).
++*     Start each channel at w and halve it, down to w/32, whenever a pass
++*     fails to reduce the error; the fixed point is unchanged (at
++*     convergence new = start-of-pass whatever the weight).  Only with
++*     FLOW-RELAX < 1; upstream's default never relaxes.
++      IF((FRLX.LT.1.0).AND.(ITERC.GT.1).AND.(ERR.GE.ERRPRV)) THEN
++        WRLX=MAX(0.5*WRLX,FRLX/32.0)
++      ENDIF
++      ERRPRV=ERR
+       IF(IFLUID.EQ.0) THEN
+         CALL THMPT(PINLET,TINLET,RHOINL,HINLET,R3,MUIN,CPVIN)
+       ELSE IF(IFLUID.EQ.1) THEN

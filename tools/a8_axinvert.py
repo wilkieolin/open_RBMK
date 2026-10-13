@@ -58,6 +58,16 @@ def target():
     lo, hi = Db < D[0], Db > D[-1]
     T[lo] = f[0] + (Db[lo] - D[0]) * (f[1] - f[0]) / (D[1] - D[0])
     T[hi] = f[-1] + (Db[hi] - D[-1]) * (f[-1] - f[-2]) / (D[-1] - D[-2])
+    # A8_TILT=a multiplies the target by (1 - a x), x = -1 at the core bottom
+    # and +1 at the top, before renormalising: a = +0.1 raises the bottom-to-
+    # top power density ratio by 1.1/0.9 = 1.22.  This is INSAG-7 p. 69's
+    # "20 % variation in initial power density" (Ref. [28]: 31x or 64x at
+    # 6.5 s) made into a band on the measured shape.  The source does not say
+    # which 20 %; a linear tilt is the smallest assumption that moves power
+    # between the halves, which is what decides the scram (section 26).
+    tilt = float(os.environ.get("A8_TILT", "0"))
+    x = 2.0 * (np.arange(NB) + 0.5) / NB - 1.0
+    T = T * (1.0 - tilt * x)
     return T / T.mean(), Db
 
 

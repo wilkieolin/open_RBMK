@@ -1,0 +1,56 @@
+--- a/Donjon/src/THMH2O.f
++++ b/Donjon/src/THMH2O.f
+@@ -77,13 +77,16 @@
+       REAL W(4),HL(4),JL,JG,REL,PRL,VGJ,UL
+ *     RBMK local patch 0008: correlations at |G| (see below)
+       REAL GABS
++*     RBMK local patch 0009: count of transient no-cooling slices
++      INTEGER NDRY
+       CHARACTER HSMG*131
+       LOGICAL LFIRST
+ *----
+ *  SAVE VARIABLES
+ *----
+-      SAVE DHSUB,DSAT,W
++      SAVE DHSUB,DSAT,W,NDRY
+       DATA W /0.347855,0.652145,0.652145,0.347855/
++      DATA NDRY /0/
+ *----
+ *  COMPUTE THE PROPERTIES OF THE SATURATED STEAM
+ *----
+@@ -341,10 +344,34 @@
+           ENDIF
+ *         Chen correlation
+           HCONV=F*HA+S*HB
+-          IF(HCONV.LE.0.0) THEN
++*----
++*  RBMK local patch 0009.  Upstream aborts the whole calculation when
++*  the Chen coefficient is not positive.  In a transient that ends a
++*  prompt excursion at its first uncooled slice, long before the fuel
++*  enthalpy that decides the outcome.  For ITIME=1 the slice is instead
++*  treated as uncooled -- the clad exchanges no heat (HA=HB=0 gives
++*  TWAL=ZF(1)/ZF(2) and PHI=0 below) -- and the state is printed for
++*  the first 20 occurrences, then every 1000th.  NaN is caught too.
++*  The steady state (ITIME=0) still aborts, as upstream does.
++*----
++          IF(.NOT.(HCONV.GT.0.0)) THEN
++            IF(ITIME.EQ.0) THEN
+             WRITE(HSMG,'(34HTHMH2O: DRY OUT REACHED IN CHANNEL,3I5)')
+      >      I,J,K
+             CALL XABORT(HSMG)
++            ENDIF
++            NDRY=NDRY+1
++            IF((NDRY.LE.20).OR.(MOD(NDRY,1000).EQ.0)) THEN
++              WRITE(6,'(A,I9,3I4,I3,A,1P,4E12.4)') ' THMH2O NOCOOL',
++     >        NDRY,I,J,K,KWA,' G X0 X EPS',MFLOW,XFL0,XFL,EPS
++              WRITE(6,'(A,1P,6E12.4)') ' THMH2O NOCOOL H HL HG TC TS',
++     >        HMAVG,HLSAT,HGSAT,TSCLAD,TSAT,TCALO
++              WRITE(6,'(A,1P,7E12.4)') ' THMH2O NOCOOL HA HB F S REL',
++     >        HA,HB,F,S,REL,ZKL,PRL
++            ENDIF
++            HA=0.0
++            HB=0.0
++            HCONV=0.0
+           ENDIF
+           IF(ITIME.EQ.0) THEN
+             TWAL=(PHI+S*HB*TSAT+F*HA*TCALO)/(S*HB+F*HA)

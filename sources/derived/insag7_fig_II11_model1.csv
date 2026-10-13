@@ -1,0 +1,40 @@
+# INSAG-7 (1992) Fig. II-11 (PDF p. 134, printed p. 124): Model 1 (Kurchatov,
+# Sec. II-2.5.2), the AZ-5 transient from 01:23:40.  Digitised by eye from a
+# 250 dpi render, marker centres only (no interpolation between markers).
+# Read-off uncertainty about +-0.05 s, +-0.04 nominal units, +-0.02 beta.
+# Power is in NOMINAL units (3200 MW), so the 200 MW start is 0.0625 and the
+# peak 4.94 is 79x the initial power: the "approximately 80 times" of p. 121.
+# series,t_s,value
+power_nominal,0.29,0.11
+power_nominal,1.45,0.11
+power_nominal,2.69,0.18
+power_nominal,3.64,0.30
+power_nominal,4.65,0.50
+power_nominal,5.55,0.79
+power_nominal,6.05,1.22
+power_nominal,6.55,1.77
+power_nominal,6.72,2.22
+power_nominal,6.86,2.89
+power_nominal,6.99,3.55
+power_nominal,7.15,4.16
+power_nominal,7.27,4.61
+power_nominal,7.41,4.88
+power_nominal,7.95,4.94
+power_nominal,8.40,4.16
+power_nominal,8.70,3.52
+power_nominal,9.09,2.71
+power_nominal,9.55,2.03
+reactivity_beta,0.55,-0.14
+reactivity_beta,1.05,-0.13
+reactivity_beta,2.00,0.09
+reactivity_beta,2.35,0.30
+reactivity_beta,2.70,0.52
+reactivity_beta,3.50,0.72
+reactivity_beta,4.50,0.90
+reactivity_beta,5.50,0.90
+reactivity_beta,6.55,0.98
+reactivity_beta,7.10,1.00
+reactivity_beta,8.24,0.80
+reactivity_beta,8.40,0.51
+reactivity_beta,9.00,0.26
+reactivity_beta,9.55,-0.01

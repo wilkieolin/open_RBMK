@@ -1,0 +1,62 @@
+--- a/Donjon/src/THMTRS.f
++++ b/Donjon/src/THMTRS.f
+@@ -132,6 +132,8 @@
+       INTEGER IDFM
+ *     RBMK local patch 0005: opt-in acceptance of a flow limit cycle
+       REAL CYCCAP,ERRCYC
++*     RBMK local patch 0012: face mass fluxes
++      REAL GTOP,GBOT
+       INTEGER NCYC
+       COMMON /THMCYC/ CYCCAP,ERRCYC,NCYC
+ *     RBMK local patch 0006: density under-relaxation in the flow loop
+@@ -334,8 +336,32 @@
+ *----
+ *  ENTHALPY VECTOR CALCULATION WITH ENERGY CONSERVATION EQUATION
+ *----
+-        PARAM1=0.5*DCOOL(K)*DTINV*HZ(K)+MFLXT(K)
++*       RBMK local patch 0012.  Upstream takes every face's enthalpy
++*       from the slice below, the donor cell only for upward flow.  The
++*       mass flux is built by continuity from a fixed inlet flow, and
++*       above a boiling bottom it goes negative (water falls back from
++*       the outlet: -1600 kg/m2/s measured); the energy balance then
++*       drew on the wrong side, the enthalpy oscillated odd-even and the
++*       flow iteration never converged.  Each face now takes the donor
++*       side of its own flow: the top face of slice K carries ENTHT(K)
++*       up or ENTHT(K+1) (this pass's start value) down, the bottom
++*       face carries ENTHT(K-1) up or ENTHT(K) down.  The outlet face
++*       of the top slice keeps ENTHT(NZ) either way, as upstream.  With
++*       every flux positive this is upstream's equation exactly.
++        GTOP=MFLXT(K)
++        IF(K.EQ.KMIN) THEN
++          GBOT=MFLXIN
++        ELSE
++          GBOT=MFLXT(K-1)
++        ENDIF
++        PARAM1=0.5*DCOOL(K)*DTINV*HZ(K)
++        IF((GTOP.GE.0.0).OR.(K.EQ.NZ)) THEN
++          PARAM1=PARAM1+GTOP
++        ENDIF
+         PARAM2=0.5*DCOOL0(K)*ENTHT0(K)*DTINV*HZ(K)
++        IF((GTOP.LT.0.0).AND.(K.LT.NZ)) THEN
++          PARAM2=PARAM2-GTOP*ENTHT(K+1)
++        ENDIF
+         PARAM3=(QCOOL(K)+PHI(K)*PCH(K)/ACOOL(K))*HZ(K)
+         IF(K.EQ.KMIN) THEN
+           PARAM2=PARAM2+0.5*(RHOIN0*HINLE0-RHOINL*HINLET)*DTINV*HZ(K)
+@@ -344,8 +370,14 @@
+         ELSE
+           PARAM2=PARAM2+0.5*(DCOOL0(K-1)*ENTHT0(K-1)-
+      1    DCOOL(K-1)*ENTHT(K-1))*DTINV*HZ(K)
+-          PARAM2=PARAM2+MFLXT(K-1)*ENTHT(K-1)
+-          HMINF=ENTHT(K-1)
++          IF(GBOT.GE.0.0) THEN
++            PARAM2=PARAM2+GBOT*ENTHT(K-1)
++            HMINF=ENTHT(K-1)
++          ELSE
++            PARAM1=PARAM1-GBOT
++            HMINF=ENTHT(K-1)
++            IF((GTOP.LT.0.0).AND.(K.LT.NZ)) HMINF=ENTHT(K+1)
++          ENDIF
+         ENDIF
+         ENTHT(K)=(PARAM2+PARAM3)/PARAM1
+         DELTH=ENTHT(K)-HMINF
