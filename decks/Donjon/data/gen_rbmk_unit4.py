@@ -273,6 +273,7 @@ _DEVSFX = (("" if not DEV else "_dev")
        else "cc" + os.environ["U4_CYCCAP"].replace(".", "").replace("-", "m"))
     + ("" if os.environ.get("U4_ERMAXC", "1.0E-3") == "1.0E-3"
        else "ec" + os.environ["U4_ERMAXC"].replace(".", "").replace("-", "m"))
+    + ("" if os.environ.get("U4_NCRCLAMP", "0") == "0" else "cl")
     + ("" if os.environ.get("U4_DT", "0.001") == "0.001"
        else "dt" + os.environ.get("U4_DT", "0.001").replace(".", "").replace("-", ""))))
 _STEM = ("rbmk_unit4_core" if WITH_REFL else "rbmk_unit4_norefl") + (
@@ -1730,6 +1731,15 @@ CREATE ROD-GR {len([k for k, v in devn.items() if v])}
     NCRFUEL = ("""MACFUEL := NCR: FCpo FMAP :: EDIT 0 MACRO LINEAR
   TABLE FCpo 'EDIRBMK'%s
 %s  ;""" % (_bkey, _mixes))
+    # U4_NCRCLAMP=1 (patch 0014): a map parameter beyond the COMPO's axis is
+    # held at the axis edge instead of aborting the run.  Needed past the
+    # peak of the steepest A8 cases, where the hottest bundle's effective
+    # fuel temperature passes the TF axis top (2000 K): Doppler is then
+    # frozen at its 2000 K value, which UNDER-states the feedback, so the
+    # power and fuel enthalpy after that point are upper estimates.
+    if os.environ.get("U4_NCRCLAMP", "0") != "0":
+        NCRFUEL = NCRFUEL.replace("EDIT 0 MACRO LINEAR\n",
+                                  "EDIT 0 MACRO LINEAR CLAMP\n", 1)
     # With THM:, 'DCA' and 'TF' are NOT set here: the fuel map carries them as
     # local parameters and NCR: picks a parameter up from the map whenever it
     # is not SET (NCRRGR.f:714-722 prints which ones SET overrides).  'TG' is

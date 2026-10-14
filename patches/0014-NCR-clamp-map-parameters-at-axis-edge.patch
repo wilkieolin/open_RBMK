@@ -1,0 +1,74 @@
+--- a/Donjon/src/NCR.f
++++ b/Donjon/src/NCR.f
+@@ -69,6 +69,10 @@
+      & IDF, NGRP, NITMA, NMIL, NMIX, NPARM
+       CHARACTER TEXT12*12,HSMG*131,HSIGN*12,NAMDIR*12
+       LOGICAL LMACRO,LCUBIC,LXS,LRES,LPURE
++*     RBMK local patch 0014: CLAMP map parameters at the COMPO axis edge
++      LOGICAL LCLAMP
++      INTEGER NCLAMP
++      COMMON /NCRCLP/ LCLAMP,NCLAMP
+       DOUBLE PRECISION DFLOTT
+       INTEGER ISTATE(NSTATE)
+       TYPE(C_PTR) IPLIB,IPLIB2,IPMAP,IPCPO,JPCPO
+@@ -144,6 +148,8 @@
+       ITER=-1
+       IPCPO=C_NULL_PTR
+       IMPX=1
++      LCLAMP=.FALSE.
++      NCLAMP=0
+    20 CALL REDGET(INDIC,NITMA,FLOTT,TEXT12,DFLOTT)
+       IF(INDIC.NE.3) CALL XABORT('NCR: CHARACTER DATA EXPECTED(1).')
+    30 IF(TEXT12.EQ.'EDIT') THEN
+@@ -168,6 +174,11 @@
+         LCUBIC=.FALSE.
+       ELSE IF(TEXT12.EQ.'CUBIC') THEN
+         LCUBIC=.TRUE.
++      ELSE IF(TEXT12.EQ.'CLAMP') THEN
++*       RBMK local patch 0014: a fuel-map parameter outside the COMPO
++*       axis is held at the nearest axis value (counted, warned) instead
++*       of aborting.  Off unless asked for.
++        LCLAMP=.TRUE.
+       ELSE IF(TEXT12.EQ.'ALLX') THEN
+         LXS=.TRUE.
+         CALL REDGET(INDIC,MAXFEL,FLOTT,TEXT12,DFLOTT)
+@@ -304,6 +315,8 @@
+ *
+         CALL NCRRGR(JPCPO,IPMAP,LCUBIC,NMIX,IMPX,NMIL,NCAL,NCH,
+      1  NB,NFUEL,NPARM,ITER,MAXNIS,MIXC,TERP,NISO,LISO,HISO,CONC)
++        IF(NCLAMP.GT.0) WRITE(6,'(A,I8,A)') ' NCR: CLAMP',NCLAMP,
++     1  ' MAP VALUES HELD AT A COMPO AXIS EDGE.'
+         GO TO 100
+       ELSE IF(TEXT12.EQ.'LEAK') THEN
+         CALL REDGET(INDIC,NITMA,B2,TEXT12,DFLOTT)
+--- a/Donjon/src/NCRRGR.f
++++ b/Donjon/src/NCRRGR.f
+@@ -57,6 +57,10 @@
+      1        MIXC(NMIX),NPARM,HISO(2,NMIX,MAXISD),NISO(NMIX)
+       REAL TERP(NCAL,NMIX),CONC(NMIX,MAXISD)
+       LOGICAL LCUBIC,LISO(NMIX)
++*     RBMK local patch 0014
++      LOGICAL LCLAMP
++      INTEGER NCLAMP
++      COMMON /NCRCLP/ LCLAMP,NCLAMP
+ *----
+ *  LOCAL VARIABLES
+ *----
+@@ -882,6 +886,17 @@
+ *----
+ *  ERRORS HANDLING
+ *----
++*       RBMK local patch 0014: with CLAMP, hold the value at the edge.
++        IF(LCLAMP.AND.((VALR1.LT.VREAL(1)).OR.
++     1     (VALR2.GT.VREAL(NVALUE(IPAR))))) THEN
++          NCLAMP=NCLAMP+1
++          IF(NCLAMP.LE.5) WRITE(6,'(A,A,1P,2E12.4)') ' NCRRGR: CLAMP ',
++     1    PARNAM,VALR1,VALR2
++          VALR1=MIN(MAX(VALR1,VREAL(1)),VREAL(NVALUE(IPAR)))
++          VALR2=MIN(MAX(VALR2,VREAL(1)),VREAL(NVALUE(IPAR)))
++          VALR(IPAR,1)=VALR1
++          VALR(IPAR,2)=VALR2
++        ENDIF
+         IF(VALR1.LT.VREAL(1))THEN
+ *         OUTSIDE OF THE DOMAIN (1)
+           WRITE(HSMG,'(23HNCRRGR: REAL PARAMETER ,A,10H WITH VALU,
