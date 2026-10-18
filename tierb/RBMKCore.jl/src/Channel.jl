@@ -188,19 +188,31 @@ function thmph(pp, hh; tight=false)
         xth = (hh - hsat) / (hv - hsat)
         return 1.0 / (xth / rv + (1.0 - xth) / r1), ts
     else
-        t1 = ts
+        t1 = tight ? ts + 1e-6 : ts                     # (tight: start on the vapour side)
     end
     for it in 1:61
         it > (tight ? 60 : 30) && error("THMPH: CONVERGENCE FAILURE (p $pp, h $hh, t1 $t1, hsat $hsat)")
-        a = prop_pT(pp, t1); b = prop_pT(pp, t1 + dt)
+        a = prop_pT(pp, t1)
         abs((hh - a.h) / hh) < htol && return a.rho, t1
-        t1 = t1 + (hh - a.h) * dt / (b.h - a.h)
+        if tight                                        # Newton on the analytic cp
+            t1 = t1 + (hh - a.h) / a.cp
+            if hh <= hsat                               # liquid: never evaluate at Tsat itself
+                t1 = max(t1, 273.16)                    # (safeguard: the start is a 14 MPa fit)
+                if t1 >= ts - 1e-9
+                    it > 1 && return r1, ts             # pinned: within IF97's consistency band
+                    t1 = ts - 1e-9
+                end
+            end
+        else                                            # THMPH's secant
+            b = prop_pT(pp, t1 + dt)
+            t1 = t1 + (hh - a.h) * dt / (b.h - a.h)
+        end
         if hh <= hsat && t1 >= ts
             t1 = ts
             # (tight: pinned at Tsat within IF97's region-1/saturation consistency, ~1e-2 J/kg)
             tight && it > 1 && return r1, ts
         end
-        (hh >= hv && t1 <= ts) && (t1 = ts)
+        (hh >= hv && t1 <= ts) && (t1 = tight ? ts + 1e-6 : ts)
     end
 end
 
@@ -309,7 +321,7 @@ function thmh2o(sv::H2OSave, itime, k, k0, pinlet, mflow, hmavg, ent, hd, radcl,
         # which makes the void (and every cell above) jump when the onset changes cell.
         pe = gabs * cpl * hd / zkl
         dtsub = pe <= 70000.0 ? max(phi, 0.0) * hd / (455.0 * zkl) : 154.0 * max(phi, 0.0) / (max(gabs, 1e-3) * cpl)
-        sv = H2OSave(cpl * dtsub, 0.0)
+        sv.dhsub = cpl * dtsub; sv.dsat = 0.0          # (the caller's scratch copy)
     end
     xfl0 = xfl; eps0 = eps
     lfirst = true

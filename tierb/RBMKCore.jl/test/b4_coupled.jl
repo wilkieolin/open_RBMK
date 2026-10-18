@@ -11,7 +11,9 @@
 using RBMKCore.XS, RBMKCore.CoreModel, RBMKCore.Diffusion, RBMKCore.Mixed, RBMKCore.DualKinetics
 using RBMKCore.LcmAscii, RBMKCore.Channel, RBMKCore.Water, RBMKCore.GPUDual, RBMKCore.Column, RBMKCore.IF97, CUDA
 import RBMKCore
-# TH solver: B4_TH=thmtrs (the THMTRS port, default) or col (Column, the B3b march, scheme B4_SCHEME=thm|fv)
+using RBMKCore.Column.Lines: col_step_newton_flux, NewtonCache
+# TH solver: B4_TH=thmtrs (the THMTRS port, default), col (Column, the B3b march, scheme B4_SCHEME=thm|fv)
+# or newton (Column.Lines.col_step_newton_flux: THM's boundary conditions, simultaneous Newton, smooth closures)
 const THSOLVER = get(ENV, "B4_TH", "thmtrs"); const SCHEME = Symbol(get(ENV, "B4_SCHEME", "thm"))
 using Printf, HDF5
 
@@ -125,7 +127,25 @@ Threads.@threads for ich in 1:nch
     end
     geoms[ich] = g; burns[ich] = bu
     st = thm_steady(g, o_s, pow, bu, speed[ich], tin, pout; tcomb0=t0)
-    states[ich] = THSOLVER == "col" ? col_from_steady(st, g, speed[ich], tin, pout) : st
+    states[ich] = THSOLVER in ("col", "newton") ? col_from_steady(st, g, speed[ich], tin, pout) : st
+end
+caches = [NewtonCache() for _ in 1:nch]
+if THSOLVER == "newton"
+    # how far THM's steady state is from the Newton model's own (local onset, tight
+    # closures): reported, not applied -- the transient starts from DONJON's state
+    dd = zeros(nch); dt_ = zeros(nch)
+    Threads.@threads for ich in 1:nch
+        planes = chans[ich][3]; pow = zeros(nz)
+        for (ib, iz) in enumerate(planes); pow[iz] = pw0[(ib-1)*nch+ich] * 1e3; end
+        x = states[ich]
+        for _ in 1:3
+            x = col_step_newton_flux(geoms[ich], o_t, x, pow, burns[ich], speed[ich] * prop_pT97(pout, tin).rho, tin, 1e5)
+        end
+        dd[ich] = maximum(abs(x.rho[iz] - states[ich].rho[iz]) for iz in planes)
+        dt_[ich] = maximum(abs(x.tcomb[iz] - states[ich].tcomb[iz]) for iz in planes)
+    end
+    @printf("Newton model's own steady vs THM's: D-COOL max |d| %.2e g/cc (channel %d), T-FUEL max |d| %.3f K\n",
+            maximum(dd) / 1e3, argmax(dd), maximum(dt_))
 end
 println("TH solver: ", THSOLVER, THSOLVER == "col" ? " ($SCHEME)" : "")
 tfs = [states[ich].tcomb[chans[ich][3][ib]] for ib in 1:nb for ich in 1:nch]
@@ -133,7 +153,8 @@ tfs = [states[ich].tcomb[chans[ich][3][ib]] for ib in 1:nb for ich in 1:nch]
 
 # --- the transient
 movers = vcat(get(d.groups, 1, Int[]), get(d.groups, 2, Int[]))
-out = open(joinpath(dumpdir, @sprintf("b4_trace_dt%g%s.txt", dt, THSOLVER == "col" ? "_col" * string(SCHEME) : "")), "w")
+out = open(joinpath(dumpdir, @sprintf("b4_trace_dt%g%s.txt", dt, THSOLVER == "col" ? "_col" * string(SCHEME) :
+                                                            THSOLVER == "newton" ? "_newton" : "")), "w")
 println(out, "# t_s P/P0 E_GJ TFmax_K DCAmin ncyc kin_it")
 energy = 0.0; Pprev = P0MW
 for n in 1:nsteps
@@ -163,6 +184,11 @@ for n in 1:nsteps
             s1 = col_step(geoms[ich], o_t, states[ich], pow, burns[ich], speed[ich] * prop_pT97(pout, tin).rho, tin, dt;
                           scheme=SCHEME)
             Threads.atomic_add!(ncyc, s1.substeps)          # (column: sub-steps taken)
+            dcol = s1.rho
+        elseif THSOLVER == "newton"
+            s1 = col_step_newton_flux(geoms[ich], o_t, states[ich], pow, burns[ich], speed[ich] * prop_pT97(pout, tin).rho,
+                                      tin, dt; cache=caches[ich])
+            Threads.atomic_add!(ncyc, s1.substeps)
             dcol = s1.rho
         else
             s1 = thm_transient(geoms[ich], o_t, states[ich], pow, burns[ich], speed[ich], tin, pout, dt)

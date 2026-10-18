@@ -116,7 +116,7 @@ function cell_eval(g, o, k, h, hinflow, Gcorr, p, sv0::H2OSave, k0in, xfl0, eps0
         phi0 = (zf[1] - tsclad * zf[2]) / g.rad[nd-1]
         delth = h - hinflow
         ent = ntuple(i -> hinflow + (1.0 + XS[i]) / 2.0 * delth, 4)
-        sv = H2OSave(sv0.dhsub, sv0.dsat)
+        sv.dhsub = sv0.dhsub; sv.dsat = sv0.dsat
         r = thmh2o(sv, 1, k, k0in, p, Gcorr, h, ent, g.hd, g.rad[nd-1], zf, phi0, xfl0, eps0, g.acool, g.pch, g.hz[k]; localonset, tight)
         abs(r.tsclad - tsclad) < (tight ? 1e-9 : 1e-3) && (tsclad = r.tsclad; break)
         tsclad = r.tsclad
@@ -391,7 +391,7 @@ using LinearAlgebra
 using ...Channel: prop_pT, tsat
 import ...Channel as Ch
 
-export ChanLines, valve_area, col_step_loop, col_step_newton
+export ChanLines, valve_area, col_step_loop, col_step_newton, col_step_newton_flux, NewtonCache
 LAST_MISMATCH = nothing      # (debug: the last step's residual function)
 NEWTON_DEBUG = nothing
 const NEWTON_LOG = Ref(false)
@@ -543,14 +543,43 @@ the cell below), exactly as in the march; the Jacobian keeps only the
 nearest-neighbour coupling, so the iteration is an inexact Newton.
 """
 function col_step_newton(g, o, s0::ColState, pow, burn, L::ChanLines, Av, ph, pd, tin, dt;
-                         tol=1e-9, maxit=40, depth=0, localonset=true)
+                         tol=1e-9, maxit=40, depth=0, localonset=true, cache=nothing)
+    newton_substep(g, o, s0, pow, burn, (:loop, L, Av, ph, pd), tin, dt; tol, maxit, depth, localonset, cache)
+end
+
+"""
+    col_step_newton_flux(g, o, s0, pow, burn, Gin, tin, dt; eps_bundle, cache) -> s1
+
+THM's boundary conditions (inlet mass flux prescribed, every cell at the
+outlet pressure s0.pout) on the Newton path: the column's mass and energy
+balances solved simultaneously, with the same smooth closures.  `cache` (a
+`NewtonCache`, one per channel) keeps the factorised Jacobian between
+iterations and steps (chord Newton, rebuilt when it stops contracting).
+"""
+function col_step_newton_flux(g, o, s0::ColState, pow, burn, Gin, tin, dt;
+                              tol=1e-9, maxit=40, depth=0, localonset=true, cache=nothing)
+    newton_substep(g, o, s0, pow, burn, (:flux, Gin), tin, dt; tol, maxit, depth, localonset, cache)
+end
+
+mutable struct NewtonCache
+    F::Any                   # LU of the last Jacobian (or nothing)
+    n::Int
+    dt::Float64
+    nbuild::Int              # diagnostics: Jacobians built, residual evaluations
+    nres::Int
+end
+NewtonCache() = NewtonCache(nothing, 0, 0.0, 0, 0)
+
+function newton_substep(g, o, s0, pow, burn, bc, tin, dt; tol, maxit, depth, localonset, cache)
     try
-        col_step_newton1(g, o, s0, pow, burn, L, Av, ph, pd, tin, dt; tol, maxit, localonset)
+        col_step_newton1(g, o, s0, pow, burn, bc, tin, dt; tol, maxit, localonset, cache)
     catch e
         (e isa ColFailure && depth < 8) || rethrow()
         NEWTON_LOG[] && println("  substep at depth $depth (dt $dt): ", first(e.msg, 160))
-        sh = col_step_newton(g, o, s0, pow, burn, L, Av, ph, pd, tin, dt / 2; tol, maxit, depth=depth + 1, localonset)
-        s1 = col_step_newton(g, o, sh, pow, burn, L, Av, ph, pd, tin, dt / 2; tol, maxit, depth=depth + 1, localonset)
+        # (the step's end values held over both halves; a flux BC is interpolated)
+        bch = bc[1] === :flux ? (:flux, 0.5 * (s0.Gin + bc[2])) : bc
+        sh = newton_substep(g, o, s0, pow, burn, bch, tin, dt / 2; tol, maxit, depth=depth + 1, localonset, cache)
+        s1 = newton_substep(g, o, sh, pow, burn, bc, tin, dt / 2; tol, maxit, depth=depth + 1, localonset, cache)
         s1.substeps = sh.substeps + s1.substeps + 1
         s1
     end
@@ -558,16 +587,19 @@ end
 
 const FLOOR = 1e-6       # scaled residual the closures' inner tolerances allow (see the line search)
 
-function col_step_newton1(g, o, s0::ColState, pow, burn, L::ChanLines, Av, ph, pd, tin, dt; tol, maxit, localonset)
+function col_step_newton1(g, o, s0::ColState, pow, burn, bc, tin, dt; tol, maxit, localonset, cache)
+    loop = bc[1] === :loop
+    L, Av, ph, pd = loop ? bc[2:5] : (nothing, 0.0, 0.0, 0.0)
+    Gbc = loop ? 0.0 : bc[2]; pout = s0.pout
     nd = g.ndtot; dtinv = 1.0 / dt
     cells = findall(!=(0.0), pow)
     kmin, kmax = first(cells), last(cells); N = kmax - kmin + 1
-    a_in = prop_pT(ph, tin)
+    a_in = prop_pT(loop ? ph : pout, tin)
     dv = g.sass .* g.hz
     qfuel = pow .* g.ffuel ./ dv
     qcool = pow .* g.fcool ./ dv
-    chi = bundle_chi(L.eps_bundle)
-    W0in = s0.Gin * L.Ach; W0out = s0.G[kmax] * L.Ach
+    chi = loop ? bundle_chi(L.eps_bundle) : 0.0
+    W0in = loop ? s0.Gin * L.Ach : 0.0; W0out = loop ? s0.G[kmax] * L.Ach : 0.0
     w = RodWork(nd - 1)
     T11 = s0.temps[1:nd-1, :]                         # rod-temperature guesses (per cell)
     tre10 = zeros(nd - 1); tre11 = zeros(nd - 1)
@@ -580,8 +612,10 @@ function col_step_newton1(g, o, s0::ColState, pow, burn, L::ChanLines, Av, ph, p
     ces = Vector{Any}(undef, N)
     function resid!(r, x; keep=false)
         Gin = x[1]; ptop = x[n]
+        (PMIN <= x[ix(1, 2)] <= PMAX) || return false
         hin = prop_pT(x[ix(1, 2)], tin).h
-        r[1] = (x[ix(1, 2)] - (ph - dp_inlet(L, Av, Gin * L.Ach, W0in, a_in.rho, a_in.mu, dt))) / sp
+        r[1] = loop ? (x[ix(1, 2)] - (ph - dp_inlet(L, Av, Gin * L.Ach, W0in, a_in.rho, a_in.mu, dt))) / sp :
+                      (Gin - Gbc) / smass[1]
         sv = H2OSave(); k0 = 0
         rhob = prop_pT(x[ix(1, 2)], tin).rho
         for j in 1:N
@@ -606,15 +640,20 @@ function col_step_newton1(g, o, s0::ColState, pow, burn, L::ChanLines, Av, ph, p
             hbin = Gb >= 0.0 ? hb : h
             r[ix(j, 1)] = ((ce.rhoY - rho0) * a + Gt - Gb) / smass[j]
             r[ix(j, 2)] = ((ce.rhoY * h - rho0 * h0) * a - (pk - s0.p[k]) * a + Gt * hout - Gb * hbin - ce.qwall * dz) / sen[j]
-            Gc = 0.5 * (Gb + Gt); Gc0 = 0.5 * ((j == 1 ? s0.Gin : s0.G[k-1]) + s0.G[k])
-            ts = tsat(pk); Lq = Ch.prop_Tx(ts, 0.0); V = Ch.prop_Tx(ts, 1.0)
-            Fk = dfric(Gc, ce.xfl, g.hd, Lq.rho, V.rho, Lq.mu, chi) * dz
-            r[ix(j, 3)] = (pnext - (pk - a * (Gc - Gc0) - (Gt^2 / ce.rhoY - Gb^2 / rhob) - Fk - ce.rhoY * GRAV * dz)) / sp
+            if loop
+                Gc = 0.5 * (Gb + Gt); Gc0 = 0.5 * ((j == 1 ? s0.Gin : s0.G[k-1]) + s0.G[k])
+                ts = tsat(pk); Lq = Ch.prop_Tx(ts, 0.0); V = Ch.prop_Tx(ts, 1.0)
+                Fk = dfric(Gc, ce.xfl, g.hd, Lq.rho, V.rho, Lq.mu, chi) * dz
+                r[ix(j, 3)] = (pnext - (pk - a * (Gc - Gc0) - (Gt^2 / ce.rhoY - Gb^2 / rhob) - Fk - ce.rhoY * GRAV * dz)) / sp
+            else
+                r[ix(j, 3)] = (pnext - pout) / sp            # THM: no momentum, p = outlet pressure
+            end
             rhob = ce.rhoY
         end
         (PMIN <= ptop <= PMAX) || return false
         cN = ces[N]
-        r[n] = (ptop - dp_outlet(L, x[ix(N, 3)] * L.Ach, W0out, cN.xfl, cN.rhoY, ptop, dt) - pd) / sp
+        r[n] = loop ? (ptop - dp_outlet(L, x[ix(N, 3)] * L.Ach, W0out, cN.xfl, cN.rhoY, ptop, dt) - pd) / sp :
+                      (x[ix(1, 2)] - pout) / sp         # (flux: closes p_1; its Jacobian row is set exactly)
         true
     end
     # initial iterate: the old state
@@ -628,16 +667,21 @@ function col_step_newton1(g, o, s0::ColState, pow, burn, L::ChanLines, Av, ph, p
     blk(i) = i == 1 ? 0 : (i == n ? N + 1 : (i - 2) ÷ 3 + 1)   # block (cell) of unknown/row i
     del(i) = i == 1 || (i - 2) % 3 == 2 ? 1e-6 * (abs(x[i]) + 10.0) : (i == n || (i - 2) % 3 == 1 ? 10.0 : 1e-6 * abs(x[i]))
     nr = norm(r, Inf); its = 0
+    nres = 1; nbuild = 0
+    F = (cache !== nothing && cache.F !== nothing && cache.n == n && cache.dt == dt) ? cache.F : nothing
+    fresh = false
     for it in 1:maxit
         its = it
         nr < tol && break
+        if F === nothing
+        nbuild += 1
         fill!(J, 0.0)
         # blocks whose unknowns reach beyond the band: the onset cell and the one below it
         # (THMH2O's Saha-Zuber save state dhsub/dsat is set there and carried to every cell
         # above), and a cell whose xfl/eps are passed up through non-boiling walls (kwa = 0)
         dirty = falses(N + 2)                          # index = block + 1
         for j in 1:N
-            if ces[j].sv.dhsub != (j == 1 ? 0.0 : ces[j-1].sv.dhsub) || ces[j].sv.dsat != (j == 1 ? 0.0 : ces[j-1].sv.dsat)
+            if !localonset && (ces[j].sv.dhsub != (j == 1 ? 0.0 : ces[j-1].sv.dhsub) || ces[j].sv.dsat != (j == 1 ? 0.0 : ces[j-1].sv.dsat))
                 dirty[j+1] = true; dirty[j] = true
             end
             j < N && ces[j+1].kwa == 0 && ces[j].xfl > 0.0 && (dirty[j+1] = true)
@@ -660,18 +704,26 @@ function col_step_newton1(g, o, s0::ColState, pow, burn, L::ChanLines, Av, ph, p
                 J[row, i] = (rp[row] - r[row]) / del(i)
             end
         end
-        dx = try
-            -(lu(J) \ r)
+        loop || (J[n, :] .= 0.0; J[n, ix(1, 2)] = 1.0 / sp)
+        F = try
+            lu(J)
         catch e
             throw(ColFailure("newton: singular Jacobian ($e)"))
         end
+        fresh = true
+        end
+        dx = -(F \ r)
         lam = 1.0; ok = false
-        for _ in 1:12                                  # backtracking on the inf-norm
+        for _ in 1:(fresh ? 12 : 2)                    # backtracking on the inf-norm
             xp .= x .+ lam .* dx
+            nres += 1
             if resid!(rp, xp) && norm(rp, Inf) < (1 - 1e-4lam) * nr
                 ok = true; break
             end
             lam /= 2
+        end
+        if !ok && !fresh                               # a stale Jacobian: rebuild and retry
+            F = nothing; continue
         end
         if !ok
             # the closures carry their own inner tolerances (rod <-> wall to 1e-3 K, THMH2O's
@@ -681,7 +733,14 @@ function col_step_newton1(g, o, s0::ColState, pow, burn, L::ChanLines, Av, ph, p
             im = argmax(abs.(r)); jb = blk(im)
             throw(ColFailure("newton: line search failed at |r| = $nr (row $im: cell $(jb + kmin - 1) eq $(im in (1, n) ? "line" : ("mass", "energy", "momentum")[(im-2)%3+1]); k0 = $(ces[end].k0), eps = $(round.([c.eps for c in ces]; digits=3)))"))
         end
-        copyto!(x, xp); resid!(r, x; keep=true); nr = norm(r, Inf)
+        nrold = nr
+        copyto!(x, xp); resid!(r, x; keep=true); nr = norm(r, Inf); nres += 1
+        # chord Newton: keep the factorisation while it contracts well
+        (!fresh && nr > 0.3nrold && nr >= tol) && (F = nothing)
+        fresh = false
+    end
+    if cache !== nothing
+        cache.F = F; cache.n = n; cache.dt = dt; cache.nbuild += nbuild; cache.nres += nres + 9nbuild
     end
     nr < FLOOR || throw(ColFailure("newton: $its iterations, |r| = $nr"))
     # commit

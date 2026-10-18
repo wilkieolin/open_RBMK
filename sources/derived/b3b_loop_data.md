@@ -59,3 +59,13 @@ File `sources/FR0200406_osti20241670.pdf` (https://www.osti.gov/etdeweb/servlets
 5. **01:23 header pressure.** Plan: close each channel's valve loss from the sourced steady state
    (flow per channel from the A7 valving, total 56 000 m³/h), with the header pressure from the
    pump curve at 7000 m³/h per pump.
+6. **01:23 drum (separator) pressure.** The A7/A8 decks' `INLET 7.384407E+06` (75.3 kgf/cm²) is the
+   outlet-pressure boundary of THM, and it was never sourced: INSAG-7 gives the drum pressures only
+   at +8 s (75.2 / 88.2 kgf/cm², p. 55) and a rise of ~6 kPa/s after the turbine stop valve closed
+   (p. 60). The nominal 70 kgf/cm² ([D] p. 50) is the operating value, not the 01:23 one.
+
+## Placeholders in the B3b-2 mechanics test (`tierb/RBMKCore.jl/test/b3b_lines_setup.jl`)
+
+`ChanLines(sourced=false)`: line lengths 25 m (water) / 30 m (steam-water), elevations 5 m / 18 m,
+outlet local losses 2 velocity heads, header − drum 12.7 kgf/cm² (the [D] p. 50 nominal, not 01:23).
+They exercise the solver; no result depends on them until gaps 1, 2, 5 and 6 are closed.
