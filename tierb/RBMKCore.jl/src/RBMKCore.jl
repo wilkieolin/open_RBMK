@@ -14,5 +14,8 @@ include("Mixed.jl")
 include("Core.jl")
 include("Kinetics.jl")
 include("DualKinetics.jl")
+include("LcmAscii.jl")
+include("Water.jl")
+include("Channel.jl")
 
 end

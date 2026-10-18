@@ -127,7 +127,8 @@ function kin_step!(s::KinState, x::KinXS, lambda, dt; th=0.8, thp=0.8, rtol=1e-1
     Pre = BlockPre(P, n)
     b = vcat(rhs...)
     x0 = vcat(s.phi...)
-    sol, stats = gmres(M, b, x0; M=Pre, ldiv=true, rtol=rtol, atol=0.0, itmax=400, memory=60)
+    # Krylov's rtol is relative to the (already small) initial residual: stop on rtol*|b|
+    sol, stats = gmres(M, b, x0; M=Pre, ldiv=true, rtol=0.0, atol=rtol * norm(b), itmax=400, memory=60)
     stats.solved || @warn "kin_step!: GMRES not converged" stats.niter
     phi1 = [sol[(g-1)*n+1:g*n] for g in 1:ng]
     # precursors
