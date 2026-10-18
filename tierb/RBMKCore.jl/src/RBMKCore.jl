@@ -17,6 +17,7 @@ include("DualKinetics.jl")
 include("GPUDual.jl")
 include("LcmAscii.jl")
 include("Water.jl")
+include("IF97.jl")
 include("Channel.jl")
 
 end

@@ -14,7 +14,13 @@
 module Channel
 
 using LinearAlgebra
-using ..Water
+# water properties: the pure-Julia IF97 (= freesteam, THM:'s own, to < 1e-12;
+# test/b6_if97.jl), aliased to the names THM: uses
+using ..IF97: tsat97, psat97, prop_pT97, prop_Tx97
+const tsat = tsat97
+const psat = psat97
+prop_pT(p, T) = prop_pT97(Float64(p), Float64(T))
+prop_Tx(T, x) = prop_Tx97(Float64(T), Float64(x))
 
 export ChanGeom, ThmOpts, ChanState, chan_geom, thm_steady, thm_transient
 
@@ -346,6 +352,25 @@ function thmh2o(sv::H2OSave, itime, k, k0, pinlet, mflow, hmavg, ent, hd, radcl,
     (; k0, xfl, eps, tcalo, rho, rhol=rholav, rhog, tsclad, kwa, phi, hlv)
 end
 
+# Thomas algorithm, two right-hand sides (THMROD's TRID is tridiagonal)
+function thomas2!(x, y, lo, dg, up, b, c)
+    n = length(dg)
+    cp = similar(dg); bp = similar(dg); ccp = similar(dg)
+    cp[1] = up[1] / dg[1]; bp[1] = b[1] / dg[1]; ccp[1] = c[1] / dg[1]
+    for i in 2:n
+        m = dg[i] - lo[i] * cp[i-1]
+        cp[i] = i < n ? up[i] / m : 0.0
+        bp[i] = (b[i] - lo[i] * bp[i-1]) / m
+        ccp[i] = (c[i] - lo[i] * ccp[i-1]) / m
+    end
+    x[n] = bp[n]; y[n] = ccp[n]
+    for i in n-1:-1:1
+        x[i] = bp[i] - cp[i] * x[i+1]
+        y[i] = ccp[i] - cp[i] * y[i+1]
+    end
+    x, y
+end
+
 # ---------------------------------------------------------------------------
 # THMROD: rod conduction with a gap (IGAP 0), NDTOT here = THM's NDTOT-1
 
@@ -382,7 +407,7 @@ function thmrod(g::ChanGeom, o::ThmOpts, dtinv, xx0, xx1, qfuel, tsurf, burn; ma
             zk[i] = thmgdi(xx1[i], xx1[i+1])
         end
         zk[nd] = thmgdi(xx1[nd], tsurf)
-        T = zeros(nd, nd); b1 = zeros(nd); b2 = zeros(nd)
+        lo = zeros(nd); dg = zeros(nd); up = zeros(nd); b1 = zeros(nd); b2 = zeros(nd)
         c1 = 0.0; c3 = 0.0
         for i in 1:nd
             b1[i] = condxa[i]
@@ -407,21 +432,20 @@ function thmrod(g::ChanGeom, o::ThmOpts, dtinv, xx0, xx1, qfuel, tsurf, burn; ma
                 b2[i] += c3
             end
             c2 = c1 + c3
-            i > 1 && (T[i, i-1] = -c1)
+            i > 1 && (lo[i] = -c1)
             if i <= nfd - 1
-                T[i, i] = thmccd(xx1[i], o.poros) * dtinv * dar[i]
+                dg[i] = thmccd(xx1[i], o.poros) * dtinv * dar[i]
             elseif i >= nfd + 2
-                T[i, i] = thmgcd(xx1[i]) * dtinv * dar[i]
+                dg[i] = thmgcd(xx1[i]) * dtinv * dar[i]
             end
-            T[i, i] += c2
+            dg[i] += c2
             if i < nd
-                T[i, i+1] = -c3
+                up[i] = -c3
                 c1 = c3
             end
         end
         zwork = c3
-        F = lu(T)
-        x2 .= F \ b1; x3 .= F \ b2
+        thomas2!(x2, x3, lo, dg, up, b1, b2)      # the conduction matrix is tridiagonal (ALSB)
         err = 0.0
         for i in 1:nd
             tnew = x2[i] + tsurf * x3[i]

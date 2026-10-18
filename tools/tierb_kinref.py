@@ -59,7 +59,9 @@ def main(stem, run=True, dual=False, t0only=False, epsout=None, nsteps=None):
     if nsteps is not None:
         assert text.count("UNTIL istep 700 >= ;") == 1
         text = text.replace("UNTIL istep 700 >= ;", f"UNTIL istep {nsteps} >= ;")
-    text = text.replace(f'"{stem} completed"', f'"{tb} completed"')
+    # a short tag: CLE-2000 truncates past 120 columns, and stem + suffix can exceed it
+    tag = "TBREF " + hashlib.md5(tb.encode()).hexdigest()[:8]
+    text = text.replace(f'"{stem} completed"', f'"{tag} completed"')
     out = os.path.join(STORE, tb)
     os.makedirs(out, exist_ok=True)
     open(os.path.join(DATA, tb + ".don"), "w").write(text)
@@ -83,7 +85,7 @@ def main(stem, run=True, dual=False, t0only=False, epsout=None, nsteps=None):
         os.remove(res)                                   # rule 5
     subprocess.run(["./rdonjon", tb + ".don"], cwd=DON, capture_output=True)
     txt = open(res, "rb").read().decode("latin1")
-    ok = f">|{tb} completed" in txt
+    ok = f">|{tag} completed" in txt
     steps = re.findall(r">\|A8STEP\s+\d+\s+T\s+(\S+)\s+POWER\s+(\S+)\s+P/P0\s+(\S+)", txt)
     with open(os.path.join(out, "trace.txt"), "w") as f:
         f.write(f"# t_s power_MW P/P0 (DONJON, {'DUAL 1 1' if dual else 'MCFD 1'})\n")

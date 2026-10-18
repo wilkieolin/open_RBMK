@@ -1,7 +1,7 @@
 # B3: the THM: port (RBMKCore.Channel) against DONJON THM: on the same power.
 #   julia --project=. -t 8 test/b3_thm.jl steady <fmap with BUND-PW> <fmap with THM's T-FUEL/D-COOL>
 #   julia --project=. -t 8 test/b3_thm.jl ramp <refdir>        # tools/tierb_thmref.py output
-using RBMKCore.LcmAscii, RBMKCore.Channel, RBMKCore.Water
+using RBMKCore.LcmAscii, RBMKCore.Channel
 using Printf, Statistics
 
 const ROOT = joinpath(@__DIR__, "..", "..", "..")

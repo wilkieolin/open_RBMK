@@ -49,7 +49,7 @@ x0 = dual_kin_xs(p0, Fd0, Pd0, chid0, ov0, k0)
 sc = dual_kin_init(x0, phi, LAMBDA, k0)
 sg = gkin_init(sc)
 P0 = dual_kin_power(x0, sc)
-v = 40.0; dt = 0.01
+v = 40.0; dt = parse(Float64, get(ARGS, 5, "0.01"))
 ncmp = parse(Int, get(ARGS, 3, "5")); ngpu = parse(Int, get(ARGS, 4, string(ncmp)))
 movers = mode == "null" ? Int[] : vcat(get(d.groups, 1, Int[]), get(d.groups, 2, Int[]))
 scache = DualStepCache()

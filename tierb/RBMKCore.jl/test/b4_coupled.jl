@@ -5,10 +5,11 @@
 # The coupling is explicit, as in the deck: the cross sections of step n
 # use the TH state left by step n-1.
 #
-#   julia --project=. -t 8 test/b4_coupled.jl <stem> <t=0 dump dir> [nsteps] [dt]
+#   JULIA_CUDA_HARD_MEMORY_LIMIT=8GiB julia --project=. -t 8 test/b4_coupled.jl <stem> <t=0 dump dir> [nsteps] [dt]
+# Kinetics on the GPU (GPUDual, = the CPU DualKinetics to 1e-11), TH on the CPU threads.
 # <t=0 dump dir>: tools/tierb_kinref.py <stem> --dual --t0only (fmap0.asc).
 using RBMKCore.XS, RBMKCore.CoreModel, RBMKCore.Diffusion, RBMKCore.Mixed, RBMKCore.DualKinetics
-using RBMKCore.LcmAscii, RBMKCore.Channel, RBMKCore.Water
+using RBMKCore.LcmAscii, RBMKCore.Channel, RBMKCore.Water, RBMKCore.GPUDual, CUDA
 using Printf, HDF5
 
 const ROOT = joinpath(@__DIR__, "..", "..", "..")
@@ -20,8 +21,11 @@ nsteps = parse(Int, get(ARGS, 3, "700")); dt = parse(Float64, get(ARGS, 4, "0.01
 deckpath = joinpath(ROOT, "decks", "Donjon", "data", stem * ".don")
 d = read_deck(deckpath)
 haskey(d.fuelstate, "TG") || (d.fuelstate["TG"] = 750.0)
-xsf = joinpath(ROOT, "tierb", "xs", "tierb_xs_af4c362b.h5")       # bracket B fuel + cB CPS
-@assert occursin("vB65c86e_cB4af83e", stem) "cross sections: the export is bracket B + cB"
+# the cross-section export for the deck's COMPOs: bracket B fuel (vB65c86e) or production, + cB CPS
+@assert occursin("cB4af83e", stem) "cross sections: the exports carry the cB CPS only"
+xsf = joinpath(ROOT, "tierb", "xs", occursin("vB65c86e", stem) ? "tierb_xs_af4c362b.h5" : "tierb_xs_664b244a.h5")
+ncrclamp = occursin("MACRO LINEAR CLAMP", read(deckpath, String))   # U4_NCRCLAMP decks (patch 0014)
+println("cross sections ", basename(xsf), ncrclamp ? ", NCR CLAMP" : "")
 fuel = load_fuel(xsf); ref = load_ref(xsf)
 mesh = Mesh(d.nx, d.ny, d.nz, diff(d.meshx), diff(d.meshy), diff(d.meshz),
             [m > 0 ? e : 0 for (e, m) in enumerate(d.mix)])
@@ -74,29 +78,34 @@ function problem_at(base, shift)
     Fd = [sum(chid[g, dd, i] .* Pd[gp, dd, i] for i in 1:ni) for g in 1:ng, gp in 1:ng, dd in 1:nd]
     p, Fd, Pd, chid, base.overv[cells, :]
 end
-base = element_base(d, fuel, ref; tf, dca)
+base = element_base(d, fuel, ref; tf, dca, clamp=ncrclamp)
 p0, Fd0, Pd0, chid0, ov0 = problem_at(base, Dict{Int,Float64}())
 fuelcell = findall(i -> sum(base.fiss[p0.cell[i], :, :]) > 0, eachindex(p0.cell))
 @assert length(fuelcell) == nch * nb
 key = string(hash((p0.K, p0.R, p0.S, p0.F)); base=16)
 cache = joinpath(ROOT, "tierb", "xs", "cache", "dual_k_" * key * "_w.h5")
+G0 = gdual(p0)
 if isfile(cache)
     k0, phi = h5open(h -> (read(h["k"]), [read(h["phi$g"]) for g in 1:2]), cache)
     println("t=0 eigenpair from cache ", basename(cache))
 else
-    t = @elapsed (k0, phi) = solve_k_dual(p0; verbose=true)
-    t += @elapsed (k0, phi, rw) = dual_wielandt_polish(p0, k0, phi; verbose=true)
-    @printf("t=0 eigenpair: k %.6f (%.0f s)\n", k0, t)
+    t = @elapsed begin
+        k0, phig = gsolve_k(G0; tol=1e-6)
+        k0, phig, rw = gwielandt(G0, k0, phig)
+    end
+    phi = [Array(f) for f in phig]
+    @printf("t=0 eigenpair (GPU): k %.9f residual %.2e (%.0f s)\n", k0, rw, t)
     mkpath(dirname(cache))
     h5open(cache, "w") do h; h["k"] = k0; h["phi1"] = phi[1]; h["phi2"] = phi[2]; end
 end
 x0 = dual_kin_xs(p0, Fd0, Pd0, chid0, ov0, k0)
 s = dual_kin_init(x0, phi, LAMBDA, k0)
+sg = gkin_init(s)
 Pall0 = dual_kin_power(x0, s)
 # FLPOW: BUND-PW (kW) = E-POW * (H phi V)_bundle / sum_all (H phi V)
-bundle_kw(x, s, epow) = (pc = sum(x.p.hfac[:, g] .* s.phi[g] .* x.p.vol for g in 1:2);
-                         pc[fuelcell] .* (epow * 1e3 / sum(pc)))
-pwn = bundle_kw(x0, s, P0MW)
+cellpow(p, phi) = sum(p.hfac[:, g] .* phi[g] .* p.vol for g in 1:2)
+bundle_kw(pc, epow) = pc[fuelcell] .* (epow * 1e3 / sum(pc))
+pwn = bundle_kw(cellpow(p0, phi), P0MW)
 @printf("t=0: k0 %.6f; bundle powers vs DONJON BUND-PW: rms %.3f %%  max %.3f %%\n", k0,
         100 * sqrt(sum(((pwn .- pw0) ./ pw0) .^ 2) / length(pw0)), 100 * maximum(abs.((pwn .- pw0) ./ pw0)))
 
@@ -119,7 +128,6 @@ tfs = [states[ich].tcomb[chans[ich][3][ib]] for ib in 1:nb for ich in 1:nch]
 
 # --- the transient
 movers = vcat(get(d.groups, 1, Int[]), get(d.groups, 2, Int[]))
-scache = DualStepCache()
 out = open(joinpath(dumpdir, @sprintf("b4_trace_dt%g.txt", dt)), "w")
 println(out, "# t_s P/P0 E_GJ TFmax_K DCAmin ncyc kin_it")
 energy = 0.0; Pprev = P0MW
@@ -127,13 +135,18 @@ for n in 1:nsteps
     tt = n * dt
     shift = Dict(id => 40.0 * tt for id in movers)
     tb = @elapsed begin
-        b = element_base(d, fuel, ref; tf, dca)
+        b = element_base(d, fuel, ref; tf, dca, clamp=ncrclamp)
         p, Fd, Pd, chid, ov = problem_at(b, shift)
         x = dual_kin_xs(p, Fd, Pd, chid, ov, k0)
     end
-    tk = @elapsed (nit = dual_kin_step!(s, x, LAMBDA, dt; cache=scache))
-    P = dual_kin_power(x, s) / Pall0
-    pwk = bundle_kw(x, s, P0MW * P)
+    tk = @elapsed begin
+        xg = gkin_xs(x; topo=G0)
+        nit = gkin_step!(sg, xg, LAMBDA, dt)
+        gkin_free!(xg)
+        pc = cellpow(x.p, [Array(f) for f in sg.phi])
+    end
+    P = sum(pc) / Pall0
+    pwk = bundle_kw(pc, P0MW * P)
     ncyc = Threads.Atomic{Int}(0)
     tth = @elapsed Threads.@threads for ich in 1:nch
         planes = chans[ich][3]

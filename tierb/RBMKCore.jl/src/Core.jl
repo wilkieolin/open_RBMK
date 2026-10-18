@@ -190,7 +190,8 @@ hfac[e,g], overv[e,g], scat[e,gt,gf], fiss[e,gt,gf] (prompt + delayed),
 and for fuel elements the delayed data per isotope:
 nud[e,g_from,d,iso], chid[e,g_to,d,iso].
 """
-function element_base(d::Deck, fuel::FuelXS, ref::Vector{MacroXS}; tf=nothing, dca=nothing, tg=nothing)
+function element_base(d::Deck, fuel::FuelXS, ref::Vector{MacroXS}; tf=nothing, dca=nothing, tg=nothing,
+                      clamp::Bool=false)
     ne = length(d.mix); ng = 2
     niso = size(fuel.nusigf, 2); nd = size(fuel.nusigfd, 3)
     ntot = zeros(ne, ng); invd = zeros(ne, ng); hfac = zeros(ne, ng); overv = zeros(ne, ng)
@@ -212,7 +213,7 @@ function element_base(d::Deck, fuel::FuelXS, ref::Vector{MacroXS}; tf=nothing, d
         mx == 0 && continue
         if mx == 8
             ifuel += 1
-            m = interp(fuel, st(d.burnup[ifuel], ifuel))
+            m = interp(fuel, st(d.burnup[ifuel], ifuel); clamp)   # NCR CLAMP (patch 0014)
             F = fission_matrix(m)
             nud[e, :, :, :] .= permutedims(m.nusigfd, (1, 3, 2))   # [g, d, iso]
             chid[e, :, :, :] .= permutedims(m.chid, (1, 3, 2))
