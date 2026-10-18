@@ -7,10 +7,11 @@ by ~420 pcm at 25 cm) and with the t = 0 objects dumped right before INIKIN:
            bundle, the state the frozen-TH transient starts from;
   MACRD -- the t = 0 per-region macrolib (for a cross-section spot check).
 
-    tierb_kinref.py <stem>        # an existing generated kinetic deck
+    tierb_kinref.py <stem>          # an existing generated kinetic deck
+    tierb_kinref.py <stem> --dual   # keep DUAL 1 1: only add the dumps
 
-Writes <stem>_tbm.don (MCFD 1); results in tierb/xs/<stem>_tbm/.  The
-A8STEP trace is read from the listing.
+Writes <stem>_tbm.don (MCFD 1) or <stem>_tbd.don (DUAL 1 1); results in
+tierb/xs/<stem>_tb{m,d}/.  The A8STEP trace is read from the listing.
 """
 import hashlib
 import os
@@ -25,13 +26,14 @@ DATA = os.path.join(ROOT, "decks", "Donjon", "data")
 STORE = os.path.join(ROOT, "tierb", "xs")
 
 
-def main(stem, run=True):
+def main(stem, run=True, dual=False):
     text = open(os.path.join(DATA, stem + ".don")).read()
     md5 = hashlib.md5(text.encode()).hexdigest()
-    tb = stem + "_tbm"
+    tb = stem + ("_tbd" if dual else "_tbm")
     n = text.count("DUAL 1 1")
     assert n >= 1, "no DUAL 1 1 to replace"
-    text = text.replace("DUAL 1 1", "MCFD 1")
+    if not dual:
+        text = text.replace("DUAL 1 1", "MCFD 1")
     anchor = "SEQ_ASCII   _RCompo    :: FILE './_RCompo' ;\n"
     assert anchor in text
     text = text.replace(anchor, anchor +
@@ -54,7 +56,7 @@ def main(stem, run=True):
         if os.path.lexists(dst):
             os.remove(dst)
         os.symlink(os.path.join(DATA, tb + ".don" + ext), dst)
-    open(os.path.join(out, "deck.md5"), "w").write(f"{md5}  {stem}.don ({n} DUAL 1 1 -> MCFD 1)\n")
+    open(os.path.join(out, "deck.md5"), "w").write(f"{md5}  {stem}.don ({n} DUAL 1 1{'' if dual else ' -> MCFD 1'})\n")
     if not run:
         print("wrote", tb)
         return
@@ -66,11 +68,11 @@ def main(stem, run=True):
     ok = f">|{tb} completed" in txt
     steps = re.findall(r">\|A8STEP\s+\d+\s+T\s+(\S+)\s+POWER\s+(\S+)\s+P/P0\s+(\S+)", txt)
     with open(os.path.join(out, "trace.txt"), "w") as f:
-        f.write("# t_s power_MW P/P0 (DONJON, MCFD 1)\n")
+        f.write(f"# t_s power_MW P/P0 (DONJON, {'DUAL 1 1' if dual else 'MCFD 1'})\n")
         for t, p, r in steps:
             f.write(f"{t} {p} {r}\n")
     print(tb, "completed" if ok else "DID NOT COMPLETE", len(steps), "steps ->", out)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], run="--norun" not in sys.argv)
+    main(sys.argv[1], run="--norun" not in sys.argv, dual="--dual" in sys.argv)

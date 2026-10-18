@@ -13,5 +13,6 @@ include("Diffusion.jl")
 include("Mixed.jl")
 include("Core.jl")
 include("Kinetics.jl")
+include("DualKinetics.jl")
 
 end
