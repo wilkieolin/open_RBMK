@@ -9,7 +9,10 @@
 # Kinetics on the GPU (GPUDual, = the CPU DualKinetics to 1e-11), TH on the CPU threads.
 # <t=0 dump dir>: tools/tierb_kinref.py <stem> --dual --t0only (fmap0.asc).
 using RBMKCore.XS, RBMKCore.CoreModel, RBMKCore.Diffusion, RBMKCore.Mixed, RBMKCore.DualKinetics
-using RBMKCore.LcmAscii, RBMKCore.Channel, RBMKCore.Water, RBMKCore.GPUDual, CUDA
+using RBMKCore.LcmAscii, RBMKCore.Channel, RBMKCore.Water, RBMKCore.GPUDual, RBMKCore.Column, RBMKCore.IF97, CUDA
+import RBMKCore
+# TH solver: B4_TH=thmtrs (the THMTRS port, default) or col (Column, the B3b march, scheme B4_SCHEME=thm|fv)
+const THSOLVER = get(ENV, "B4_TH", "thmtrs"); const SCHEME = Symbol(get(ENV, "B4_SCHEME", "thm"))
 using Printf, HDF5
 
 const ROOT = joinpath(@__DIR__, "..", "..", "..")
@@ -110,7 +113,7 @@ pwn = bundle_kw(cellpow(p0, phi), P0MW)
         100 * sqrt(sum(((pwn .- pw0) ./ pw0) .^ 2) / length(pw0)), 100 * maximum(abs.((pwn .- pw0) ./ pw0)))
 
 # --- TH: channel states from a steady THM: on DONJON's t = 0 power
-geoms = Vector{ChanGeom}(undef, nch); states = Vector{ChanState}(undef, nch); burns = Vector{Vector{Float64}}(undef, nch)
+geoms = Vector{ChanGeom}(undef, nch); states = Vector{Any}(undef, nch); burns = Vector{Vector{Float64}}(undef, nch)
 Threads.@threads for ich in 1:nch
     ix, iy, planes = chans[ich]
     g = chan_geom(hz, hx[ix] * hy[iy]; pitch=clus[1], nfuel=clus[2], rc=radius[1], rig=radius[2], rgg=radius[3],
@@ -121,14 +124,16 @@ Threads.@threads for ich in 1:nch
         pow[iz] = pw0[ima] * 1e3; bu[iz] = burn[ima]; t0[iz] = tf[ima]
     end
     geoms[ich] = g; burns[ich] = bu
-    states[ich] = thm_steady(g, o_s, pow, bu, speed[ich], tin, pout; tcomb0=t0)
+    st = thm_steady(g, o_s, pow, bu, speed[ich], tin, pout; tcomb0=t0)
+    states[ich] = THSOLVER == "col" ? col_from_steady(st, g, speed[ich], tin, pout) : st
 end
+println("TH solver: ", THSOLVER, THSOLVER == "col" ? " ($SCHEME)" : "")
 tfs = [states[ich].tcomb[chans[ich][3][ib]] for ib in 1:nb for ich in 1:nch]
 @printf("t=0 TH rebuilt: T-FUEL vs FMAP0 max |d| %.3f K\n", maximum(abs.(tfs .- tf)))
 
 # --- the transient
 movers = vcat(get(d.groups, 1, Int[]), get(d.groups, 2, Int[]))
-out = open(joinpath(dumpdir, @sprintf("b4_trace_dt%g.txt", dt)), "w")
+out = open(joinpath(dumpdir, @sprintf("b4_trace_dt%g%s.txt", dt, THSOLVER == "col" ? "_col" * string(SCHEME) : "")), "w")
 println(out, "# t_s P/P0 E_GJ TFmax_K DCAmin ncyc kin_it")
 energy = 0.0; Pprev = P0MW
 for n in 1:nsteps
@@ -154,11 +159,19 @@ for n in 1:nsteps
         for (ib, iz) in enumerate(planes)
             pow[iz] = pwk[(ib-1)*nch+ich] * 1e3
         end
-        s1 = thm_transient(geoms[ich], o_t, states[ich], pow, burns[ich], speed[ich], tin, pout, dt)
-        Threads.atomic_add!(ncyc, s1.ncyc)
+        if THSOLVER == "col"
+            s1 = col_step(geoms[ich], o_t, states[ich], pow, burns[ich], speed[ich] * prop_pT97(pout, tin).rho, tin, dt;
+                          scheme=SCHEME)
+            Threads.atomic_add!(ncyc, s1.substeps)          # (column: sub-steps taken)
+            dcol = s1.rho
+        else
+            s1 = thm_transient(geoms[ich], o_t, states[ich], pow, burns[ich], speed[ich], tin, pout, dt)
+            Threads.atomic_add!(ncyc, s1.ncyc)
+            dcol = s1.dcool
+        end
         states[ich] = s1
         for (ib, iz) in enumerate(planes)
-            tf[(ib-1)*nch+ich] = s1.tcomb[iz]; dca[(ib-1)*nch+ich] = s1.dcool[iz] / 1e3
+            tf[(ib-1)*nch+ich] = s1.tcomb[iz]; dca[(ib-1)*nch+ich] = dcol[iz] / 1e3
         end
     end
     global energy += 0.5 * (Pprev + P0MW * P) * dt / 1e3; global Pprev = P0MW * P

@@ -162,12 +162,16 @@ end
 # ---------------------------------------------------------------------------
 # THMPH: (p, h) -> (rho, T)
 
-function thmph(pp, hh)
+# tight (B3b Newton path, not THM): invert to 1e-13 and drop the 1e-5 snap to
+# saturation, so (rho, T) are smooth functions of (p, h) at the level the
+# Newton finite differences probe
+function thmph(pp, hh; tight=false)
     ts = tsat(pp)
     v = prop_Tx(ts, 1.0); l = prop_Tx(ts, 0.0)
     rv, hv, r1, hsat = v.rho, v.h, l.rho, l.h
     dt = -0.01
-    if abs(hsat - hh) / hsat <= 1.0e-5
+    htol = tight ? 1e-13 : 1.0e-5
+    if (tight ? hh == hsat : abs(hsat - hh) / hsat <= 1.0e-5)
         return r1, ts
     elseif hh <= hsat
         A = (0.2873E+03, -0.5098E+00, -0.3459E+00, 0.1910E+00, -0.2840E-01,
@@ -186,18 +190,80 @@ function thmph(pp, hh)
     else
         t1 = ts
     end
-    for it in 1:31
-        it > 30 && error("THMPH: CONVERGENCE FAILURE")
+    for it in 1:61
+        it > (tight ? 60 : 30) && error("THMPH: CONVERGENCE FAILURE (p $pp, h $hh, t1 $t1, hsat $hsat)")
         a = prop_pT(pp, t1); b = prop_pT(pp, t1 + dt)
-        abs((hh - a.h) / hh) < 1.0e-5 && return a.rho, t1
+        abs((hh - a.h) / hh) < htol && return a.rho, t1
         t1 = t1 + (hh - a.h) * dt / (b.h - a.h)
-        (hh <= hsat && t1 >= ts) && (t1 = ts)
+        if hh <= hsat && t1 >= ts
+            t1 = ts
+            # (tight: pinned at Tsat within IF97's region-1/saturation consistency, ~1e-2 J/kg)
+            tight && it > 1 && return r1, ts
+        end
         (hh >= hv && t1 <= ts) && (t1 = ts)
     end
 end
 
 # ---------------------------------------------------------------------------
 # THMH2O (IFLUID 0, IDFM 0, IHCONV 0, ISUBM 2)
+
+# THMH2O's IHCONV 0 coefficients at wall temperature T (regime from T alone)
+function wall_coef(T, ts, xfl, hmavg, hlsat, hgsat, rel, prl, zkone, zkl, zkg, cpl, rhol, rhog, zmug, zmul, rho, pinlet, hd)
+    ha = 0.023 * (zkone / hd) * rel^0.8 * prl^0.4
+    f = 1.0; s = 1.0; hb = 0.0; kwa = 0
+    if xfl == 0.0 || T <= ts
+        kwa = 0
+    elseif hmavg < hgsat
+        kwa = hmavg < hlsat ? 1 : 2
+        xm = (xfl / (1.0 - xfl))^0.9 * (rhol / rhog)^0.5 * (zmug / zmul)^0.1
+        f = xm <= 0.100207 ? 1.0 : 2.35 * (0.213 + xm)^0.736
+        re = rel * f^1.25
+        s = 1.0 / (1.0 + 2.53e-6 * re^1.17)
+        pr = pinlet / 1e6
+        sigm = -7.2391e-6 * pr^3 + 2.8345e-4 * pr^2 - 5.1566e-3 * pr + 4.2324e-2
+        ha = 0.023 * (zkl / hd) * rel^0.8 * prl^0.4
+        dp = psat(T) - pinlet
+        hlv = hgsat - hlsat
+        hb = 0.00122 * zkl^0.79 * cpl^0.45 * rhol^0.49 / (zmul^0.29 * sigm^0.5 * hlv^0.24 * rhog^0.24) *
+             (T - ts)^0.24 * max(dp, 0.0)^0.75
+    else
+        kwa = 3
+        rhow = prop_pT(pinlet, T).rho
+        ha = 0.0061 * (zkg / hd) * rel^0.904 * prl^0.684 * (rhow / rho)^0.564
+    end
+    hconv = f * ha + s * hb
+    hconv > 0.0 || (ha = 0.0; hb = 0.0)
+    f, ha, s, hb, kwa
+end
+
+function wall_tight(ts, tcalo, xfl, hmavg, hlsat, hgsat, rel, prl, zkone, zkl, zkg, cpl, rhol, rhog, zmug, zmul, rho,
+                    pinlet, hd, radcl, zf)
+    function twal(T)
+        f, ha, s, hb, kwa = wall_coef(T, ts, xfl, hmavg, hlsat, hgsat, rel, prl, zkone, zkl, zkg, cpl, rhol, rhog,
+                                      zmug, zmul, rho, pinlet, hd)
+        znum = zf[1] + radcl * s * hb * ts + radcl * f * ha * tcalo
+        zden = zf[2] + radcl * s * hb + radcl * f * ha
+        max(273.15, znum / zden), kwa
+    end
+    gw(T) = twal(T)[1] - T
+    lo = min(tcalo, ts) - 1.0; hi = max(zf[1] / zf[2], ts) + 1.0
+    glo = gw(lo); ghi = gw(hi)
+    glo >= 0.0 && ghi <= 0.0 || error("THMH2O tight: wall root not bracketed ($lo $glo, $hi $ghi)")
+    side = 0
+    T = lo
+    for it in 1:200                                   # Illinois regula falsi
+        T = (lo * ghi - hi * glo) / (ghi - glo)
+        gT = gw(T)
+        (abs(gT) <= 1e-12 * T || hi - lo <= 1e-12 * T) && break
+        if gT > 0.0
+            lo, glo = T, gT; side == 1 && (ghi /= 2); side = 1
+        else
+            hi, ghi = T, gT; side == -1 && (glo /= 2); side = -1
+        end
+    end
+    tw, kwa = twal(T)
+    tw, max(0.0, (zf[1] - tw * zf[2]) / radcl), kwa
+end
 
 mutable struct H2OSave           # THMH2O's SAVE variables, per channel march
     dhsub::Float64
@@ -211,7 +277,8 @@ Returns (k0, xfl, eps, tcalo, rho, rhol, rhog, tsclad, kwa, phi, hlv).
 surface response), `phi` when itime = 0.
 """
 function thmh2o(sv::H2OSave, itime, k, k0, pinlet, mflow, hmavg, ent, hd, radcl, zf,
-                phi, xfl, eps, acool, pch, dz)
+                phi, xfl, eps, acool, pch, dz; localonset=false, tight=false)
+    twtol = tight ? 1e-13 : 1.0e-5
     hmavg < 0.0 && error("THMH2O: NEGATIVE INPUT ENTHALPY")
     gabs = abs(mflow)
     ts = tsat(pinlet)
@@ -220,10 +287,10 @@ function thmh2o(sv::H2OSave, itime, k, k0, pinlet, mflow, hmavg, ent, hd, radcl,
     rhog, hgsat, zkg, zmug, cpg = G.rho, G.h, G.k, G.mu, G.cp
     gp = ntuple(4) do i
         hl = min(ent[i], hlsat)
-        _, tl_i = thmph(pinlet, hl)
-        qa = prop_pT(pinlet, tl_i)              # (names distinct from the enclosing scope's,
-        r, c = qa.rho, qa.cp                    #  or the closure boxes them)
-        if abs(ts - tl_i) < 0.1
+        _, tl_i = thmph(pinlet, hl; tight)
+        qa = prop_pT(pinlet, tight ? min(tl_i, ts - 1e-9) : tl_i)   # (names distinct from the enclosing
+        r, c = qa.rho, qa.cp                    #  scope's, or the closure boxes them)
+        if tight ? tl_i >= ts - 1e-9 : abs(ts - tl_i) < 0.1
             qb = prop_Tx(ts, 0.0); r, c = qb.rho, qb.cp
         end
         (tl_i, r, c)
@@ -233,13 +300,23 @@ function thmh2o(sv::H2OSave, itime, k, k0, pinlet, mflow, hmavg, ent, hd, radcl,
     rholav = 0.5 * sum(WG[i] * rhox[i] for i in 1:4)
     cplav = 0.5 * sum(WG[i] * cpx[i] for i in 1:4)
     tsclad = 600.0
-    k0 > 0 && (tsclad = ts + sv.dsat)
+    k0 > 0 && !localonset && (tsclad = ts + sv.dsat)
+    if localonset
+        # B3b (Column Newton path), not THM: the Saha-Zuber subcooling at onset from
+        # THIS cell's heat flux and flow (local-conditions form), so the void profile is
+        # continuous in (h, p, G) and carries no state up the column.  THM instead fixes
+        # dhsub at the first cell past onset and starts the profile one cell later,
+        # which makes the void (and every cell above) jump when the onset changes cell.
+        pe = gabs * cpl * hd / zkl
+        dtsub = pe <= 70000.0 ? max(phi, 0.0) * hd / (455.0 * zkl) : 154.0 * max(phi, 0.0) / (max(gabs, 1e-3) * cpl)
+        sv = H2OSave(cpl * dtsub, 0.0)
+    end
     xfl0 = xfl; eps0 = eps
     lfirst = true
     hlavg = hmavg
     hlv = 0.0
     tcalo = 0.0
-    if k0 > 0
+    if k0 > 0 || localonset
         hlv = hgsat - hlsat
         f2 = 0.0; f3 = 0.0
         if hlv > 0.0 && sv.dhsub > 0.0 && hmavg >= hlsat - sv.dhsub
@@ -254,8 +331,9 @@ function thmh2o(sv::H2OSave, itime, k, k0, pinlet, mflow, hmavg, ent, hd, radcl,
             hlavg = min(hlsat, (hmavg - xfl * hgsat) / (1.0 - xfl))
         end
         if hlavg > 0.0
-            rhol, tl = thmph(pinlet, hlavg)
-            a = prop_pT(pinlet, tl); zkl, zmul, cpl = a.k, a.mu, a.cp
+            rhol, tl = thmph(pinlet, hlavg; tight)
+            # (tight: at tl = Tsat exactly prop_pT's region can round either way)
+            a = prop_pT(pinlet, tight ? min(tl, ts - 1e-9) : tl); zkl, zmul, cpl = a.k, a.mu, a.cp
             if hgsat > hlsat
                 co = 1.13
                 pr = pinlet / 1e6
@@ -266,8 +344,8 @@ function thmh2o(sv::H2OSave, itime, k, k0, pinlet, mflow, hmavg, ent, hd, radcl,
                 eps = (xfl * rhol) / f4
             end
         else
-            rhog, tcalo = thmph(pinlet, hmavg)
-            a = prop_pT(pinlet, tcalo); zkg, zmug, cpg = a.k, a.mu, a.cp
+            rhog, tcalo = thmph(pinlet, hmavg; tight)
+            a = prop_pT(pinlet, tight ? max(tcalo, ts + 1e-9) : tcalo); zkg, zmug, cpg = a.k, a.mu, a.cp
         end
     end
     local rho, rel, prl, zkone, cpone
@@ -294,11 +372,21 @@ function thmh2o(sv::H2OSave, itime, k, k0, pinlet, mflow, hmavg, ent, hd, radcl,
     end
     # IHCONV 0: Dittus-Boelter / Chen / Groeneveld-like, iterated on TSCLAD
     kwa = 99
-    for iter in 1:501
+    if tight && itime == 1
+        # (B3b Newton path) THM's fixed point on TSCLAD with its sticky KWA = 0 can stop
+        # on either side of saturation, path-dependently; here the regime is a function
+        # of T alone and T_w solves T_w = twal(T_w) by a bracketed root (twal falls as
+        # the nucleate term grows, so the root is unique)
+        tsclad, phi, kwa = wall_tight(ts, tcalo, xfl, hmavg, hlsat, hgsat, rel, prl, zkone, zkl, zkg, cpl, rhol, rhog,
+                                      zmug, zmul, rho, pinlet, hd, radcl, zf)
+    end
+    for iter in 1:(tight && itime == 1 ? 0 : 501)
         iter > 500 && error("THMH2O: HCONV FAILURE IN SLICE $k")
         ha = 0.023 * (zkone / hd) * rel^0.8 * prl^0.4
         f = 1.0; s = 1.0; hb = 0.0
-        if xfl == xfl0 || tsclad <= ts || kwa == 0
+        if localonset && (xfl == 0.0 || tsclad <= ts || kwa == 0)
+            kwa = 0; hb = 0.0                           # (local: no wall boiling; void stays the profile's)
+        elseif !localonset && (xfl == xfl0 || tsclad <= ts || kwa == 0)
             kwa = 0; hb = 0.0; k0 = 0; xfl = xfl0; eps = eps0
         elseif hmavg < hgsat
             kwa = hmavg < hlsat ? 1 : 2
@@ -334,13 +422,13 @@ function thmh2o(sv::H2OSave, itime, k, k0, pinlet, mflow, hmavg, ent, hd, radcl,
             twal = max(273.15, znum / zden)
             phi = max(0.0, (zf[1] - twal * zf[2]) / radcl)
         end
-        if abs(tsclad - twal) > 1.0e-5 * tsclad
+        if abs(tsclad - twal) > twtol * tsclad      # (THM: 1e-5; the Newton path needs it tight)
             tsclad = twal
         else
             break
         end
     end
-    if k0 == 0 && lfirst                                  # Saha-Zuber onset (ISUBM 2)
+    if k0 == 0 && lfirst && !localonset                   # Saha-Zuber onset (ISUBM 2)
         pe = gabs * cpl * hd / zkl
         dtsub = pe <= 70000.0 ? phi * hd / (455.0 * zkl) : 154.0 * phi / (gabs * cpl)
         tcalo >= ts - dtsub && (k0 = k)

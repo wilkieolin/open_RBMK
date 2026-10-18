@@ -1,7 +1,9 @@
 # B3: the THM: port (RBMKCore.Channel) against DONJON THM: on the same power.
 #   julia --project=. -t 8 test/b3_thm.jl steady <fmap with BUND-PW> <fmap with THM's T-FUEL/D-COOL>
 #   julia --project=. -t 8 test/b3_thm.jl ramp <refdir>        # tools/tierb_thmref.py output
-using RBMKCore.LcmAscii, RBMKCore.Channel
+#   julia --project=. -t 8 test/b3_thm.jl rampcol <refdir>     # the same with the B3b column solver
+using RBMKCore.LcmAscii, RBMKCore.Channel, RBMKCore.Column, RBMKCore.IF97
+import RBMKCore
 using Printf, Statistics
 
 const ROOT = joinpath(@__DIR__, "..", "..", "..")
@@ -78,6 +80,50 @@ if mode == "steady"
     compare("steady", tf, dc, ref)
 end
 
+function run_ramp_col(dir)
+    rp = lcm_read(joinpath(dir, "fmaps.asc"))
+    lay = core_layout(rp)
+    pw = lcm_get(rp, "BUND-PW"); burn = lcm_get(rp, "BURN-INST"); tf0 = lcm_params(rp)["T-FUEL"]
+    nch = length(lay.chans)
+    o = ThmOpts(cflux=critfl, khgap=hgap, maxit1=Int(conv[1]), maxit2=Int(conv[2]), ermaxt=conv[4])
+    tf, dc, states = steady_core(lay, pw, burn, tf0; o)
+    compare("steady", tf, dc, lcm_params(lcm_read(joinpath(dir, "fmapt00.asc"))))
+    # the A8 transient keywords
+    ot = ThmOpts(cflux=critfl, khgap=hgap, maxit1=100, maxit2=100, maxitc=60, ermaxt=0.05, ermaxc=1e-3,
+                 cyccap=0.1, frlx=0.25)
+    pp = 200.0; dt = 0.01
+    for istep in 1:35
+        pp *= 1.148698355
+        chk = istep % 5 == 0 && isfile(joinpath(dir, @sprintf("fmapt%02d.asc", istep)))
+        ref = chk ? lcm_read(joinpath(dir, @sprintf("fmapt%02d.asc", istep))) : nothing
+        # FLPOW: PTOT rescales the frozen shape; check it against the reference's own BUND-PW
+        pwi = pw .* (pp / 200.0)
+        if chk
+            pr = lcm_get(ref, "BUND-PW")
+            @printf("step %2d: BUND-PW scaling vs reference: max rel %.2e\n", istep, maximum(abs.(pwi .- pr) ./ pr))
+            pwi = pr
+        end
+        tfi = zeros(nch * length(lay.chans[1][3])); dci = similar(tfi); ncyc = Threads.Atomic{Int}(0)
+        sw = Threads.Atomic{Int}(0); sub = Threads.Atomic{Int}(0)
+        t = @elapsed Threads.@threads for ich in 1:nch
+            g, s0, _, bu = states[ich]
+            ix, iy, planes = lay.chans[ich]
+            pow = zeros(lay.nz)
+            for (ib, iz) in enumerate(planes)
+                pow[iz] = pwi[(ib-1)*nch+ich] * 1e3
+            end
+            cs = s0 isa RBMKCore.Channel.ChanState ? col_from_steady(s0, g, speed[ich], tin, pout) : s0
+            s1 = col_step(g, ot, cs, pow, bu, speed[ich] * prop_pT97(pout, tin).rho, tin, dt)
+            Threads.atomic_max!(sw, s1.sweeps); Threads.atomic_add!(sub, s1.substeps)
+            states[ich] = (g, s1, pow, bu)
+            for (ib, iz) in enumerate(planes)
+                tfi[(ib-1)*nch+ich] = s1.tcomb[iz]; dci[(ib-1)*nch+ich] = s1.rho[iz] / 1e3
+            end
+        end
+        @printf("step %2d  P %.1f MW  (%.1f s, max sweeps %d, substeps %d)\n", istep, pp, t, sw[], sub[])
+        chk && compare(@sprintf("t=%.2f", istep * dt), tfi, dci, lcm_params(ref))
+    end
+end
 function run_ramp(dir)
     rp = lcm_read(joinpath(dir, "fmaps.asc"))
     lay = core_layout(rp)
@@ -121,3 +167,5 @@ function run_ramp(dir)
     end
 end
 mode == "ramp" && run_ramp(ARGS[2])
+mode == "rampcol" && run_ramp_col(ARGS[2])
+

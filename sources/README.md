@@ -21,6 +21,7 @@ copyrighted. Each entry says where to get it again.
 | **[PAR07]** | Parisi C., D'Auria F., *RBMK fuel channel blockage analysis by MCNP5, DRAGON and RELAP5-3D codes*. Proc. Int. Conf. Nuclear Energy for New Europe 2007, Portorož, paper 105. | `PAR07_Parisi_DAuria_2007_RBMK_FC_blockage_MCNP5_DRAGON.pdf` | user-supplied |
 | **[BEH96]** | Behrens D., Meyer S., von Ehrenstein D., Donderer R., Schumacher O., Davydova G., Krayushkin A., *Validation of MCNP for RBMK criticality calculations*. Nucl. Technol. **114**(1) (1996) 1–11. | `BEH96_Behrens_1996_NuclTechnol114_Validation_MCNP_RBMK.pdf` | doi:10.13182/NT96-A35219 (user-supplied) |
 | **[INSAG7]** | INSAG, *The Chernobyl Accident: Updating of INSAG-1*. Safety Series No. 75-INSAG-7, IAEA, Vienna, 1992. | `INSAG7_IAEA_1992_Chernobyl_update.pdf` | https://www-pub.iaea.org/MTCD/publications/PDF/Pub913e_web.pdf |
+| **[ZJ02]** | Zemulis G., Jasiulevicius A., *Development of thermal hydraulic models for main circulation circuit of RBMK-1500 reactor using APROS and CATHARE 2 codes*. Kaunas Univ. Technol., FR0200406, ~2001. RBMK-1500 loop geometry, given as approximate values. | `FR0200406_osti20241670.pdf` | https://www.osti.gov/etdeweb/servlets/purl/20241670 |
 | [W] | Wikipedia, *RBMK*, fetched 2026-09-22. Superseded for every cell dimension. | — | — |
 
 ## What each source was used for

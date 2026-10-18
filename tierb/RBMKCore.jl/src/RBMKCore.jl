@@ -19,5 +19,6 @@ include("LcmAscii.jl")
 include("Water.jl")
 include("IF97.jl")
 include("Channel.jl")
+include("Column.jl")
 
 end
