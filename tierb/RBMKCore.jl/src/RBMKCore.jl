@@ -9,5 +9,7 @@ module RBMKCore
 
 include("Budget.jl")
 include("XS.jl")
+include("Diffusion.jl")
+include("Core.jl")
 
 end

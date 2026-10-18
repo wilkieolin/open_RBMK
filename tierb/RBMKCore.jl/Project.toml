@@ -4,19 +4,23 @@ version = "0.1.0"
 authors = ["Wilkie Olin-Ammentorp <wolinamm@gmail.com>"]
 
 [deps]
+AlgebraicMultigrid = "2169fc97-5a83-5252-b627-83903c6c433c"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 Krylov = "ba0b0d4f-ebba-5204-a429-3ac8c609bfb7"
+KrylovKit = "0b1a1467-8014-51b9-945f-bf0ae24f4b77"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
+AlgebraicMultigrid = "2.0.2"
 CUDA = "6.4.2"
 HDF5 = "0.17.4"
 JSON3 = "1.14.3"
 Krylov = "0.10.11"
+KrylovKit = "0.10.4"
 LinearAlgebra = "1.12.0"
 SparseArrays = "1.12.0"
 Test = "1.11.0"
