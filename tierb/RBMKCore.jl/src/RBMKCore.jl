@@ -10,6 +10,7 @@ module RBMKCore
 include("Budget.jl")
 include("XS.jl")
 include("Diffusion.jl")
+include("Mixed.jl")
 include("Core.jl")
 include("Kinetics.jl")
 
