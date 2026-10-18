@@ -126,6 +126,30 @@ Built and verified standalone before it is coupled.
 - Where the old and new models' assumptions coincide (fixed pressure, HEM), the results agree
   with THM.
 
+**Status (2026-10-18).** The THM-equivalent part is done. `Channel.jl` is a line-by-line port of
+THM, verified against DONJON THM itself on a steady state and a ×128 power ramp: T-FUEL rms
+0.0045 K, D-COOL rms ≤ 1.6e-5 g/cm³ (PROGRESS 39).
+
+**B3b, momentum, pressure and the loop (scoped, not started).** This is what the post-AZ-5 record
+constrains and THM cannot represent:
+- two loop halves (left/right), each with a drum separator (lumped mass and energy, steam to the
+  closed turbine, feedwater about 120 t/h per side), downcomers, four MCPs, the pressure header
+  and the group distribution headers;
+- each channel with its ZRK valve, inlet line, the drift-flux channel, and the steam-water outlet
+  line to its drum.
+
+Data to condition on (INSAG-7):
+- drum pressure rising at about 6 kPa/s from 01:23:04, when the turbine stop valve closed (p. 60);
+- four of the eight MCPs coasting down with TG-8 (pp. 54–55);
+- at +7 s, flow −40 % on MCPs 11, 12, 21 and 22 and a sharp pressure rise, then 75.2/88.2
+  kg/cm² (left/right) at +8 s (p. 55);
+- the channel-rupture signal at +9 s.
+
+Sources still to read: [D]'s circuit chapter (the pump head curve and the flow regulation,
+around PDF pp. 150–175); [TD722] and [USP] for loop resistances and RELAP5-style nodalisations
+of RBMK circuits. Every resistance must come from a source or from closing a sourced steady state
+(the 01:23 flow of 56 000 m³/h at 200 MW), never from fitting the accident.
+
 ### B4 — coupled transient, Tier A parity
 
 **Gate.** With THM-equivalent options (fixed pressure, no momentum), the band cases match DONJON:
