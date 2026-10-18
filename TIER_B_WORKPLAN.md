@@ -130,7 +130,7 @@ Built and verified standalone before it is coupled.
 THM, verified against DONJON THM itself on a steady state and a ×128 power ramp: T-FUEL rms
 0.0045 K, D-COOL rms ≤ 1.6e-5 g/cm³ (PROGRESS 39).
 
-**B3b, momentum, pressure and the loop (scoped, not started).** This is what the post-AZ-5 record
+**B3b, momentum, pressure and the loop (solver built and verified on one channel; THM-boundary Newton run coupled on band A to 6.91 s — PROGRESS 41; core-wide loop boundary conditions wait on gaps 1, 2, 5, 6 of `sources/derived/b3b_loop_data.md`).** This is what the post-AZ-5 record
 constrains and THM cannot represent:
 - two loop halves (left/right), each with a drum separator (lumped mass and energy, steam to the
   closed turbine, feedwater about 120 t/h per side), downcomers, four MCPs, the pressure header
