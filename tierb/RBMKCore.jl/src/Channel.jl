@@ -218,17 +218,17 @@ function thmh2o(sv::H2OSave, itime, k, k0, pinlet, mflow, hmavg, ent, hd, radcl,
     L = prop_Tx(ts, 0.0); G = prop_Tx(ts, 1.0)
     rhol, hlsat, zkl, zmul, cpl = L.rho, L.h, L.k, L.mu, L.cp
     rhog, hgsat, zkg, zmug, cpg = G.rho, G.h, G.k, G.mu, G.cp
-    tlx = zeros(4); rhox = zeros(4); cpx = zeros(4)
-    for i in 1:4
+    gp = ntuple(4) do i
         hl = min(ent[i], hlsat)
         _, tl_i = thmph(pinlet, hl)
-        a = prop_pT(pinlet, tl_i)
-        r, c = a.rho, a.cp
+        qa = prop_pT(pinlet, tl_i)              # (names distinct from the enclosing scope's,
+        r, c = qa.rho, qa.cp                    #  or the closure boxes them)
         if abs(ts - tl_i) < 0.1
-            b = prop_Tx(ts, 0.0); r, c = b.rho, b.cp
+            qb = prop_Tx(ts, 0.0); r, c = qb.rho, qb.cp
         end
-        tlx[i] = tl_i; rhox[i] = r; cpx[i] = c
+        (tl_i, r, c)
     end
+    tlx = map(x -> x[1], gp); rhox = map(x -> x[2], gp); cpx = map(x -> x[3], gp)
     tl = 0.5 * sum(WG[i] * tlx[i] for i in 1:4)
     rholav = 0.5 * sum(WG[i] * rhox[i] for i in 1:4)
     cplav = 0.5 * sum(WG[i] * cpx[i] for i in 1:4)
@@ -352,10 +352,20 @@ function thmh2o(sv::H2OSave, itime, k, k0, pinlet, mflow, hmavg, ent, hd, radcl,
     (; k0, xfl, eps, tcalo, rho, rhol=rholav, rhog, tsclad, kwa, phi, hlv)
 end
 
+"""Scratch vectors for THMROD (length NDTOT-1), one per channel / thread."""
+struct RodWork
+    dar::Vector{Float64}; condxa::Vector{Float64}; zk::Vector{Float64}
+    x2::Vector{Float64}; x3::Vector{Float64}
+    lo::Vector{Float64}; dg::Vector{Float64}; up::Vector{Float64}; b1::Vector{Float64}; b2::Vector{Float64}
+    cp::Vector{Float64}; bp::Vector{Float64}; ccp::Vector{Float64}
+    tre10::Vector{Float64}; tre11::Vector{Float64}
+end
+RodWork(nd::Int) = RodWork((zeros(nd) for _ in 1:15)...)
+
 # Thomas algorithm, two right-hand sides (THMROD's TRID is tridiagonal)
-function thomas2!(x, y, lo, dg, up, b, c)
+function thomas2!(x, y, lo, dg, up, b, c, w::RodWork)
     n = length(dg)
-    cp = similar(dg); bp = similar(dg); ccp = similar(dg)
+    cp = w.cp; bp = w.bp; ccp = w.ccp
     cp[1] = up[1] / dg[1]; bp[1] = b[1] / dg[1]; ccp[1] = c[1] / dg[1]
     for i in 2:n
         m = dg[i] - lo[i] * cp[i-1]
@@ -374,9 +384,10 @@ end
 # ---------------------------------------------------------------------------
 # THMROD: rod conduction with a gap (IGAP 0), NDTOT here = THM's NDTOT-1
 
-function thmrod(g::ChanGeom, o::ThmOpts, dtinv, xx0, xx1, qfuel, tsurf, burn; maxit1=o.maxit1, maxit2=o.maxit2)
+function thmrod(g::ChanGeom, o::ThmOpts, dtinv, xx0, xx1, qfuel, tsurf, burn,
+                w::RodWork=RodWork(g.ndtot - 1); maxit1=o.maxit1, maxit2=o.maxit2)
     nfd = g.nfd; nd = g.ndtot - 1; rad = g.rad
-    dar = zeros(nd)
+    dar = w.dar; fill!(dar, 0.0)
     arci = 0.5 * rad[nfd+1]^2; arce = 0.5 * rad[nd]^2
     for i in 1:nfd-1
         dar[i] = 0.5 * (rad[i+1]^2 - rad[i]^2)
@@ -384,7 +395,7 @@ function thmrod(g::ChanGeom, o::ThmOpts, dtinv, xx0, xx1, qfuel, tsurf, burn; ma
     for i in nfd+2:nd
         dar[i] = 0.5 * (rad[i]^2 - rad[i-1]^2)
     end
-    condxa = zeros(nd)
+    condxa = w.condxa; fill!(condxa, 0.0)
     for i in 1:nd
         if i <= nfd - 1
             condxa[i] = thmccd(xx0[i], o.poros) * dtinv * xx0[i] * dar[i]
@@ -392,8 +403,8 @@ function thmrod(g::ChanGeom, o::ThmOpts, dtinv, xx0, xx1, qfuel, tsurf, burn; ma
             condxa[i] = thmgcd(xx0[i]) * dtinv * xx0[i] * dar[i]
         end
     end
-    zk = zeros(nd)
-    x2 = zeros(nd); x3 = zeros(nd); zf = zeros(2)
+    zk = w.zk
+    x2 = w.x2; x3 = w.x3; zf1 = 0.0; zf2 = 0.0
     hgap = o.khgap
     itert = 0
     while true
@@ -407,7 +418,8 @@ function thmrod(g::ChanGeom, o::ThmOpts, dtinv, xx0, xx1, qfuel, tsurf, burn; ma
             zk[i] = thmgdi(xx1[i], xx1[i+1])
         end
         zk[nd] = thmgdi(xx1[nd], tsurf)
-        lo = zeros(nd); dg = zeros(nd); up = zeros(nd); b1 = zeros(nd); b2 = zeros(nd)
+        lo = w.lo; dg = w.dg; up = w.up; b1 = w.b1; b2 = w.b2
+        fill!(lo, 0.0); fill!(dg, 0.0); fill!(up, 0.0); fill!(b1, 0.0); fill!(b2, 0.0)
         c1 = 0.0; c3 = 0.0
         for i in 1:nd
             b1[i] = condxa[i]
@@ -445,15 +457,15 @@ function thmrod(g::ChanGeom, o::ThmOpts, dtinv, xx0, xx1, qfuel, tsurf, burn; ma
             end
         end
         zwork = c3
-        thomas2!(x2, x3, lo, dg, up, b1, b2)      # the conduction matrix is tridiagonal (ALSB)
+        thomas2!(x2, x3, lo, dg, up, b1, b2, w)   # the conduction matrix is tridiagonal (ALSB)
         err = 0.0
         for i in 1:nd
             tnew = x2[i] + tsurf * x3[i]
             err = max(err, abs(xx1[i] - tnew))
             xx1[i] = itert <= 20 ? tnew : 0.5 * (tnew + xx1[i])
         end
-        zf[1] = zwork * x2[nd]
-        zf[2] = zwork * (1.0 - x3[nd])
+        zf1 = zwork * x2[nd]
+        zf2 = zwork * (1.0 - x3[nd])
         (err < o.ermaxt && itert != 1) && break
     end
     tc = 0.5 * (xx1[1] + xx1[2])
@@ -467,7 +479,7 @@ function thmrod(g::ChanGeom, o::ThmOpts, dtinv, xx0, xx1, qfuel, tsurf, burn; ma
         (abs(tc - tcold) < o.ermaxt && iterc != 1) && break
     end
     tc1 = 2.0 * xx1[1] - tc
-    tc1, x2, x3, zf
+    tc1, x2, x3, (zf1, zf2)
 end
 
 # ---------------------------------------------------------------------------
@@ -563,9 +575,11 @@ function thm_transient(g::ChanGeom, o::ThmOpts, s0::ChanState, pow, burn, speed,
     ncyc = 0; errcyc = 0.0
     err = 0.0
     itercr = 0
+    w = RodWork(nd - 1)
+    dsave = similar(dcool)
     while true
         itercr += 1
-        dsave = copy(dcool)
+        copyto!(dsave, dcool)
         if itercr > o.maxitc
             if o.cyccap > 0.0 && err < o.cyccap
                 ncyc += 1; errcyc = max(errcyc, err)
@@ -576,10 +590,12 @@ function thm_transient(g::ChanGeom, o::ThmOpts, s0::ChanState, pow, burn, speed,
         sv = H2OSave(); k0 = 0
         for k in kmin:nz
             pow[k] == 0.0 && continue
-            tre10 = temps0[1:nd-1, k]
-            tre11 = temps[1:nd-1, k]
+            tre10 = w.tre10; tre11 = w.tre11
+            for l in 1:nd-1
+                tre10[l] = temps0[l, k]; tre11[l] = temps[l, k]
+            end
             tsclad = temps[nd, k]
-            tc1, x2, x3, zf = thmrod(g, o, dtinv, tre10, tre11, qfuel[k], tsclad, burn[k])
+            tc1, x2, x3, zf = thmrod(g, o, dtinv, tre10, tre11, qfuel[k], tsclad, burn[k], w)
             phi[k] = (zf[1] - tsclad * zf[2]) / g.rad[nd-1]
             p1 = 0.5 * (dcool0[k] - dcool[k]) * dtinv * g.hz[k]
             if k == kmin
@@ -614,8 +630,8 @@ function thm_transient(g::ChanGeom, o::ThmOpts, s0::ChanState, pow, burn, speed,
                 end
             end
             enth[k] = (param2 + param3) / param1
-            delth = enth[k] - hminf
-            ent = ntuple(i -> hminf + (1.0 + XS[i]) / 2.0 * delth, 4)
+            hm = hminf; delth = enth[k] - hm             # (hm: hminf is branch-assigned, a closure would box it)
+            ent = ntuple(i -> hm + (1.0 + XS[i]) / 2.0 * delth, 4)
             if k > 1
                 xfl[k] = xfl[k-1]; eps[k] = eps[k-1]
             end
