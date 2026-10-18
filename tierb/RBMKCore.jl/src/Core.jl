@@ -23,7 +23,7 @@ module CoreModel
 
 using ..XS
 
-export Deck, Rod, read_deck, element_xs, rod_box
+export Deck, Rod, read_deck, element_xs, element_base, rod_box, rod_boxes, apply_rods
 
 struct Rod
     name::String
@@ -39,6 +39,7 @@ struct Deck
     mix::Vector{Int}           # element mixture, x fastest
     burnup::Vector{Float64}    # per fuel element, scan order
     rods::Vector{Rod}
+    groups::Dict{Int,Vector{Int}}     # DEVINI CREATE ROD-GR: group -> rod ids
     fuelstate::Dict{String,Float64}   # SET values on the fuel NCR (static decks)
 end
 
@@ -132,6 +133,24 @@ function read_deck(path::AbstractString)
         end
         push!(rods, Rod(name, from, level, box, dmix))
     end
+    # --- rod groups
+    groups = Dict{Int,Vector{Int}}()
+    gi = findfirst(l -> occursin("CREATE ROD-GR", l), L)
+    if gi !== nothing
+        k = gi + 1
+        cur = 0
+        while strip(L[k]) != ";"
+            t = split(L[k])
+            if !isempty(t) && t[1] == "GROUP-ID"
+                cur = parse(Int, t[2]); groups[cur] = Int[]
+            else
+                for w in t
+                    x = tryparse(Int, w); x === nothing || push!(groups[cur], x)
+                end
+            end
+            k += 1
+        end
+    end
     # --- static fuel state (SET on the fuel NCR)
     fs = Dict{String,Float64}()
     f = findfirst(l -> occursin("MACFUEL := NCR:", l), L)
@@ -142,7 +161,7 @@ function read_deck(path::AbstractString)
             fs[m.captures[1]] = parse(Float64, m.captures[2])
         end
     end
-    Deck(nx, ny, nz, mx, my, mz, mix, burn, rods, fs)
+    Deck(nx, ny, nz, mx, my, mz, mix, burn, rods, groups, fs)
 end
 
 """Current box of a rod (DEVGET/MOVCHK, single-part MOVE along Z)."""
@@ -161,21 +180,31 @@ end
 overlap(a1, a2, b1, b2) = max(0.0, min(a2, b2) - max(a1, b1)) / (b2 - b1)
 
 """
-    element_xs(deck, fuel, ref; fuelstate=deck.fuelstate)
+    element_base(deck, fuel, ref; tf=nothing, dca=nothing, tg=nothing)
 
-Per-element macroscopic data for every non-void element, as NCR + MACINI +
-NEWMAC build them.  Returns named arrays indexed by element:
-ntot[e,g], invd[e,g] (1/D), scat[e,gt,gf], fiss[e,gt,gf], hfac[e,g].
+Per-element macroscopic data before rod devices, as NCR + MACINI build it.
+Fuel states come from the deck's static SETs, or per fuel element (scan
+order) from `tf`/`dca`/`tg` vectors when given (the FMAP fields THM writes).
+Returns a NamedTuple of arrays indexed by element: ntot[e,g], invd[e,g],
+hfac[e,g], overv[e,g], scat[e,gt,gf], fiss[e,gt,gf] (prompt + delayed),
+and for fuel elements the delayed data per isotope:
+nud[e,g_from,d,iso], chid[e,g_to,d,iso].
 """
-function element_xs(d::Deck, fuel::FuelXS, ref::Vector{MacroXS}; fuelstate=d.fuelstate)
+function element_base(d::Deck, fuel::FuelXS, ref::Vector{MacroXS}; tf=nothing, dca=nothing, tg=nothing)
     ne = length(d.mix); ng = 2
-    ntot = zeros(ne, ng); invd = zeros(ne, ng); hfac = zeros(ne, ng)
+    niso = size(fuel.nusigf, 2); nd = size(fuel.nusigfd, 3)
+    ntot = zeros(ne, ng); invd = zeros(ne, ng); hfac = zeros(ne, ng); overv = zeros(ne, ng)
     scat = zeros(ne, ng, ng); fiss = zeros(ne, ng, ng)
+    nud = zeros(ne, ng, nd, niso); chid = zeros(ne, ng, nd, niso)
     ifuel = 0
-    st(b) = [k == "burnup" ? b : fuelstate[k] for k in fuel.keys]
-    put!(e, m::MacroXS, F) = begin
-        ntot[e, :] .= m.ntot; invd[e, :] .= 1 ./ m.diff; hfac[e, :] .= m.hfac
-        scat[e, :, :] .= m.scat; fiss[e, :, :] .= F
+    function st(b, f)
+        map(fuel.keys) do k
+            k == "burnup" && return b
+            k == "TF" && tf !== nothing && return tf[f]
+            k == "DCA" && dca !== nothing && return dca[f]
+            k == "TG" && tg !== nothing && return tg[f]
+            d.fuelstate[k]
+        end
     end
     refF = [fission_matrix(m) for m in ref]
     for e in 1:ne
@@ -183,29 +212,65 @@ function element_xs(d::Deck, fuel::FuelXS, ref::Vector{MacroXS}; fuelstate=d.fue
         mx == 0 && continue
         if mx == 8
             ifuel += 1
-            m = interp(fuel, st(d.burnup[ifuel]))
-            put!(e, m, fission_matrix(m))
+            m = interp(fuel, st(d.burnup[ifuel], ifuel))
+            F = fission_matrix(m)
+            nud[e, :, :, :] .= permutedims(m.nusigfd, (1, 3, 2))   # [g, d, iso]
+            chid[e, :, :, :] .= permutedims(m.chid, (1, 3, 2))
         else
-            put!(e, ref[mx], refF[mx])
+            m = ref[mx]; F = refF[mx]
+        end
+        ntot[e, :] .= m.ntot; invd[e, :] .= 1 ./ m.diff; hfac[e, :] .= m.hfac
+        overv[e, :] .= m.overv; scat[e, :, :] .= m.scat; fiss[e, :, :] .= F
+    end
+    (; ntot, invd, hfac, overv, scat, fiss, nud, chid)
+end
+
+"""
+    rod_boxes(deck; shift=Dict()) -> Vector of current boxes (or nothing)
+
+Each rod's current box (DEVGET/MOVCHK), translated down by `shift[id]` cm
+(MOVGRP: a MOVE rod at SPEED v moves its reference position by v*dt; the
+reference position is clamped to the mesh).
+"""
+function rod_boxes(d::Deck; shift=Dict{Int,Float64}())
+    zmin, zmax = d.meshz[1], d.meshz[end]
+    map(enumerate(d.rods)) do (id, r)
+        r.level < 1e-4 && return nothing
+        b = rod_box(r, zmin, zmax)
+        s = get(shift, id, 0.0)
+        s == 0 && return b
+        len = b[6] - b[5]
+        if r.from == 1                          # reference = bottom
+            bot = clamp(b[5] - s, zmin, zmax)
+            return (b[1], b[2], b[3], b[4], bot, bot + len)
+        else                                    # reference = top
+            top = clamp(b[6] - s, zmin, zmax)
+            return (b[1], b[2], b[3], b[4], top - len, top)
         end
     end
-    # rod devices
-    nx, ny = d.nx, d.ny
-    zmin, zmax = d.meshz[1], d.meshz[end]
-    for r in d.rods
-        r.level < 1e-4 && continue
-        x1, x2, y1, y2, z1, z2 = rod_box(r, zmin, zmax)
+end
+
+"""
+    apply_rods(base, deck, ref, boxes) -> NamedTuple (copies of the arrays
+    rods change: ntot, invd, hfac, scat), as NEWMAC does.
+"""
+function apply_rods(base, d::Deck, ref::Vector{MacroXS}, boxes)
+    ntot = copy(base.ntot); invd = copy(base.invd); hfac = copy(base.hfac); scat = copy(base.scat)
+    nx, ny, ng = d.nx, d.ny, 2
+    for (r, bx) in zip(d.rods, boxes)
+        bx === nothing && continue
+        x1, x2, y1, y2, z1, z2 = bx
         m1, m2 = ref[r.dmix[1]], ref[r.dmix[2]]
         dS = m1.ntot .- m2.ntot; dI = 1 ./ m1.diff .- 1 ./ m2.diff
         dH = m1.hfac .- m2.hfac; dSc = m1.scat .- m2.scat
-        for k in 1:d.nz, j in 1:ny, i in 1:nx
-            fx = overlap(x1, x2, d.meshx[i], d.meshx[i+1]); fx == 0 && continue
-            fy = overlap(y1, y2, d.meshy[j], d.meshy[j+1]); fy == 0 && continue
+        irange = [i for i in 1:nx if d.meshx[i+1] > x1 && d.meshx[i] < x2]
+        jrange = [j for j in 1:ny if d.meshy[j+1] > y1 && d.meshy[j] < y2]
+        for k in 1:d.nz, j in jrange, i in irange
             fz = overlap(z1, z2, d.meshz[k], d.meshz[k+1]); fz == 0 && continue
+            vf = overlap(x1, x2, d.meshx[i], d.meshx[i+1]) *
+                 overlap(y1, y2, d.meshy[j], d.meshy[j+1]) * fz
             e = i + (j - 1) * nx + (k - 1) * nx * ny
-            d.mix[e] == 0 && continue
-            vf = fx * fy * fz
-            vf > 1e-4 || continue
+            (d.mix[e] == 0 || vf <= 1e-4) && continue
             ntot[e, :] .+= vf .* dS
             invd[e, :] .+= vf .* dI
             for g in 1:ng                       # NEWMXS: only where nonzero
@@ -214,7 +279,14 @@ function element_xs(d::Deck, fuel::FuelXS, ref::Vector{MacroXS}; fuelstate=d.fue
             scat[e, :, :] .+= vf .* dSc
         end
     end
-    (; ntot, invd, scat, fiss, hfac)
+    (; ntot, invd, hfac, scat)
+end
+
+"""Per-element data with rods at their deck positions (static decks)."""
+function element_xs(d::Deck, fuel::FuelXS, ref::Vector{MacroXS}; kw...)
+    base = element_base(d, fuel, ref; kw...)
+    r = apply_rods(base, d, ref, rod_boxes(d))
+    (; ntot=r.ntot, invd=r.invd, scat=r.scat, fiss=base.fiss, hfac=r.hfac)
 end
 
 end # module

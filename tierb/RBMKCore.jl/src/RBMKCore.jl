@@ -11,5 +11,6 @@ include("Budget.jl")
 include("XS.jl")
 include("Diffusion.jl")
 include("Core.jl")
+include("Kinetics.jl")
 
 end
