@@ -77,3 +77,47 @@ if mode == "steady"
     @printf("steady TH of the core: %.1f s\n", t)
     compare("steady", tf, dc, ref)
 end
+
+function run_ramp(dir)
+    rp = lcm_read(joinpath(dir, "fmaps.asc"))
+    lay = core_layout(rp)
+    pw = lcm_get(rp, "BUND-PW"); burn = lcm_get(rp, "BURN-INST"); tf0 = lcm_params(rp)["T-FUEL"]
+    nch = length(lay.chans)
+    o = ThmOpts(cflux=critfl, khgap=hgap, maxit1=Int(conv[1]), maxit2=Int(conv[2]), ermaxt=conv[4])
+    tf, dc, states = steady_core(lay, pw, burn, tf0; o)
+    compare("steady", tf, dc, lcm_params(lcm_read(joinpath(dir, "fmapt00.asc"))))
+    # the A8 transient keywords
+    ot = ThmOpts(cflux=critfl, khgap=hgap, maxit1=100, maxit2=100, maxitc=60, ermaxt=0.05, ermaxc=1e-3,
+                 cyccap=0.1, frlx=0.25)
+    pp = 200.0; dt = 0.01
+    for istep in 1:35
+        pp *= 1.148698355
+        chk = istep % 5 == 0 && isfile(joinpath(dir, @sprintf("fmapt%02d.asc", istep)))
+        ref = chk ? lcm_read(joinpath(dir, @sprintf("fmapt%02d.asc", istep))) : nothing
+        # FLPOW: PTOT rescales the frozen shape; check it against the reference's own BUND-PW
+        pwi = pw .* (pp / 200.0)
+        if chk
+            pr = lcm_get(ref, "BUND-PW")
+            @printf("step %2d: BUND-PW scaling vs reference: max rel %.2e\n", istep, maximum(abs.(pwi .- pr) ./ pr))
+            pwi = pr
+        end
+        tfi = zeros(nch * length(lay.chans[1][3])); dci = similar(tfi); ncyc = Threads.Atomic{Int}(0)
+        t = @elapsed Threads.@threads for ich in 1:nch
+            g, s0, _, bu = states[ich]
+            ix, iy, planes = lay.chans[ich]
+            pow = zeros(lay.nz)
+            for (ib, iz) in enumerate(planes)
+                pow[iz] = pwi[(ib-1)*nch+ich] * 1e3
+            end
+            s1 = thm_transient(g, ot, s0, pow, bu, speed[ich], tin, pout, dt)
+            Threads.atomic_add!(ncyc, s1.ncyc)
+            states[ich] = (g, s1, pow, bu)
+            for (ib, iz) in enumerate(planes)
+                tfi[(ib-1)*nch+ich] = s1.tcomb[iz]; dci[(ib-1)*nch+ich] = s1.dcool[iz] / 1e3
+            end
+        end
+        @printf("step %2d  P %.1f MW  (%.1f s, %d flow limit cycles)\n", istep, pp, t, ncyc[])
+        chk && compare(@sprintf("t=%.2f", istep * dt), tfi, dci, lcm_params(ref))
+    end
+end
+mode == "ramp" && run_ramp(ARGS[2])

@@ -9,6 +9,8 @@ by ~420 pcm at 25 cm) and with the t = 0 objects dumped right before INIKIN:
 
     tierb_kinref.py <stem>          # an existing generated kinetic deck
     tierb_kinref.py <stem> --dual   # keep DUAL 1 1: only add the dumps
+    tierb_kinref.py <stem> --dual --t0only   # stop at INIKIN: the t = 0 dumps only
+    tierb_kinref.py <stem> --dual --epsout 1e-7 --nsteps 100   # KINSOL tolerance study
 
 Writes <stem>_tbm.don (MCFD 1) or <stem>_tbd.don (DUAL 1 1); results in
 tierb/xs/<stem>_tb{m,d}/.  The A8STEP trace is read from the listing.
@@ -26,10 +28,14 @@ DATA = os.path.join(ROOT, "decks", "Donjon", "data")
 STORE = os.path.join(ROOT, "tierb", "xs")
 
 
-def main(stem, run=True, dual=False):
+def main(stem, run=True, dual=False, t0only=False, epsout=None, nsteps=None):
     text = open(os.path.join(DATA, stem + ".don")).read()
     md5 = hashlib.md5(text.encode()).hexdigest()
-    tb = stem + ("_tbd" if dual else "_tbm")
+    tb = stem + ("_tbd" if dual else "_tbm") + ("0" if t0only else "")
+    if epsout is not None:
+        tb += "e" + f"{epsout:.0e}".replace("-", "m").replace("+", "")
+    if nsteps is not None:
+        tb += f"n{nsteps}"
     n = text.count("DUAL 1 1")
     assert n >= 1, "no DUAL 1 1 to replace"
     if not dual:
@@ -40,7 +46,19 @@ def main(stem, run=True, dual=False):
                         "SEQ_ASCII   FMAP0_A :: FILE './fmap0.asc' ;\n"
                         "SEQ_ASCII   MACRD0_A :: FILE './macrd0.asc' ;\n", 1)
     k = text.index("KINET := INIKIN:")
-    text = text[:k] + "FMAP0_A := FMAP ;\nMACRD0_A := MACRD ;\n" + text[k:]
+    dumps = "FMAP0_A := FMAP ;\nMACRD0_A := MACRD ;\n"
+    if t0only:
+        text = text[:k] + dumps + f'ECHO "{stem} completed" ;\nEND: ;\nQUIT .\n'
+    else:
+        text = text[:k] + dumps + text[k:]
+    if epsout is not None:
+        # KINSOL's flux convergence per step (KINRD2: EPSOUT default 1e-4)
+        k = "SCHEME FLUX THETA 0.8 PREC THETA 0.8 ;"
+        assert text.count(k) == 1
+        text = text.replace(k, f"SCHEME FLUX THETA 0.8 PREC THETA 0.8 EXTE 2000 {epsout:.1E} ;")
+    if nsteps is not None:
+        assert text.count("UNTIL istep 700 >= ;") == 1
+        text = text.replace("UNTIL istep 700 >= ;", f"UNTIL istep {nsteps} >= ;")
     text = text.replace(f'"{stem} completed"', f'"{tb} completed"')
     out = os.path.join(STORE, tb)
     os.makedirs(out, exist_ok=True)
@@ -75,4 +93,7 @@ def main(stem, run=True, dual=False):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], run="--norun" not in sys.argv, dual="--dual" in sys.argv)
+    a = sys.argv
+    opt = lambda k, f: f(a[a.index(k) + 1]) if k in a else None
+    main(a[1], run="--norun" not in a, dual="--dual" in a, t0only="--t0only" in a,
+         epsout=opt("--epsout", float), nsteps=opt("--nsteps", int))
