@@ -145,6 +145,16 @@ Data to condition on (INSAG-7):
   kg/cm² (left/right) at +8 s (p. 55);
 - the channel-rupture signal at +9 s.
 
+Found so far in [D]:
+- nominal state (p. 50): 37 500 t/h, separator 70 kgf/cm², group distribution headers 82.7
+  kgf/cm², 270/284 °C, mean exit quality 14.5 %;
+- the two-phase friction method and the slip correlation (pp. 68–69, OCR-garbled, to be
+  re-read from the page images);
+- every ZRK valve has the same characteristic Q/√ΔP = f(h) (p. 69);
+- the measured channel-with-inlet ΔP(Q) on Leningrad-1 (Fig. 3.10, p. 70), digitised in
+  `sources/derived/D_fig3_10_channel_dp.csv`, with its caption ambiguity noted;
+- the RBMK CHF correlation (p. 70).
+
 Sources still to read: [D]'s circuit chapter (the pump head curve and the flow regulation,
 around PDF pp. 150–175); [TD722] and [USP] for loop resistances and RELAP5-style nodalisations
 of RBMK circuits. Every resistance must come from a source or from closing a sourced steady state

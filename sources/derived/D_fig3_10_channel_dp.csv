@@ -1,0 +1,26 @@
+# [D] Dollezhal & Emelyanov 1980, PDF p. 70, Fig. 3.10: pressure drop over an RBMK fuel channel
+# "with inlet sections" (so including the inlet line and the ZRK valve) against flow, measured
+# on Leningrad-1 (symbols, several channels) and computed by the design method (curves).
+# Digitised by eye from a 150-dpi render (2x zoom) of the curves at the 5 m3/h gridlines (2026-10-18).
+# Reading uncertainty ~ +-0.15 kgf/cm2.
+# Axes: flow in m3/h (volumetric, inlet water); dp in kgf/cm2 (1 kgf/cm2 = 0.0980665 MPa).
+# The y axis starts at 2 kgf/cm2 at zero flow (the static head of the channel and its lines).
+# Caption as printed: curve 1 = ZRK valve fully open (h = 24 mm), curve 2 = valve partly
+# closed (h = 8 mm).  NOTE: curve 1 has the HIGHER drop at a given flow, the opposite of what
+# throttling alone would give; the caption's labelling is recorded as printed, unresolved.
+# The steepness may instead reflect different channel powers (the two-phase drop): open.
+curve,flow_m3h,dp_kgfcm2
+1,10,2.77
+1,15,3.90
+1,20,5.38
+1,25,6.92
+1,30,8.60
+1,34,10.0
+2,10,2.26
+2,15,2.72
+2,20,3.33
+2,25,4.15
+2,30,5.18
+2,35,6.51
+2,40,7.59
+2,45,9.03
