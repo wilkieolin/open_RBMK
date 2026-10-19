@@ -223,7 +223,10 @@ end
 function wall_coef(T, ts, xfl, hmavg, hlsat, hgsat, rel, prl, zkone, zkl, zkg, cpl, rhol, rhog, zmug, zmul, rho, pinlet, hd)
     ha = 0.023 * (zkone / hd) * rel^0.8 * prl^0.4
     f = 1.0; s = 1.0; hb = 0.0; kwa = 0
-    if xfl == 0.0 || T <= ts
+    # the regime is set by the wall superheat alone: Chen's nucleate term vanishes as T -> ts
+    # and applies to subcooled boiling too, so switching it on only once the bulk quality is
+    # > 0 (THM's logic) would make the wall heat flux jump at the onset cell
+    if T <= ts
         kwa = 0
     elseif hmavg < hgsat
         kwa = hmavg < hlsat ? 1 : 2
@@ -234,7 +237,7 @@ function wall_coef(T, ts, xfl, hmavg, hlsat, hgsat, rel, prl, zkone, zkl, zkg, c
         pr = pinlet / 1e6
         sigm = -7.2391e-6 * pr^3 + 2.8345e-4 * pr^2 - 5.1566e-3 * pr + 4.2324e-2
         ha = 0.023 * (zkl / hd) * rel^0.8 * prl^0.4
-        dp = psat(T) - pinlet
+        dp = psat(min(T, 640.0)) - pinlet     # (the wall-root bracket's upper end can pass Tcrit)
         hlv = hgsat - hlsat
         hb = 0.00122 * zkl^0.79 * cpl^0.45 * rhol^0.49 / (zmul^0.29 * sigm^0.5 * hlv^0.24 * rhog^0.24) *
              (T - ts)^0.24 * max(dp, 0.0)^0.75

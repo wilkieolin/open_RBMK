@@ -14,6 +14,9 @@ import RBMKCore
 using RBMKCore.Column.Lines: col_step_newton_flux, NewtonCache
 # TH solver: B4_TH=thmtrs (the THMTRS port, default), col (Column, the B3b march, scheme B4_SCHEME=thm|fv)
 # or newton (Column.Lines.col_step_newton_flux: THM's boundary conditions, simultaneous Newton, smooth closures)
+# or loop (B3b-3: both loop halves, Loop.loop_step! -- drums, pumps, legs, per-channel ZRK lines; the
+# TH state at t = 0 is the loop's own after its 01:23:04 -> 01:23:40 run-down at the FMAP power, so the
+# t = 0 eigenpair is recomputed on it.  B4_HSH (1.2), B4_VST (296 m3), B4_QG (34 MW): as b3b_loop_core.jl)
 const THSOLVER = get(ENV, "B4_TH", "thmtrs"); const SCHEME = Symbol(get(ENV, "B4_SCHEME", "thm"))
 using Printf, HDF5
 
@@ -72,6 +75,51 @@ nch = length(chans); nb = length(chans[1][3])
 @printf("t=0 FMAP: %d channels x %d bundles, BUND-PW %.3f MW, TF %.1f-%.1f K, DCA %.4f-%.4f\n",
         nch, nb, sum(pw0) / 1e3, extrema(tf)..., extrema(dca)...)
 
+# --- B4_TH=loop: the loop's run-down from 01:23:04 to AZ-5 (01:23:40) at the FMAP power
+if THSOLVER == "loop"
+    include("loop_setup.jl")
+    hsh = parse(Float64, get(ENV, "B4_HSH", "1.2")); Vst = parse(Float64, get(ENV, "B4_VST", "296"))
+    QgMW = parse(Float64, get(ENV, "B4_QG", "34"))
+    dreg = load_dreg()
+    kfit, npts = infer_rundown(dreg, hsh)
+    @printf("loop: run-down pumps a(t) = 1 - %.3e t from %d DREG points (hsh %.2f ASSUMPTION); a(AZ-5) %.4f\n",
+            kfit, npts, hsh, 1 - 36kfit)
+    pp = PumpParams(hsh=hsh); leg = leg_unit4(pp; Vsteam=Vst)
+    halves = build_halves(chans, hz, hx, hy, pw0, burn, tf, speed, pout, tin, clus, radius, rodm, o_s, pp, leg, QgMW, dreg)
+    # the run-down pumps: the DREG-fitted a(t) also through the 7 s after AZ-5 (an ASSUMPTION:
+    # the trip/coast times of pumps 3, 4 are not sourced; DREG flows exist to 01:23:43)
+    rundown(tabs) = Any[:grid, :grid, max(0.0, 1 - kfit * tabs) * pp.wr, max(0.0, 1 - kfit * tabs) * pp.wr]
+    function loop_advance!(tabs, dtl, chpow)
+        for side in ("L", "R")
+            H = halves[side]; Lh = H.L
+            wfw = dinterp(dreg, side, "Gfw", tabs) / 3.6
+            hfw = prop_pT97(Lh.pd, dinterp(dreg, side, "Tfw", tabs) + 273.15).h
+            loop_step!(Lh, H.g, o_t, [chpow(i) for i in H.idx], H.burn, dtl; wst=0.0, wfw, hfw,
+                       pumpmode=rundown(tabs), qext=H.qext)
+        end
+    end
+    loopline(tabs) = join([@sprintf("%s pd %.3f (DREG %.2f) ph %.3f W %.0f tin %.2f", s, halves[s].L.pd / LKGF,
+                                    dinterp(dreg, s, "Psd", tabs), halves[s].L.ph / LKGF, halves[s].L.W,
+                                    halves[s].L.tin - 273.15) for s in ("L", "R")], " | ")
+    function loop_to_fmap!(tf, dca)
+        for side in ("L", "R"), (j, i) in enumerate(halves[side].idx)
+            st = halves[side].L.chans[j]
+            for (ib, iz) in enumerate(chans[i][3])
+                tf[(ib-1)*nch+i] = st.tcomb[iz]; dca[(ib-1)*nch+i] = st.rho[iz] / 1e3
+            end
+        end
+    end
+    powfmap = Dict(i => H.pow[j] for H in values(halves) for (j, i) in enumerate(H.idx))
+    tpre = @elapsed for n in 1:72
+        loop_advance!(0.5n, 0.5, i -> powfmap[i])
+        n % 8 == 0 && (println(@sprintf("  pre-run t %4.1f  ", 0.5n), loopline(0.5n)); flush(stdout))
+    end
+    tf0d = copy(tf); dca0d = copy(dca)
+    loop_to_fmap!(tf, dca)
+    @printf("loop at AZ-5 (%.0f s): vs DONJON's FMAP T-FUEL max |d| %.1f K, D-COOL %.4f-%.4f (DONJON %.4f-%.4f)\n",
+            tpre, maximum(abs.(tf .- tf0d)), extrema(dca)..., extrema(dca0d)...)
+end
+
 # --- neutronics
 function problem_at(base, shift)
     r = apply_rods(base, d, ref, rod_boxes(d; shift))
@@ -116,7 +164,7 @@ pwn = bundle_kw(cellpow(p0, phi), P0MW)
 
 # --- TH: channel states from a steady THM: on DONJON's t = 0 power
 geoms = Vector{ChanGeom}(undef, nch); states = Vector{Any}(undef, nch); burns = Vector{Vector{Float64}}(undef, nch)
-Threads.@threads for ich in 1:nch
+THSOLVER == "loop" || Threads.@threads for ich in 1:nch
     ix, iy, planes = chans[ich]
     g = chan_geom(hz, hx[ix] * hy[iy]; pitch=clus[1], nfuel=clus[2], rc=radius[1], rig=radius[2], rgg=radius[3],
                   nfd=rodm[1], ndtot=rodm[2])
@@ -148,14 +196,18 @@ if THSOLVER == "newton"
             maximum(dd) / 1e3, argmax(dd), maximum(dt_))
 end
 println("TH solver: ", THSOLVER, THSOLVER == "col" ? " ($SCHEME)" : "")
-tfs = [states[ich].tcomb[chans[ich][3][ib]] for ib in 1:nb for ich in 1:nch]
-@printf("t=0 TH rebuilt: T-FUEL vs FMAP0 max |d| %.3f K\n", maximum(abs.(tfs .- tf)))
+if THSOLVER != "loop"
+    tfs = [states[ich].tcomb[chans[ich][3][ib]] for ib in 1:nb for ich in 1:nch]
+    @printf("t=0 TH rebuilt: T-FUEL vs FMAP0 max |d| %.3f K\n", maximum(abs.(tfs .- tf)))
+end
 
 # --- the transient
 movers = vcat(get(d.groups, 1, Int[]), get(d.groups, 2, Int[]))
 out = open(joinpath(dumpdir, @sprintf("b4_trace_dt%g%s.txt", dt, THSOLVER == "col" ? "_col" * string(SCHEME) :
-                                                            THSOLVER == "newton" ? "_newton" : "")), "w")
+                                                            THSOLVER == "newton" ? "_newton" :
+                                                            THSOLVER == "loop" ? @sprintf("_loop_h%g_v%g_q%g", hsh, Vst, QgMW) : "")), "w")
 println(out, "# t_s P/P0 E_GJ TFmax_K DCAmin ncyc kin_it")
+THSOLVER == "loop" && (lout = open(joinpath(dumpdir, @sprintf("b4_loop_dt%g_h%g_v%g_q%g.txt", dt, hsh, Vst, QgMW)), "w"))
 energy = 0.0; Pprev = P0MW
 for n in 1:nsteps
     tt = n * dt
@@ -174,7 +226,12 @@ for n in 1:nsteps
     P = sum(pc) / Pall0
     pwk = bundle_kw(pc, P0MW * P)
     ncyc = Threads.Atomic{Int}(0)
-    tth = @elapsed Threads.@threads for ich in 1:nch
+    tth = THSOLVER == "loop" ? @elapsed(begin
+        loop_advance!(36.0 + tt, dt, i -> (pw = zeros(nz); for (ib, iz) in enumerate(chans[i][3]);
+                                                             pw[iz] = pwk[(ib-1)*nch+i] * 1e3; end; pw))
+        loop_to_fmap!(tf, dca)
+        println(lout, @sprintf("%.4f ", tt), loopline(36.0 + tt)); flush(lout)
+    end) : @elapsed Threads.@threads for ich in 1:nch
         planes = chans[ich][3]
         pow = zeros(nz)
         for (ib, iz) in enumerate(planes)
@@ -206,4 +263,4 @@ for n in 1:nsteps
     (n % 10 == 0 || n <= 3) && (@printf("step %4d t %.2f  P/P0 %.5e  E %.3f GJ  TFmax %.1f  DCAmin %.4f  ncyc %d  (%d it; build %.1f kin %.1f th %.1f s)\n",
                                        n, tt, P, energy, maximum(tf), minimum(dca), ncyc[], nit, tb, tk, tth); flush(stdout))
 end
-close(out)
+close(out); THSOLVER == "loop" && close(lout)

@@ -34,7 +34,7 @@ using ..Column: ColState
 using ..Column.Lines: ChanLines, col_step_newton, NewtonCache
 using Printf
 
-export leg_state, pump_flow, pumps_dp, DrumState, drum_pressure, drum_init, drum_step, PumpParams, pump_head, pump_torque, LegParams,
+export drum_level, leg_state, pump_flow, pumps_dp, DrumState, drum_pressure, drum_init, drum_step, PumpParams, pump_head, pump_torque, LegParams,
        leg_unit4, pump_mcp, LoopHalf, loop_step!
 
 const GRAV = 9.81
@@ -160,43 +160,67 @@ The single-phase leg from the drum liquid to the group headers, lumped.
 Lengths/diameters/counts per loop half (two drums) from [MOC07] Fig. 1 (quarter
 loop: one drum, two pumps), doubled; mean of the quoted length ranges.
 Elevations [MOC07] (EL 0 = pump base): drum centre 33.65, normal level 1.8 m
-above the drum bottom (ID 2.6 m), group headers 12.15.
+above the drum bottom (ID 2.6 m), pressure header 7.6, group headers 12.15.
+
+Losses beyond pipe friction (the pumps' check and throttling-regulating valves,
+the pressure header's filters and Laval flow limiters, the group headers' check
+valves and mixers) are CLOSED from the nominal state, two coefficients:
+  Kpump  drum -> pressure header, such that the pressure header reads 86.0 kgf/cm2
+         (Leningrad NPP training text, nominal) with the drums at 70 ([D] p. 50);
+  Kgdh   pressure header -> group headers, such that they read 82.7 ([D] p. 50);
+at the nominal 37 500 t/h ([D] p. 50) on 6 pumps (3 per loop half), water at 270 C.
 """
 Base.@kwdef struct LegParams
     I::Float64            # sum L/A over the series path, 1/m (parallel branches divided)
-    Kf::Float64           # friction: dp = Kf W|W| / rho  (W in kg/s), lumped at rated flow
+    Kf::Float64           # pipe friction + the two closed losses: dp = Kf W|W| / rho (W kg/s)
+    Kpipe::Float64        # pipe friction part alone (diagnostic)
     dz::Float64           # m, drum normal water level above the group headers
-    Vdrum::Float64        # m3, two drums (+ steam space to the stop valves, see note)
-    npump::Int            # pumps running in this loop half
+    Vdrum::Float64        # m3, the two drums
+    Vsteam::Float64       # m3, steam piping up to the stop valves (closed at 01:23:04)
+    npump::Int            # pumps installed and running in this loop half
     sourced::Bool
 end
 
-function leg_unit4(; npump=4)
+function leg_unit4(pump::PumpParams=PumpParams(); npump=4, Vsteam=296.0)
     A(d) = pi / 4 * d^2
-    # (length m, inner diameter m, parallel count) for one loop half = 2 x [MOC07] quarter
     segs = [(0.5 * (23 + 33.5), 0.295, 24),     # downcomers, 12 per drum
-            (21.0, 0.9, 1),                     # suction header (flow traverses ~half: lumped as full, conservative)
+            (21.0, 0.9, 1),                     # suction header (lumped as fully traversed)
             (34.0, 0.752, 4),                   # pump suction legs
             (36.0, 0.752, 4),                   # pump discharge legs
             (18.5, 0.9, 1),                     # pressure header
             (24.0, 0.295, 32)]                  # group distribution headers, 16 per quarter
     I = sum(L / (A(d) * n) for (L, d, n) in segs)
-    # friction at the rated loop-half flow, smooth pipe, Filonenko; no valve losses
-    # (the throttling-regulating valve position at 01:23 is UNKNOWN -- an open item)
-    rho = 760.0; mu = 1.0e-4; W = 4 * 8000 / 3600 * rho
-    Kf = 0.0
+    rho = prop_pT97(7.0e6, 543.15).rho; mu = prop_pT97(7.0e6, 543.15).mu
+    W = 37500.0 / 3.6 / 2                       # nominal loop-half mass flow, kg/s
+    Kpipe = 0.0
     for (L, d, n) in segs
         w = W / n; v = w / (rho * A(d)); Re = rho * v * d / mu
         lam = (1.82 * log10(Re) - 1.64)^-2
-        Kf += lam * L / d / (2 * A(d)^2 * n^2)  # dp = lam L/d rho v^2/2 = [lam L/(2 d A^2 n^2)] W^2/rho
+        Kpipe += lam * L / d / (2 * A(d)^2 * n^2)
     end
-    zdrum_bottom = 33.65 - 1.3
-    dz = zdrum_bottom + 1.8 - 12.15
-    # two RBMK-1000 drums 30 m x ID 2.6 m ([MOC07]; ID confirmed by [ALM98]); the steam
-    # piping to the stop valves (closed from 01:23:04-14) adds compliance: its RBMK-1000
-    # volume is NOT sourced ([ALM98] 404.7 m3 per loop is RBMK-1500) -- an open item
-    Vdrum = 2 * pi / 4 * 2.6^2 * 30.0
-    LegParams(I=I, Kf=Kf, dz=dz, Vdrum=Vdrum, npump=npump, sourced=false)
+    zlev = 33.65 - 1.3 + 1.8; zph = 7.6; zgdh = 12.15
+    # nominal closure (pressure differences only: gauge/absolute cancels)
+    Q1 = W / rho / 3                            # per pump, 3 running per half
+    dpump = pump_head(pump, pump.wr, Q1, rho)
+    dp_drum_ph = rho * GRAV * (zlev - zph) + dpump - (86.0 - 70.0) * KGF   # loss drum -> PH
+    dp_ph_gdh = rho * GRAV * (zph - zgdh) - (82.7 - 86.0) * KGF            # loss PH -> GDH
+    Kclosed = (dp_drum_ph + dp_ph_gdh) * rho / W^2
+    Kclosed > Kpipe || @warn "leg_unit4: nominal closure below pipe friction" Kclosed Kpipe
+    Kf = max(Kclosed, Kpipe)
+    LegParams(I=I, Kf=Kf, Kpipe=Kpipe, dz=zlev - zgdh, Vdrum=2 * pi / 4 * 2.6^2 * 30.0, Vsteam=Vsteam,
+              npump=npump, sourced=false)
+end
+
+"""Height (m) of the liquid above the bottom of the (horizontal, ID 2.6 m) drums for a
+liquid volume Vl spread over the drums' total length 2 x 30 m."""
+function drum_level(Vl; R=1.3, Ltot=60.0)
+    A = Vl / Ltot                               # wetted cross-section
+    lo, hi = 0.0, 2R
+    for _ in 1:60
+        h = 0.5(lo + hi); a = R^2 * acos((R - h) / R) - (R - h) * sqrt(2R * h - h^2)
+        a < A ? (lo = h) : (hi = h)
+    end
+    0.5(lo + hi)
 end
 
 # ------------------------------------------------------------------ one loop half
@@ -208,11 +232,12 @@ mutable struct LoopHalf
     ph::Float64                    # group-header pressure, Pa
     drum::DrumState
     pd::Float64
+    tin::Float64                   # core-inlet water temperature (leg_state), K
     chans::Vector{ColState}
     caches::Vector{NewtonCache}
     lines::Vector{ChanLines}
     Av::Vector{Float64}            # ZRK throat areas (closed from the steady state)
-    mult::Vector{Float64}          # channels each column stands for (sum = channels of the half)
+    mult::Vector{Float64}          # channels each column stands for (1 in a core run)
 end
 
 """
@@ -226,7 +251,6 @@ function leg_state(pump::PumpParams, ws, pd, ph, W, wfw, hfw)
     hl = Loop.sat(pd).hl
     P = sum(pump.Pshaft * (w / pump.wr)^3 for w in ws)
     h = ((W - wfw) * hl + wfw * hfw + P) / W
-    # T(p, h) in the liquid by Newton on IF97 cp
     T = tsat97(ph) - 5.0
     for _ in 1:30
         q = prop_pT97(ph, T); dT = (h - q.h) / q.cp; T += dT
@@ -237,26 +261,26 @@ end
 
 """
 One step of a loop half.  Unknowns ph (group header) and W (pump flow): the
-channels are solved at the current ph, their sensitivities dGin/dph close a 2x2
-Newton on [sum channel inflow - W, leg momentum]; the drum is advanced with the
-channel outflows (Gauss-Seidel within the step, iterated until pd settles).
+channels are solved at the current ph (threaded), their sensitivities dGin/dph
+close a 2x2 Newton on [sum channel inflow - W, leg momentum]; the drum (two drums +
+steam piping to the stop valves) is then advanced with the channel outflows.
+The core-inlet temperature for the step is the leg state at the start of the step
+(drum liquid + feedwater + pump heat), lagged one step.
 
 `pumpmode`: one mode for all pumps or a vector, per pump :grid (held), :coast
-(free, sourced J) or a prescribed speed (rad/s).  `wst`, `wfw`, `hfw`: steam out, feedwater in.
-SCAFFOLD: serial over channels; the core run threads it.
+(free, sourced J) or a prescribed speed (rad/s).  `wst`: steam out of the drums;
+`wfw`, `hfw`: feedwater in; `qext[i]`: heat into channel i's coolant directly (W per
+slice), e.g. from the graphite.
 """
-function loop_step!(L::LoopHalf, g, o, pows, burns, tin_of, dt; tleg, wst=0.0, wfw=0.0, hfw=0.0,
-                    pumpmode=:grid, maxouter=8, tol=1e-6)
+function loop_step!(L::LoopHalf, g, o, pows, burns, dt; wst=0.0, wfw=0.0, hfw=0.0,
+                    pumpmode=:grid, qext=nothing, maxouter=8, tol=1e-6)
     nch = length(L.chans)
-    W0 = L.W; ph = L.ph; W = W0; pd = L.pd
-    # leg liquid at tleg (SCAFFOLD: given; next, the drum-liquid / feedwater mixing model
-    # plus pump heat sets it, and with it the core-inlet subcooling)
-    rho_leg = prop_pT97(pd, tleg).rho
+    W0 = L.W; ph = L.ph; W = W0; pd = L.pd; tin = L.tin
+    rho_leg = prop_pT97(pd, min(tin, tsat97(pd) - 1e-6)).rho
     new = similar(L.chans)
     local wnew
+    Gs = zeros(nch); dGs = zeros(nch)
     for outer in 1:maxouter
-        # pumps at the end of the step (implicit in W, explicit torque balance); per pump:
-        # :grid (speed held), :coast (free, sourced J), or a prescribed speed (rad/s)
         modes = pumpmode isa AbstractVector ? pumpmode : fill(pumpmode, length(L.w))
         Hp0, _ = pumps_dp(L.pump, L.w, W / rho_leg, rho_leg)
         wnew = [m === :grid ? w :
@@ -264,16 +288,14 @@ function loop_step!(L::LoopHalf, g, o, pows, burns, tin_of, dt; tleg, wst=0.0, w
                 Float64(m) for (w, m) in zip(L.w, modes)]
         Hp, dHdQ = pumps_dp(L.pump, wnew, W / rho_leg, rho_leg)    # parallel pumps share the rise
         dHdW = dHdQ / rho_leg
-        # channels at this ph
-        Win = 0.0; dWdph = 0.0
-        for i in 1:nch
-            s = col_step_newton(g[i], o, L.chans[i], pows[i], burns[i], L.lines[i], L.Av[i], ph, pd, tin_of(i), dt;
-                                cache=L.caches[i])
+        Threads.@threads for i in 1:nch
+            s = col_step_newton(g[i], o, L.chans[i], pows[i], burns[i], L.lines[i], L.Av[i], ph, pd, tin, dt;
+                                cache=L.caches[i], qext=qext === nothing ? nothing : qext[i])
             new[i] = s
-            Win += L.mult[i] * s.Gin * L.lines[i].Ach
-            dWdph += L.mult[i] * L.caches[i].dGin_dph * L.lines[i].Ach
+            Gs[i] = L.mult[i] * s.Gin * L.lines[i].Ach
+            dGs[i] = L.mult[i] * L.caches[i].dGin_dph * L.lines[i].Ach
         end
-        # 2x2 Newton: f1 = Win(ph) - W, f2 = I (W - W0)/dt + Kf W|W|/rho - (pd + rho g dz + Hp) + ph
+        Win = sum(Gs); dWdph = sum(dGs)
         f1 = Win - W
         f2 = L.leg.I * (W - W0) / dt + L.leg.Kf * W * abs(W) / rho_leg - (pd + rho_leg * GRAV * L.leg.dz + Hp) + ph
         J11 = dWdph; J12 = -1.0
@@ -285,12 +307,12 @@ function loop_step!(L::LoopHalf, g, o, pows, burns, tin_of, dt; tleg, wst=0.0, w
         (abs(f1) < tol * abs(W) && abs(dph) < 1e-6 * ph) && break
         outer == maxouter && @warn "loop_step!: header closure not converged" f1 dph
     end
-    # drum with the converged channel outflows
     kmaxs = [findlast(!=(0.0), pows[i]) for i in 1:nch]
     wout = [L.mult[i] * new[i].G[kmaxs[i]] * L.lines[i].Ach for i in 1:nch]
     hout = [new[i].h[kmaxs[i]] for i in 1:nch]
-    d1, pd1 = drum_step(L.drum, L.leg.Vdrum, dt, vcat(wout, wfw), vcat(hout, hfw), W, wst)
-    L.chans .= new; L.W = W; L.ph = ph; L.w = wnew; L.drum = d1; L.pd = pd1
+    d1, pd1 = drum_step(L.drum, L.leg.Vdrum + L.leg.Vsteam, dt, vcat(wout, wfw), vcat(hout, hfw), W, wst)
+    _, tnext = leg_state(L.pump, wnew, pd1, ph, W, wfw, hfw)
+    L.chans .= new; L.W = W; L.ph = ph; L.w = wnew; L.drum = d1; L.pd = pd1; L.tin = tnext
     L
 end
 

@@ -495,7 +495,7 @@ model (local onset, tight closures; a backward-Euler step of 1e5 s is the
 steady state) and Av corrected by secant until that model carries `Gin`, so
 a transient started from `st` begins at rest.
 """
-function valve_area(g, o, s::ColState, pow, burn, L::ChanLines, ph, pd, tin, Gin; dtss=1e5, newton=true)
+function valve_area(g, o, s::ColState, pow, burn, L::ChanLines, ph, pd, tin, Gin; dtss=1e5, newton=true, qext=nothing)
     kmax = findlast(!=(0.0), pow)
     a = prop_pT(ph, tin)
     W = Gin * L.Ach
@@ -511,7 +511,30 @@ function valve_area(g, o, s::ColState, pow, burn, L::ChanLines, ph, pd, tin, Gin
     Av = W / sqrt(2a.rho * dpv / L.xi_valve)
     newton || return Av, dpv, st
     # the same closure in the Newton model: secant on log Av against log Gin
-    solve(A) = (x = st; for _ in 1:3; x = col_step_newton(g, o, x, pow, burn, L, A, ph, pd, tin, dtss); end; x)
+    # a steady step straight from the march's state can stall on the closures' noise floor at
+    # dt -> inf (a few Pa on a momentum row); then approach the steady state in pseudo-time,
+    # dt growing geometrically from the transient's scale, and stop at the largest dt that solves
+    function solve(A)
+        x = st
+        try
+            for _ in 1:3; x = col_step_newton(g, o, x, pow, burn, L, A, ph, pd, tin, dtss; qext); end
+            return x
+        catch e
+            e isa ColFailure || rethrow()
+        end
+        x = st; dt = 0.5
+        while dt <= dtss
+            try
+                x = col_step_newton(g, o, x, pow, burn, L, A, ph, pd, tin, dt; qext)
+            catch e
+                (e isa ColFailure && dt > 100.0) || rethrow()
+                for _ in 1:20; x = col_step_newton(g, o, x, pow, burn, L, A, ph, pd, tin, 100.0; qext); end
+                return x
+            end
+            dt *= 2
+        end
+        x
+    end
     A0 = Av; s0n = solve(A0); A1 = Av * Gin / s0n.Gin; s1n = solve(A1)
     for it in 1:20
         abs(s1n.Gin - Gin) < 1e-9 * Gin && break
@@ -543,8 +566,8 @@ the cell below), exactly as in the march; the Jacobian keeps only the
 nearest-neighbour coupling, so the iteration is an inexact Newton.
 """
 function col_step_newton(g, o, s0::ColState, pow, burn, L::ChanLines, Av, ph, pd, tin, dt;
-                         tol=1e-9, maxit=40, depth=0, localonset=true, cache=nothing)
-    newton_substep(g, o, s0, pow, burn, (:loop, L, Av, ph, pd), tin, dt; tol, maxit, depth, localonset, cache)
+                         tol=1e-9, maxit=40, depth=0, localonset=true, cache=nothing, qext=nothing)
+    newton_substep(g, o, s0, pow, burn, (:loop, L, Av, ph, pd), tin, dt; tol, maxit, depth, localonset, cache, qext)
 end
 
 """
@@ -557,8 +580,8 @@ balances solved simultaneously, with the same smooth closures.  `cache` (a
 iterations and steps (chord Newton, rebuilt when it stops contracting).
 """
 function col_step_newton_flux(g, o, s0::ColState, pow, burn, Gin, tin, dt;
-                              tol=1e-9, maxit=40, depth=0, localonset=true, cache=nothing)
-    newton_substep(g, o, s0, pow, burn, (:flux, Gin), tin, dt; tol, maxit, depth, localonset, cache)
+                              tol=1e-9, maxit=40, depth=0, localonset=true, cache=nothing, qext=nothing)
+    newton_substep(g, o, s0, pow, burn, (:flux, Gin), tin, dt; tol, maxit, depth, localonset, cache, qext)
 end
 
 mutable struct NewtonCache
@@ -577,24 +600,24 @@ mutable struct NewtonCache
 end
 NewtonCache() = NewtonCache(nothing, 0, 0.0, 0, 0, 0.0, 0.0, 0.0, 0.0)
 
-function newton_substep(g, o, s0, pow, burn, bc, tin, dt; tol, maxit, depth, localonset, cache)
+function newton_substep(g, o, s0, pow, burn, bc, tin, dt; tol, maxit, depth, localonset, cache, qext=nothing)
     try
-        col_step_newton1(g, o, s0, pow, burn, bc, tin, dt; tol, maxit, localonset, cache)
+        col_step_newton1(g, o, s0, pow, burn, bc, tin, dt; tol, maxit, localonset, cache, qext)
     catch e
         (e isa ColFailure && depth < 8) || rethrow()
         NEWTON_LOG[] && println("  substep at depth $depth (dt $dt): ", first(e.msg, 160))
         # (the step's end values held over both halves; a flux BC is interpolated)
         bch = bc[1] === :flux ? (:flux, 0.5 * (s0.Gin + bc[2])) : bc
-        sh = newton_substep(g, o, s0, pow, burn, bch, tin, dt / 2; tol, maxit, depth=depth + 1, localonset, cache)
-        s1 = newton_substep(g, o, sh, pow, burn, bc, tin, dt / 2; tol, maxit, depth=depth + 1, localonset, cache)
+        sh = newton_substep(g, o, s0, pow, burn, bch, tin, dt / 2; tol, maxit, depth=depth + 1, localonset, cache, qext)
+        s1 = newton_substep(g, o, sh, pow, burn, bc, tin, dt / 2; tol, maxit, depth=depth + 1, localonset, cache, qext)
         s1.substeps = sh.substeps + s1.substeps + 1
         s1
     end
 end
 
-const FLOOR = 1e-6       # scaled residual the closures' inner tolerances allow (see the line search)
+const FLOOR = 1e-5       # scaled residual the closures' inner tolerances allow (~1 Pa on the pressure rows)
 
-function col_step_newton1(g, o, s0::ColState, pow, burn, bc, tin, dt; tol, maxit, localonset, cache)
+function col_step_newton1(g, o, s0::ColState, pow, burn, bc, tin, dt; tol, maxit, localonset, cache, qext=nothing)
     loop = bc[1] === :loop
     L, Av, ph, pd = loop ? bc[2:5] : (nothing, 0.0, 0.0, 0.0)
     Gbc = loop ? 0.0 : bc[2]; pout = s0.pout
@@ -605,6 +628,9 @@ function col_step_newton1(g, o, s0::ColState, pow, burn, bc, tin, dt; tol, maxit
     dv = g.sass .* g.hz
     qfuel = pow .* g.ffuel ./ dv
     qcool = pow .* g.fcool ./ dv
+    # heat entering the coolant directly, not through the fuel (W per slice): the
+    # graphite stack's release through the pressure tube (Loop, tools/graphite_heat.py)
+    qext === nothing || (qcool = qcool .+ qext ./ dv)
     chi = loop ? bundle_chi(L.eps_bundle) : 0.0
     W0in = loop ? s0.Gin * L.Ach : 0.0; W0out = loop ? s0.G[kmax] * L.Ach : 0.0
     w = RodWork(nd - 1)
