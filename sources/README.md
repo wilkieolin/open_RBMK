@@ -191,3 +191,4 @@ A6.5 / A6d.
 | [OST] | ОСТ 1 90048-90, САВ-1 composition, as reproduced at evek.org/materials/splav-sav1.html (fetched 2026-09-26) | CPS tube alloy |
 | [SF] | RBMK operator training text, studfile.net/preview/16424193/page:10 (fetched 2026-09-26) | absorber tubes are САВ-1 |
 | [LEG] | *Кинетика и регулирование ядерных реакторов*, ch. "Органы управления и защиты канальных реакторов", leg.co.ua (fetched 2026-09-26), Fig. 6.7 | fuel : CPS = 7 : 1; generic type cartogram |
+| [DREG] | Dmitriev V. (VNIIAES), "Data on Chernobyl accident in a digital form" (SKALA/DREG and PRIZMA listings), accidont.ru; local Wayback copies in `accidont/` (md5 in `derived/dreg_0123_mfcc.csv`) | 01:00–01:23:48 drum pressures, levels, feedwater, MCP flows; per-channel flows at 01:00 |

@@ -69,3 +69,49 @@ File `sources/FR0200406_osti20241670.pdf` (https://www.osti.gov/etdeweb/servlets
 `ChanLines(sourced=false)`: line lengths 25 m (water) / 30 m (steam-water), elevations 5 m / 18 m,
 outlet local losses 2 velocity heads, header − drum 12.7 kgf/cm² (the [D] p. 50 nominal, not 01:23).
 They exercise the solver; no result depends on them until gaps 1, 2, 5 and 6 are closed.
+
+## Found 2026-10-18 (research pass)
+
+**The recorded 01:23 MFCC state exists in digital form** — the DREG record from the SKALA tape,
+published by V. Dmitriev (VNIIAES) on accidont.ru, local copies in `sources/accidont/`, the drum
+pressures transcribed in `dreg_0123_mfcc.csv`. Per loop, from 01:00 to 01:23:48: drum pressure Psd,
+drum level, feedwater flow and temperature, MCP-inlet water temperature, and each of the 8 MCP flows;
+plus the discrete signals (AZ-5 at 01:23:40, "pressure excess in SD" at 01:23:47). It also has the
+PRIZMA cartograms at 01:00 (per channel: power, burnup, **water flow m³/h**; scans
+`PRIZMA_01.JPG`/`PRIZMA_02.JPG`, to be OCR'd) and the 01:22:30 rod pattern and DKE readings.
+
+This **closes gap 6 and contradicts the decks**: at 01:23:00–01:23:39 the drums read 63.2–65.0
+(left) and 64.1–68.6 (right) kgf/cm², rising only at 01:23:45–48 to 75.2 / 88.4. The decks'
+`INLET 7.384407E+06` (75.3 kgf/cm²) is INSAG-7's +8 s left-drum value, ~10 kgf/cm² above the
+pre-excursion state. Recorded MCP-inlet temperature is 281 °C on both sides throughout, so the
+subcooling is set by pressure at the core inlet (drum + downcomer head + pump head − line losses),
+not by the drum. Consequences for A7/A8 and Tier B (THM's single pressure, the 3 K subcooling) are
+OPEN and not yet assessed. Whether Psd is gauge or absolute is not stated (1 kgf/cm² either way).
+
+Recorded MCP flows 01:23:00–01:23:43: each pump 5.2–8.0 ×1000 m³/h, the four coasting pumps
+(L3, L4, R3, R4) falling from ~7.3–7.9 to ~5.2–5.8 ×1000 m³/h by 01:23:43 — a direct boundary
+condition for the loop model, to be transcribed.
+
+**Gaps 1–4 (geometry, pump curve) — candidate sources, not yet obtained:**
+- Abramov M.A., Avdeev V.I., Adamov E.O. et al., *Канальный ядерный энергетический реактор РБМК*,
+  ed. Yu.M. Cherkashov, GUP NIKIET, Moscow 2006 — the designer's monograph; MFCC layout, elevations,
+  pipework, ЦВН-7 characteristics. Library/purchase.
+- Mochizuki H., "Analysis of the Chernobyl accident from 1:19:00 to the first power excursion",
+  Nucl. Eng. Des. 237 (2007) 300–307, doi:10.1016/j.nucengdes.2006.07.002 — a coupled loop model of
+  Unit 4 against the recorded data; its loop inputs (and earlier NETFLOW papers) are the closest
+  published geometry set. Paywalled (academia.edu copy exists).
+- Fletcher C.D. et al. (INEL), "Simulation of the Chernobyl accident", Nucl. Eng. Des. 105 (1988)
+  157–172 — RELAP5/MOD2 Chernobyl-4 model from open literature, with a cavitating-pump model.
+- Almenas K., Kaliatka A., Ušpuras E., *Ignalina RBMK-1500: A Source Book*, LEI 1998 (OSTI 58920;
+  a Scribd copy exists) — the most complete open elevation/pipe/pump data, for the RBMK-1500 sister
+  design (same MFCC topology; ~21 m core-bottom to drum-bottom, >30 m overall).
+- Kaliatka et al. (LEI), Ignalina MCP-trip benchmarks (OSTI 20236645, 20529063) — CVN-8 coastdown
+  and pump modelling validated on plant data (RBMK-1500 pump, not ЦВН-7).
+- Pump rated point corroborated: 8000 m³/h, 200 m, 1000 rpm, inlet 7.2 MPa, 270 °C, 4300 kW
+  (Russian textbook summaries citing ЦВН-7; [D] p. 80 gives 203 m). ЦВН-7 cavitation curves exist
+  in graphical form (atomas.ru "Атомные станции с реакторами РБМК-1000", ch. 24 — blocked by the
+  local network's DNS policy, not accessed).
+- RBMK-1000 drum: OD 2300 mm, length 30 480 mm, wall 105 mm (ResearchGate figure caption, seismic
+  study of RBMK-1000 drum separators) — to be confirmed from a primary source.
+- Leningrad NPP training text (pavrda.cz/cernobyl/rbmk): pressure-header pressure 86.0 kgf/cm²
+  nominal (vs [D] p. 50 group-header 82.7).

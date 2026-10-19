@@ -1,0 +1,28 @@
+# DREG (SKALA magnetic tape) analogue parameters of the MFCC, 26.04.1986, as published in digital
+# form by accidont.ru (V. Dmitriev, VNIIAES), "Data on Chernobyl accident in a digital form",
+# Tables B1 (left loop) and B2 (right loop).  Local copy: sources/accidont/ENG_databl.html
+# (Wayback snapshot 20260314125745, md5 31357a56c94bfaf0e79691d37c87b04a); Russian original
+# sources/accidont/datable.html.  Transcribed 2026-10-18, only the 01:23:00-01:23:48 block and only
+# instants where the drum pressure was recorded.  Units: Psd kgf/cm2 (gauge or absolute is not stated
+# on the page: OPEN), Tin = water temperature at MCP inlet, C.  Blank = not recorded at that instant.
+# The two drums of a loop are interconnected and read the same pressure.
+side,time,Psd_kgfcm2
+L,01:23:02,63.6
+L,01:23:04,63.2
+L,01:23:11,63.4
+L,01:23:14,63.8
+L,01:23:19,64.3
+L,01:23:36,65.0
+L,01:23:45,67.5
+L,01:23:46,72.8
+L,01:23:48,75.2
+R,01:23:02,64.6
+R,01:23:04,64.5
+R,01:23:06,64.1
+R,01:23:11,66.1
+R,01:23:21,65.8
+R,01:23:27,66.0
+R,01:23:30,66.3
+R,01:23:39,68.6
+R,01:23:47,80.1
+R,01:23:48,88.4
