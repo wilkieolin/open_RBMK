@@ -6768,6 +6768,18 @@ did not fail this time). This **retracts PROGRESS (33)**'s "pressure moves the s
 percent or reduces it": it was argued from the 7.38 MPa level and the sign of a pressure rise,
 not from the level itself.
 
+**Independent of the TH solver.** The same pair with the B3b Newton column (`B4_TH=newton`):
+
+| band B | THMTRS port | Newton column |
+|---|---|---|
+| peak, 75.3 → 66.8 kgf/cm² | 182.8× → 245.4× (+34 %) | 173.1× → 230.2× (+33 %) |
+| energy at 6.9 s | 54.4 → 65.3 GJ (+20 %) | 52.5 → 62.7 GJ (+19.5 %) |
+| 530 MW | 2.59 → 2.58 s | 2.59 → 2.58 s |
+| reached | 6.97 / 7.00 s | 7.00 / 7.00 s |
+
+The Newton column sits 5–6 % below the port at both pressures (its local Saha–Zuber onset, as in
+band A, (41)) and runs both cases to 7 s without a failure.
+
 **The subcooling is probably also mis-placed.** The loop scaffold (`Loop.leg_state`) mixes drum
 liquid with the recorded feedwater (~150 t/h at ~165 °C per side) and adds the pumps' shaft power
 ([ALM98] 4.3 MW each). With the DREG drum pressure it predicts the pump-inlet water at
