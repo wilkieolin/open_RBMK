@@ -34,7 +34,7 @@ using ..Column: ColState
 using ..Column.Lines: ChanLines, col_step_newton, NewtonCache
 using Printf
 
-export DrumState, drum_pressure, drum_init, drum_step, PumpParams, pump_head, pump_torque, LegParams,
+export leg_state, pump_flow, pumps_dp, DrumState, drum_pressure, drum_init, drum_step, PumpParams, pump_head, pump_torque, LegParams,
        leg_unit4, pump_mcp, LoopHalf, loop_step!
 
 const GRAV = 9.81
@@ -124,6 +124,27 @@ function pump_head(p::PumpParams, w, Q, rho)
     rho * GRAV * p.Hr * (p.hsh * a * abs(a) - (p.hsh - 1) * v * abs(v))
 end
 
+"""Flow (m3/s) through one pump at speed w delivering pressure rise dp (Pa): the
+first-quadrant head curve inverted (0 when the pump cannot reach dp)."""
+function pump_flow(p::PumpParams, w, dp, rho)
+    a = w / p.wr
+    r = (p.hsh * a * a - dp / (rho * GRAV * p.Hr)) / (p.hsh - 1)
+    r > 0 ? p.Qr * sqrt(r) : 0.0
+end
+
+"""Common pressure rise of parallel pumps at speeds ws carrying total flow Q (m3/s),
+and its derivative d(dp)/dQ."""
+function pumps_dp(p::PumpParams, ws, Q, rho)
+    hi = rho * GRAV * p.Hr * p.hsh * maximum(ws ./ p.wr)^2; lo = -hi
+    f(dp) = sum(pump_flow(p, w, dp, rho) for w in ws) - Q
+    for _ in 1:100
+        m = 0.5(lo + hi); f(m) > 0 ? (lo = m) : (hi = m)
+        hi - lo < 1e-6 && break
+    end
+    dp = 0.5(lo + hi); h = 1.0
+    dp, -2h / (f(dp + h) - f(dp - h))      # dQ/d(dp) by central difference, inverted
+end
+
 """Hydraulic torque (N m) on the pump at speed w, flow Q (constant-efficiency form)."""
 function pump_torque(p::PumpParams, w, Q, rho)
     a = w / p.wr; v = Q / p.Qr
@@ -195,6 +216,26 @@ mutable struct LoopHalf
 end
 
 """
+Enthalpy of the leg liquid: drum liquid (saturated at pd) mixed with the feedwater
+(injected into the downcomer flow, [ALM98] Sec. 5.2.1), plus the pumps' shaft power
+deposited in the water ([ALM98] Table 5.6: 4300 +- 300 kW per pump at rated, scaled
+by the cube of speed -- the affinity law, an ASSUMPTION off the rated point).
+Returns (h, T at pressure ph).
+"""
+function leg_state(pump::PumpParams, ws, pd, ph, W, wfw, hfw)
+    hl = Loop.sat(pd).hl
+    P = sum(pump.Pshaft * (w / pump.wr)^3 for w in ws)
+    h = ((W - wfw) * hl + wfw * hfw + P) / W
+    # T(p, h) in the liquid by Newton on IF97 cp
+    T = tsat97(ph) - 5.0
+    for _ in 1:30
+        q = prop_pT97(ph, T); dT = (h - q.h) / q.cp; T += dT
+        abs(dT) < 1e-9 && break
+    end
+    h, T
+end
+
+"""
 One step of a loop half.  Unknowns ph (group header) and W (pump flow): the
 channels are solved at the current ph, their sensitivities dGin/dph close a 2x2
 Newton on [sum channel inflow - W, leg momentum]; the drum is advanced with the
@@ -216,12 +257,13 @@ function loop_step!(L::LoopHalf, g, o, pows, burns, tin_of, dt; tleg, wst=0.0, w
     for outer in 1:maxouter
         # pumps at the end of the step (implicit in W, explicit torque balance); per pump:
         # :grid (speed held), :coast (free, sourced J), or a prescribed speed (rad/s)
-        Qp = W / rho_leg / L.leg.npump
         modes = pumpmode isa AbstractVector ? pumpmode : fill(pumpmode, length(L.w))
-        wnew = [m === :grid ? w : m === :coast ? w - dt * pump_torque(L.pump, w, Qp, rho_leg) / L.pump.J : Float64(m)
-                for (w, m) in zip(L.w, modes)]
-        Hp = sum(pump_head(L.pump, w, Qp, rho_leg) for w in wnew) / length(wnew)
-        dHdW = -2 * rho_leg * GRAV * L.pump.Hr * (L.pump.hsh - 1) * abs(Qp) / L.pump.Qr^2 / (rho_leg * L.leg.npump)
+        Hp0, _ = pumps_dp(L.pump, L.w, W / rho_leg, rho_leg)
+        wnew = [m === :grid ? w :
+                m === :coast ? w - dt * pump_torque(L.pump, w, pump_flow(L.pump, w, Hp0, rho_leg), rho_leg) / L.pump.J :
+                Float64(m) for (w, m) in zip(L.w, modes)]
+        Hp, dHdQ = pumps_dp(L.pump, wnew, W / rho_leg, rho_leg)    # parallel pumps share the rise
+        dHdW = dHdQ / rho_leg
         # channels at this ph
         Win = 0.0; dWdph = 0.0
         for i in 1:nch

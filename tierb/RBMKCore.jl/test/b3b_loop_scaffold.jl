@@ -78,3 +78,23 @@ for n in 1:300
                            n * 0.01, LH.W, join(round.(Int, LH.w .* 60 / 2pi), "/"), LH.ph / KGF, LH.pd / KGF,
                            LH.chans[1].xfl[kmax], LH.chans[2].xfl[kmax])
 end
+
+println("== the core-inlet state the loop predicts (no imposed subcooling)")
+# DREG 01:23:00-01:23:39, per loop half: drum 66.8 kgf/cm2 (read as absolute), feedwater ~150 t/h
+# at ~165 C, MCP inlet temperature recorded 281 C; total flow 56 000 m3/h (INSAG-7 p. 64), 8 pumps.
+for (lab, pdk) in (("absolute", 66.8), ("gauge (+1 at)", 67.8))
+    pd = pdk * KGF
+    ws = fill(pp.wr, 4)
+    rho = prop_pT97(pd, tsat97(pd) - 1).rho
+    W = 28000.0 / 3600 * rho
+    dpp, _ = pumps_dp(pp, ws, W / rho, rho)
+    ph = pd + rho * 9.81 * leg_unit4().dz + dpp - leg_unit4().Kf * W^2 / rho
+    hfw = prop_pT97(pd, 165.0 + 273.15).h
+    hleg, Tleg = leg_state(pp, ws, pd, ph, W, 150 / 3.6, hfw)
+    Tpi = let hl = Loop.sat(pd).hl; hm = ((W - 150 / 3.6) * hl + 150 / 3.6 * hfw) / W
+        Tq = tsat97(pd) - 1; for _ in 1:30; q = prop_pT97(pd + 2e5, Tq); Tq += (hm - q.h) / q.cp; end; Tq end
+    @printf("  Psd %s: drum Tsat %.2f C; pump inlet %.2f C (DREG 281); after pumps %.2f C; group-header Tsat %.2f C\n",
+            lab, tsat97(pd) - 273.15, Tpi - 273.15, Tleg - 273.15, tsat97(ph) - 273.15)
+    @printf("      subcooling against the drum pressure %.2f K; against the core-bottom pressure (~pd + 3 kgf/cm2) %.2f K (INSAG-7: 3)\n",
+            tsat97(pd) - Tleg, tsat97(pd + 3KGF) - Tleg)
+end
