@@ -192,3 +192,4 @@ A6.5 / A6d.
 | [SF] | RBMK operator training text, studfile.net/preview/16424193/page:10 (fetched 2026-09-26) | absorber tubes are САВ-1 |
 | [LEG] | *Кинетика и регулирование ядерных реакторов*, ch. "Органы управления и защиты канальных реакторов", leg.co.ua (fetched 2026-09-26), Fig. 6.7 | fuel : CPS = 7 : 1; generic type cartogram |
 | [DREG] | Dmitriev V. (VNIIAES), "Data on Chernobyl accident in a digital form" (SKALA/DREG and PRIZMA listings), accidont.ru; local Wayback copies in `accidont/` (md5 in `derived/dreg_0123_mfcc.csv`) | 01:00–01:23:48 drum pressures, levels, feedwater, MCP flows; per-channel flows at 01:00 |
+| [MOC07] | Mochizuki H., Nucl. Eng. Des. 237 (2007) 300–307, doi:10.1016/j.nucengdes.2006.07.002; `1-s2.0-S0029549306004626-main.pdf` | quarter-loop geometry and elevations (Fig. 1), 01:19 state, pump ns/NPSH; transcribed in `derived/mochizuki2007_loop.csv` |

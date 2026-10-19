@@ -115,3 +115,27 @@ condition for the loop model, to be transcribed.
   study of RBMK-1000 drum separators) — to be confirmed from a primary source.
 - Leningrad NPP training text (pavrda.cz/cernobyl/rbmk): pressure-header pressure 86.0 kgf/cm²
   nominal (vs [D] p. 50 group-header 82.7).
+
+## [MOC07] Mochizuki 2007 — obtained 2026-10-18 (`mochizuki2007_loop.csv`)
+
+Fig. 1 is a dimensioned quarter-loop model of Unit 4 (drum, downcomers, suction header, pumps,
+pressure header, group headers with ZRK valve and flow meter, feeders, channels, outlet pipes) with
+elevations. A **secondary compilation** (sources listed, not attributed per number), but published,
+used against the recorded DREG trends from 01:19 and the best available. Status of the gaps:
+1. **Elevations — closed (secondary):** pump 5.9, pressure header 7.6, feeder low point 6.3,
+   group header 12.15, core 11.8–20.0, channel exit 25.6, drum centreline 33.65 m (EL 0 = pump base).
+2. **Line lengths — closed as ranges:** feeders 22.5–32.5 m (ID 50 mm), outlet pipes 12.7–23 m
+   (ID 68 mm), downcomers 23–33.5 m, headers and pump legs. Per-channel lengths are not given; the
+   ranges become a sourced uncertainty in B5. (The B3b test's placeholders 25/30 m fall inside.)
+3. **Drum — partly:** 30 m × ID 2.6 m, NWL 1.8 m above bottom. ID 2.6 conflicts with an OD of
+   2.30 m quoted for RBMK-1000 elsewhere: OPEN.
+4. **Pump — rated point and specific speed only:** 200 m, 1000 rpm, 8000 m³/h, ns = 0.0843, NPSHR
+   23 m. **No head-flow curve**; the homologous-curve plan stands, now anchored on ns. **GD² conflict:**
+   1500 kg·m² here against 15 t·m² in [D] p. 80; the paper says it had to raise the inertia to match
+   the recorded coastdown, which favours [D]. The DREG per-pump flows (01:23:04–01:23:43) constrain it.
+5. **01:23 header pressure — not given;** it follows from the loop model with the DREG drum pressure.
+   Mochizuki's computed pump-inlet state (6.542 MPa, 277.9 °C) is a model result; DREG measures 281 °C.
+
+New for the model: pump heat 7 MW and graphite-to-coolant heat ~20 MW per quarter-loop at 01:19
+("investigated"). The Tier B TH has neither. Steam flow from the drums falls from 01:23:08 and is
+zero from 01:23:14 (turbine stop valve), the boundary condition behind the drum-pressure rise.

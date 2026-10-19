@@ -1,0 +1,63 @@
+# [MOC07] Mochizuki H., "Analysis of the Chernobyl accident from 1:19:00 to the first power excursion",
+# Nucl. Eng. Des. 237 (2007) 300-307, doi:10.1016/j.nucengdes.2006.07.002.  Local copy
+# sources/1-s2.0-S0029549306004626-main.pdf.  Read from Fig. 1 (p. 302, rendered at 400 dpi) and
+# Sec. 2.3 on 2026-10-18.  Fig. 1 is Mochizuki's MODEL of one quarter-loop (one drum separator, 415 of
+# the 1661 channels), compiled from Dollezhal & Emel'yanov 1980 [D], Almenas et al. 1998 (Ignalina
+# RBMK-1500 Source Book), Aleksakov 1980, Emel'yanov 1977, Aden 1977 and a Leningrad NPP brochure;
+# the paper does not say which number came from which.  Elevations EL are in m relative to the pump
+# base (EL 0).  "range" = the spread over the channels/pipes of the quarter-loop.
+item,quantity,value,unit,note
+drum_separator,count_per_loop,2,,
+drum_separator,length,30,m,
+drum_separator,inner_diameter,2.6,m,"RBMK-1500 value? a RBMK-1000 seismic study gives OD 2.30 m: OPEN"
+drum_separator,wall,0.105,m,
+drum_separator,centreline_EL,33.65,m,
+drum_separator,normal_water_level,1.8,m above drum bottom,"(investigated)"
+drum_separator,level_at_0119,NWL-0.57,m,"(reported)"
+downcomer,count_per_drum,12,,
+downcomer,OD/ID,0.325/0.295,m,
+downcomer,length,23-33.5,m,range
+suction_header,OD/ID,1.020/0.9,m,
+suction_header,length,21,m,
+suction_header,centreline_EL,14.85,m,
+pump_suction_line,OD/ID/L,0.828/0.752/34,m,"pump inlet leg (label nearest node 92); assignment of the 34/36 m legs to suction/discharge read from the drawing: check"
+pump_discharge_line,OD/ID/L,0.828/0.752/36,m,"discharge leg via node 94-95"
+pump,count_per_drum,2,,
+pump,centreline_EL,5.9,m,
+pump,head,200,m,"(investigated)"
+pump,speed,1000,rpm,
+pump,power,5500,kW,"[D] p. 80 also 5500 kW"
+pump,GD2,1500,kg m2,"[D] p. 80 gives 15 t m2 = 15000 kg m2: factor-10 conflict; Mochizuki notes he had to raise the inertia to match the recorded coastdown"
+pump,rated_flow,8000,m3/h,"5250 t/h x 2 per drum"
+pump,specific_speed_ns,0.0843,-,"ns = N Q^0.5 (gH)^-0.75, N in 1/s (Sec. 3.2)"
+pump,NPSH_required,23,m,"'according to the survey of papers' (Sec. 3.2)"
+pump_line,valves,"check valve + throttling-regulating valve",,downstream of pump
+pressure_header,OD/ID,1.040/0.9,m,
+pressure_header,length,18.5,m,
+pressure_header,centreline_EL,7.6,m,
+group_distribution_header,OD/ID,0.325/0.295,m,
+group_distribution_header,length,24,m,
+group_distribution_header,count,16,,"per quarter-loop model"
+group_distribution_header,EL,12.15,m,"with flow meter, ZRK flow-control valve, check valve"
+feeder_pipe,OD/ID,0.057/0.050,m,"[D] p. 60: 57 x 3.5 (ID 0.050) agrees"
+feeder_pipe,length,22.5-32.5,m,range
+feeder_pipe,low_point_EL,6.3,m,"U-bend below the core"
+feeder_pipe,EL_route,9.3,m,"horizontal run from group header"
+fuel_channel,OD/ID,0.088/0.080,m,
+fuel_channel,bottom_EL,9.6,m,"channel bottom (lower tract)"
+core,graphite_bottom_EL,11.6,m,
+core,lower_EL,11.8,m,"8.2 m dimension between 11.8 and 20.0"
+core,upper_EL,20.0,m,
+core,graphite_top_EL,21.3,m,
+outlet_pipe,OD/ID,0.076/0.068,m,"[D] p. 60: 76 x 4 agrees"
+outlet_pipe,length,12.7-23,m,range
+outlet_pipe,channel_exit_EL,25.6,m,
+state_0119,drum_pressure,6.9,MPa,"(reported); DREG gives 68.2-69.8 kgf/cm2 at 01:19-01:20"
+state_0119,core_flow_quarter,10500,t/h,"(reported)"
+state_0119,feedwater_quarter,115,t/h,"(reported); 140 C assumed"
+state_0119,pump_heat_quarter,7,MW,"(investigated)"
+state_0119,graphite_to_coolant_quarter,~20,MW,"(investigated)"
+state_0119,nuclear_power_quarter,50,MW,"(reported)"
+state_0123,steam_flow,"decreases 01:23:08, zero 01:23:14",,"turbine stop valve; boundary condition"
+calc_0123,pump_inlet_pressure,6.542,MPa,"NETFLOW result at pump trip (Sec. 3.2), not a measurement"
+calc_0123,pump_inlet_temperature,277.9,C,"NETFLOW result; DREG measures 281 C"
