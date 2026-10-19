@@ -63,9 +63,14 @@ Build both loop halves at 01:23:04.  chans: (ix, iy, fuel planes) per channel in
 order; pw0/burn/tf0 per bundle (BUND-PW kW, BURN, T-FUEL) in FMAP order (ib-1)*nch + ich;
 speed: the deck's SPEED CHAN.  Returns a NamedTuple of per-side vectors (global channel indices
 `idx`, geometries, powers, burns, graphite heat) and the LoopHalf objects.
+
+wdreg: each half's flow at 01:23:04 is its four DREG pump flows (saturated liquid at the drum
+pressure), the deck's channel valving kept as the shape within the half.
+The deck's U4_FLOW=prop valves by the 01:23 channel powers, which splits the halves -7/+7 %
+where DREG has them equal.  wdreg=false keeps the deck's flows.
 """
 function build_halves(chans, hz, hx, hy, pw0, burn, tf0, speed, pout, tin_deck, clus, radius, rodm, o, pp, leg,
-                      QgMW, dreg; sub=1)
+                      QgMW, dreg; sub=1, wdreg=true)
     nch = length(chans); nz = length(hz)
     xmid = 0.5 * (minimum(c[1] for c in chans) + maximum(c[1] for c in chans))
     sides = Dict("L" => [i for i in 1:nch if chans[i][1] <= xmid], "R" => [i for i in 1:nch if chans[i][1] > xmid])
@@ -77,8 +82,14 @@ function build_halves(chans, hz, hx, hy, pw0, burn, tf0, speed, pout, tin_deck, 
         W = sum(speed[i] * rdeck for i in sides[side]) * Ach
         idx = sides[side][1:sub:end]
         pd0 = dinterp(dreg, side, "Psd", 0.0) * LKGF
+        # (DREG's 281 C at the MCP inlet is above the drum's Tsat -- the inlet is below the
+        # downcomers -- and saturated within the instrument's 1 K: saturated liquid density)
+        Wd = sum(dinterp(dreg, side, "Gmcp$k", 0.0) for k in 1:4) / 3.6 / Loop.sat(pd0).vl
+        fsc = wdreg ? Wd / W : 1.0
+        @printf("%s: deck valving %.0f kg/s, DREG pumps %.0f kg/s%s\n", side, W, Wd, wdreg ? " (used)" : "")
+        W *= fsc
         wfw = dinterp(dreg, side, "Gfw", 0.0) / 3.6; hfw = prop_pT97(pd0, dinterp(dreg, side, "Tfw", 0.0) + 273.15).h
-        Gt = [speed[i] * rdeck for i in idx]
+        Gt = [fsc * speed[i] * rdeck for i in idx]
         rho0 = prop_pT97(pd0, tsat97(pd0) - 1).rho
         dpp, _ = pumps_dp(pp, fill(pp.wr, 4), W / rho0, rho0)
         ph0 = pd0 + rho0 * 9.81 * leg.dz + dpp - leg.Kf * W^2 / rho0

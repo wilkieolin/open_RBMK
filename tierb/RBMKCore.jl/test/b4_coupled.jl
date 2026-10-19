@@ -77,7 +77,7 @@ nch = length(chans); nb = length(chans[1][3])
 
 # --- B4_TH=loop: the loop's run-down from 01:23:04 to AZ-5 (01:23:40) at the FMAP power
 if THSOLVER == "loop"
-    include("loop_setup.jl")
+    include("loop_setup.jl"); using SHA, Serialization
     hsh = parse(Float64, get(ENV, "B4_HSH", "1.2")); Vst = parse(Float64, get(ENV, "B4_VST", "296"))
     QgMW = parse(Float64, get(ENV, "B4_QG", "34"))
     dreg = load_dreg()
@@ -110,9 +110,23 @@ if THSOLVER == "loop"
         end
     end
     powfmap = Dict(i => H.pow[j] for H in values(halves) for (j, i) in enumerate(H.idx))
-    tpre = @elapsed for n in 1:72
-        loop_advance!(0.5n, 0.5, i -> powfmap[i])
-        n % 8 == 0 && (println(@sprintf("  pre-run t %4.1f  ", 0.5n), loopline(0.5n)); flush(stdout))
+    # the pre-run is ~40 min: cached on the content of everything it depends on (the TH sources,
+    # this setup, the DREG record, the t = 0 FMAP and the deck) and its parameters
+    srcs = [joinpath(@__DIR__, "..", "src", f) for f in ("Channel.jl", "Column.jl", "Loop.jl", "IF97.jl")]
+    push!(srcs, joinpath(@__DIR__, "loop_setup.jl"), joinpath(LROOT, "sources", "derived", "dreg_mfcc_full.csv"),
+          joinpath(dumpdir, "fmap0.asc"), deckpath)
+    prekey = bytes2hex(sha1(join([read(f, String) for f in srcs]) * string((hsh, Vst, QgMW))))[1:12]
+    precache = joinpath(dumpdir, "b4_loop_prerun_" * prekey * ".jls")
+    tpre = 0.0
+    if isfile(precache)
+        halves = deserialize(precache)
+        println("loop pre-run from cache ", basename(precache), ": ", loopline(36.0))
+    else
+        tpre = @elapsed for n in 1:72
+            loop_advance!(0.5n, 0.5, i -> powfmap[i])
+            n % 8 == 0 && (println(@sprintf("  pre-run t %4.1f  ", 0.5n), loopline(0.5n)); flush(stdout))
+        end
+        serialize(precache, halves)
     end
     tf0d = copy(tf); dca0d = copy(dca)
     loop_to_fmap!(tf, dca)

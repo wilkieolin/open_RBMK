@@ -541,7 +541,9 @@ function valve_area(g, o, s::ColState, pow, burn, L::ChanLines, ph, pd, tin, Gin
         A2 = exp(log(A1) + (log(Gin) - log(s1n.Gin)) * (log(A1) - log(A0)) / (log(s1n.Gin) - log(s0n.Gin)))
         A0, s0n = A1, s1n; A1 = A2; s1n = solve(A1)
     end
-    abs(s1n.Gin - Gin) < 1e-6 * Gin || error("valve_area: Newton closure did not converge (Gin $(s1n.Gin) vs $Gin)")
+    # (1e-4: a channel whose steady state came from the pseudo-time ramp sits on the closures'
+    # noise floor, ~1e-5 in Gin; the throat area it sets is then good to ~1e-5 too)
+    abs(s1n.Gin - Gin) < 1e-4 * Gin || error("valve_area: Newton closure did not converge (Gin $(s1n.Gin) vs $Gin)")
     vth = W / (a.rho * A1)
     A1, L.xi_valve * a.rho * vth^2 / 2, s1n
 end
@@ -615,7 +617,9 @@ function newton_substep(g, o, s0, pow, burn, bc, tin, dt; tol, maxit, depth, loc
     end
 end
 
-const FLOOR = 1e-5       # scaled residual the closures' inner tolerances allow (~1 Pa on the pressure rows)
+const FLOOR = 1e-5       # scaled residual the closures' inner tolerances allow on the mass and energy rows
+const PFLOOR = 1e-4      # ... and on the pressure-scaled rows (momentum, lines; 1 bar): 10 Pa, ~1e-4 of a
+                         # channel's dp -- near the onset cell the wall/void closures' noise reaches ~5 Pa
 
 function col_step_newton1(g, o, s0::ColState, pow, burn, bc, tin, dt; tol, maxit, localonset, cache, qext=nothing)
     loop = bc[1] === :loop
@@ -698,6 +702,8 @@ function col_step_newton1(g, o, s0::ColState, pow, burn, bc, tin, dt; tol, maxit
     r = zeros(n); rp = zeros(n); J = zeros(n, n); xp = similar(x)
     resid!(r, x; keep=true) || throw(ColFailure("newton: old state outside the property range"))
     blk(i) = i == 1 ? 0 : (i == n ? N + 1 : (i - 2) ÷ 3 + 1)   # block (cell) of unknown/row i
+    prow(i) = i == n || (i == 1 ? loop : (i - 2) % 3 == 2)      # a pressure-scaled row
+    atfloor(r) = all(abs(r[i]) < (prow(i) ? PFLOOR : FLOOR) for i in 1:n)
     del(i) = i == 1 || (i - 2) % 3 == 2 ? 1e-6 * (abs(x[i]) + 10.0) : (i == n || (i - 2) % 3 == 1 ? 10.0 : 1e-6 * abs(x[i]))
     nr = norm(r, Inf); its = 0
     nres = 1; nbuild = 0
@@ -761,7 +767,7 @@ function col_step_newton1(g, o, s0::ColState, pow, burn, bc, tin, dt; tol, maxit
         if !ok
             # the closures carry their own inner tolerances (rod <-> wall to 1e-3 K, THMH2O's
             # iterations), so |r| has a noise floor; a stall below FLOOR is convergence to it
-            nr < FLOOR && break
+            atfloor(r) && break
             global NEWTON_DEBUG = (; resid!, x=copy(x), dx=copy(dx), r=copy(r), J=copy(J), ces, kmin, N)
             im = argmax(abs.(r)); jb = blk(im)
             throw(ColFailure("newton: line search failed at |r| = $nr (row $im: cell $(jb + kmin - 1) eq $(im in (1, n) ? "line" : ("mass", "energy", "momentum")[(im-2)%3+1]); k0 = $(ces[end].k0), eps = $(round.([c.eps for c in ces]; digits=3)))"))
@@ -783,7 +789,7 @@ function col_step_newton1(g, o, s0::ColState, pow, burn, bc, tin, dt; tol, maxit
             cache.dGout_dph = xh[ix(N, 3)]; cache.dGout_dpd = xd[ix(N, 3)]
         end
     end
-    nr < FLOOR || throw(ColFailure("newton: $its iterations, |r| = $nr"))
+    atfloor(r) || throw(ColFailure("newton: $its iterations, |r| = $nr"))
     # commit
     s = deepcopy(s0); s.Gin = x[1]; s.ptop = x[n]; s.sweeps = its; s.substeps = 0
     s.hin = prop_pT(x[ix(1, 2)], tin).h; s.tin = tin
