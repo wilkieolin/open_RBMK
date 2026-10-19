@@ -567,8 +567,15 @@ mutable struct NewtonCache
     dt::Float64
     nbuild::Int              # diagnostics: Jacobians built, residual evaluations
     nres::Int
+    # loop mode: sensitivities of the converged step to its two boundary pressures,
+    # from the last factorisation (d/dph and d/dpd of the inlet mass flux Gin and
+    # of the outlet mass flux G_top), for the loop's header-pressure Newton (Loop.jl)
+    dGin_dph::Float64
+    dGin_dpd::Float64
+    dGout_dph::Float64
+    dGout_dpd::Float64
 end
-NewtonCache() = NewtonCache(nothing, 0, 0.0, 0, 0)
+NewtonCache() = NewtonCache(nothing, 0, 0.0, 0, 0, 0.0, 0.0, 0.0, 0.0)
 
 function newton_substep(g, o, s0, pow, burn, bc, tin, dt; tol, maxit, depth, localonset, cache)
     try
@@ -741,6 +748,14 @@ function col_step_newton1(g, o, s0::ColState, pow, burn, bc, tin, dt; tol, maxit
     end
     if cache !== nothing
         cache.F = F; cache.n = n; cache.dt = dt; cache.nbuild += nbuild; cache.nres += nres + 9nbuild
+        if loop && F !== nothing
+            # r[1] = (p_1 - ph + dp_in)/sp and r[n] = (... - pd)/sp, so dr/dph = -e_1/sp,
+            # dr/dpd = -e_n/sp and dx/dp = -F \ (dr/dp) = F \ e/sp
+            e = zeros(n); e[1] = 1.0 / sp; xh = F \ e
+            e .= 0.0; e[n] = 1.0 / sp; xd = F \ e
+            cache.dGin_dph = xh[1]; cache.dGin_dpd = xd[1]
+            cache.dGout_dph = xh[ix(N, 3)]; cache.dGout_dpd = xd[ix(N, 3)]
+        end
     end
     nr < FLOOR || throw(ColFailure("newton: $its iterations, |r| = $nr"))
     # commit

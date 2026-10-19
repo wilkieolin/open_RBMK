@@ -20,5 +20,6 @@ include("Water.jl")
 include("IF97.jl")
 include("Channel.jl")
 include("Column.jl")
+include("Loop.jl")
 
 end

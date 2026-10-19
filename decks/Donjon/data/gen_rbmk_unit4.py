@@ -298,7 +298,9 @@ if WITH_THM:
                 + ("" if os.environ.get("U4_PACC", "200") == "200" else
                    "p" + os.environ["U4_PACC"].replace(".", ""))
                 + ("" if os.environ.get("U4_QFRAC", "1.0") == "1.0" else
-                   "q" + os.environ["U4_QFRAC"].replace(".", "")))
+                   "q" + os.environ["U4_QFRAC"].replace(".", ""))
+                + ("" if os.environ.get("U4_POUT", "75.3") == "75.3" else
+                   "o" + os.environ["U4_POUT"].replace(".", "")))
              # the channel powers 'prop' valves the flow by are an input too
              # (standing rule 7): key the stem on their content when given
              + ("" if not os.environ.get("U4_PCHAN") or FLOW != "prop" else
@@ -701,6 +703,14 @@ if DEV:
 # decks/Donjon/data/gen_rbmk_a7a.py so there is one copy of each.
 KGF = 98066.5                   # Pa per kgf/cm2, exact
 P_OUT = 75.3 * KGF              # [D] p.95 outlet pressure
+# U4_POUT (kgf/cm2, absolute) replaces it for the 01:23 state.  The DREG record
+# of the SKALA tape (sources/derived/dreg_0123_mfcc.csv) has the drums at
+# 63.2-65.0 (left) and 64.1-68.6 (right) kgf/cm2 from 01:23:00 to 01:23:39 --
+# about 10 below 75.3, which is INSAG-7's +8 s (post-excursion) value.  THM:
+# holds one pressure in the whole channel, so this is the drum (outlet) side.
+_POUT = os.environ.get("U4_POUT", "75.3")
+if _POUT != "75.3":
+    P_OUT = float(_POUT) * KGF
 T_IN = 265.0 + 273.15           # [D] p.95 inlet temperature
 TH_PITCH = 1.7639E-2            # m, flow-area-matched CLUSTER pitch (A7a)
 TH_NPIN = 18
@@ -1875,7 +1885,10 @@ CREATE ROD-GR {len([k for k, v in devn.items() if v])}
                 f"*  {Q_ACC:.0f} m3/h (8 MCPs), inlet subcooling {SUBC:g} K.  Inlet at THM:'s own\n"
                 f"{QNOTE}"
                 f"*  (IF97) T_sat {tsat_if97(P_OUT):.2f} K at {P_OUT / KGF:.1f} kgf/cm2 less {SUBC:g} K = {T_IN:.2f} K;\n"
-                f"*  the 01:23 pressure is not sourced, the subcooling is.  Mean inlet\n"
+                + (f"*  the 01:23 pressure is not sourced, the subcooling is.  Mean inlet\n"
+                   if _POUT == "75.3" else
+                   f"*  U4_POUT={_POUT}: the DREG drum pressure before AZ-5 (dreg_0123_mfcc.csv),\n"
+                   f"*  read as absolute; the 3 K subcooling is kept.  Mean inlet\n") +
                 f"*  velocity {V_ACC:.4f} m/s = the volumetric flow over 1661 x 22.427 cm2.\n"
                 f"*  The NOMINAL normalisation text below is superseded by this: under\n"
                 f"*  prop each channel gets {V_ACC:.4f} m/s x P/<P>; under unif all get it.\n"
