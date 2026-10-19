@@ -168,12 +168,18 @@ quality x, hydraulic diameter dh, saturated rho_l, rho_g, liquid viscosity mu_l:
   -dP/dz = (lambda/dh) G|G|/(2 rho_l) psi [1 + x (rho_l/rho_g - 1)],
   psi = 1 + 0.57 (1/(0.2 + w0/sqrt(g dh) rho_g/rho_l) - 5.2 x^2) x^0.125 (1-x)^2,
   w0 = G/rho_l."""
+# x^(1/8) has an infinite slope at x = 0+: at the onset of boiling a cell's flowing quality
+# leaves 0 and the friction multiplier jumps by several % for x ~ 1e-10, which no Newton step
+# can resolve.  Below X8 it is the C1 quadratic that matches value and slope at X8 (monotone,
+# 0 at 0); the correlation is unchanged above X8 = 1e-3.
+const X8 = 1e-3
+x8th(x) = x >= X8 ? x^0.125 : X8^0.125 * (t = x / X8; 1.875t - 0.875t^2)
 function dfric(G, x, dh, rhol, rhog, mul, chi)
     Re = abs(G) * dh / mul
     lam = lambda_bundle(Re, chi)
     xx = clamp(x, 0.0, 1.0)
     w0 = abs(G) / rhol
-    psi = 1 + 0.57 * (1 / (0.2 + w0 / sqrt(GRAV * dh) * rhog / rhol) - 5.2xx^2) * xx^0.125 * (1 - xx)^2
+    psi = 1 + 0.57 * (1 / (0.2 + w0 / sqrt(GRAV * dh) * rhog / rhol) - 5.2xx^2) * x8th(xx) * (1 - xx)^2
     lam / dh * G * abs(G) / (2rhol) * psi * (1 + xx * (rhol / rhog - 1))
 end
 

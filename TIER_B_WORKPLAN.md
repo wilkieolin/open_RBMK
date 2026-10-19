@@ -237,26 +237,21 @@ Tier C.
 - `nvidia-smi` and an asserted per-run budget on the first GPU run of each module.
 
 
-## B3b-3: the loop model — decisions open (2026-10-19)
+## B3b-3: the loop model — decisions (2026-10-19, resolved; PROGRESS (43))
 
-Scaffold: `src/Loop.jl`, `test/b3b_loop_scaffold.jl` (drum, parallel pumps, lumped leg, header
-closure through each channel's dGin/dph, leg mixing + pump heat). Before a core-wide run:
+`src/Loop.jl`, `test/loop_setup.jl`, `test/b3b_loop_core.jl` (TH-only 01:23:04 → 01:23:40 against
+DREG), `test/b4_coupled.jl` `B4_TH=loop` (the same loop through AZ-5).
 
-1. **The four run-down pumps (L3, L4, R3, R4)** were electrically tied to the coasting TG-8, not
-   free-coasting (free coastdown is far too fast). Options: (a) speeds inferred from the DREG
-   per-pump flows through the pump curve (uses the shut-off-head ASSUMPTION); (b) a TG-8 run-down
-   model (unsourced inertia/load); (c) DREG flows as a prescribed boundary until 01:23:43 and the
-   pump model only after (loses the prediction of the flow drop it is meant to test).
-2. **Throttling-regulating valve loss** (pump discharge, [ALM98] Table 5.8). Close it from the
-   Leningrad training text's nominal pressure-header 86.0 kgf/cm² with [D]'s 70 drum — a sourced
-   steady-state closure. Without it the channel ZRK valves absorb ~15 kgf/cm², more than real.
-3. **Steam volume to the stop valves** for the RBMK-1000 (unsourced; RBMK-1500: 404.7 m³ per
-   loop). It sets dp/dt after the turbine stop; the scaffold without it gives ~9 kPa/s against
-   INSAG-7's ~6.
-4. **Graphite-to-coolant heat**: [MOC07] "investigated" ~20 MW per quarter-loop at 01:19 (~40 %
-   of the nuclear power then). Not in THM or Tier B. Needs a source before use.
-5. **Left/right loop assignment** of the 1661 channels (the PRIZMA cartograms are per half).
-6. **DREG Psd gauge vs absolute** (±1 kgf/cm²): the pump-inlet check (280.7 abs / 281.7 gauge vs
-   281 recorded) does not decide it.
-7. **The A8/Tier B band at the recorded pressure**: rerun all five cases at U4_POUT (one DONJON
-   t = 0 dump each, ~7 min, then ~3 h coupled each on a shared GPU), or go straight to the loop.
+1. **Run-down pumps**: (a), speeds inferred from the DREG per-pump flows through the head curve,
+   fitted as a(t) = 1 − k t; the shut-off ratio hsh = 1.2 stays an ASSUMPTION (bracket 1.1–1.5).
+   After 01:23:40 the same a(t) (trip/coast times unsourced).
+2. **Throttling-regulating valve loss**: in the leg loss closed from drum 70 / pressure header 86.0
+   / group header 82.7 kgf/cm² at nominal (4.31 kgf/cm² in all).
+3. **Steam volume**: 296 m³ per half (Ignalina 404.7 × 5600/7650 steam flow); bracket 0–405.
+4. **Graphite heat**: 34 MW (26–40) from `tools/graphite_heat.py`; [MOC07]'s ~80 MW is ~2× it.
+5. **Loop split**: the core's x mid-line (L 826 / R 835), an ASSUMPTION.
+6. **Psd gauge vs absolute**: read as absolute (open; ±1 kgf/cm²).
+7. **Half-loop flows**: from DREG at 01:23:04 (the deck's prop valving splits the halves ±7 %).
+
+**Finding**: drum pressures follow DREG unfitted; the recorded −12/−14 % flow drop is not
+reproduced (model −1 %) for any head curve — see (43).

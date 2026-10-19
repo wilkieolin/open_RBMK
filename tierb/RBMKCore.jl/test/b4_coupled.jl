@@ -241,8 +241,15 @@ for n in 1:nsteps
     pwk = bundle_kw(pc, P0MW * P)
     ncyc = Threads.Atomic{Int}(0)
     tth = THSOLVER == "loop" ? @elapsed(begin
-        loop_advance!(36.0 + tt, dt, i -> (pw = zeros(nz); for (ib, iz) in enumerate(chans[i][3]);
-                                                             pw[iz] = pwk[(ib-1)*nch+i] * 1e3; end; pw))
+        try
+            loop_advance!(36.0 + tt, dt, i -> (pw = zeros(nz); for (ib, iz) in enumerate(chans[i][3]);
+                                                                 pw[iz] = pwk[(ib-1)*nch+i] * 1e3; end; pw))
+        catch e
+            fd = RBMKCore.Loop.FAILDUMP[]
+            fd === nothing || (serialize(joinpath(dumpdir, @sprintf("b4_loop_colfail_t%.2f.jls", tt)), fd);
+                               println("failing channel step dumped (channel ", fd.i, ")"))
+            rethrow()
+        end
         loop_to_fmap!(tf, dca)
         println(lout, @sprintf("%.4f ", tt), loopline(36.0 + tt)); flush(lout)
     end) : @elapsed Threads.@threads for ich in 1:nch

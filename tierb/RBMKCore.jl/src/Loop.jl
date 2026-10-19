@@ -259,6 +259,9 @@ function leg_state(pump::PumpParams, ws, pd, ph, W, wfw, hfw)
     h, T
 end
 
+# the inputs of the last channel step that failed in loop_step! (for an offline replay)
+const FAILDUMP = Ref{Any}(nothing)
+
 """
 One step of a loop half.  Unknowns ph (group header) and W (pump flow): the
 channels are solved at the current ph (threaded), their sensitivities dGin/dph
@@ -289,8 +292,14 @@ function loop_step!(L::LoopHalf, g, o, pows, burns, dt; wst=0.0, wfw=0.0, hfw=0.
         Hp, dHdQ = pumps_dp(L.pump, wnew, W / rho_leg, rho_leg)    # parallel pumps share the rise
         dHdW = dHdQ / rho_leg
         Threads.@threads for i in 1:nch
-            s = col_step_newton(g[i], o, L.chans[i], pows[i], burns[i], L.lines[i], L.Av[i], ph, pd, tin, dt;
+            s = try
+                col_step_newton(g[i], o, L.chans[i], pows[i], burns[i], L.lines[i], L.Av[i], ph, pd, tin, dt;
                                 cache=L.caches[i], qext=qext === nothing ? nothing : qext[i])
+            catch e
+                FAILDUMP[] = (; i, g=g[i], o, s0=deepcopy(L.chans[i]), pow=copy(pows[i]), burn=burns[i], lines=L.lines[i],
+                              Av=L.Av[i], ph, pd, tin, dt, qext=qext === nothing ? nothing : qext[i], err=e)
+                rethrow()
+            end
             new[i] = s
             Gs[i] = L.mult[i] * s.Gin * L.lines[i].Ach
             dGs[i] = L.mult[i] * L.caches[i].dGin_dph * L.lines[i].Ach
