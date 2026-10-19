@@ -139,3 +139,44 @@ used against the recorded DREG trends from 01:19 and the best available. Status 
 New for the model: pump heat 7 MW and graphite-to-coolant heat ~20 MW per quarter-loop at 01:19
 ("investigated"). The Tier B TH has neither. Steam flow from the drums falls from 01:23:08 and is
 zero from 01:23:14 (turbine stop valve), the boundary condition behind the drum-pressure rise.
+
+## [ALM98] Ignalina RBMK-1500 Source Book — cross-check, 2026-10-18
+
+Chapter 5 (MCC), Tables 5.1–5.9, Figs. 5.1, 5.2, 5.5. RBMK-1500, the RBMK-1000's sister design
+(same circuit topology, pumps CVN-8 vs ЦВН-7, drum ~3 m longer).
+
+**Closed or confirmed:**
+- **Pump inertia (the [MOC07]/[D] conflict): resolved for [D].** Total pump+motor+flywheel moment
+  of inertia 3741 kg·m² (Table 5.6) → GD² = 4J = 14 960 kg·m² ≈ [D]'s 15 t·m². [MOC07]'s 1500
+  is a factor-10 slip (it also says it had to raise the inertia to match the coastdown).
+  Coastdown to stop 120–300 s; run-up 16 s.
+- **Pump rated point:** 8000 ± 200 m³/h, 200 ± 20 m, 1000 rpm, suction 7.06 MPa abs at 270 °C,
+  NPSH margin 23 m, specific speed 102 (Russian n_s = 3.65 n√Q/H^0.75; = [MOC07]'s 0.0843
+  dimensionless). Shaft power 4300 ± 300 kW, motor 5600 kW.
+- **Drum:** ID 2.6 m (both designs; RBMK-1500 33.76 m long, RBMK-1000 ~30 m per [MOC07] and the
+  "~3 m longer" remark), OD 2830 × 115 mm wall. The "OD 2.30 m" quoted elsewhere is wrong.
+  Operational level 200 ± 50 mm above the submerged perforated sheet; stored water 63 m³ per drum.
+- **Headers:** suction 21.074 m × OD 1020 × 60; pressure 18.204 m × OD 1040 × 70 — match [MOC07]
+  (21, 18.5 m). MCP pipes 828 × 38 (ID 0.752), mean lengths from Table 5.1 volumes: suction
+  ~34.6 m, pressure ~41 m ([MOC07] 34/36).
+- **Mean per-channel line lengths from Table 5.1 volumes:** bottom water pipe 0.0412 m³ /
+  (ID 50 mm) = 21.0 m; steam-water pipe 0.0996 m³ / (ID 68 mm) = 27.4 m (RBMK-1500; [MOC07]'s
+  RBMK-1000 ranges 22.5–32.5 and 12.7–23 m). Downcomers 2.56 m³ each → ~38 m (RBMK-1500).
+- **ZRK valve characteristic (new, `ignalina_zrk_valve.csv`):** Δp(Q) at 8 stem positions
+  2–24 mm with flow areas 54–691 mm². Reduced to the velocity-head form, **ξ = 0.63–0.69 fully
+  open, ~0.8–1.0 mid-stroke, ~1.4 at the smallest openings** — the range [D] Table 3.1 implies
+  (0.8–1.5), now with its dependence on opening. The B3b test's ξ = 6.2/7.7 = 0.81 is mid-stroke.
+- **Elevations (Fig. 5.2, RBMK-1500, datum = pump-room floor):** drum centre +30.0, downcomer
+  bends +21.6, suction header +15.5, pressure header +12.6, GDH +9.45, pump +6.0, bottom-water
+  low point +2.645, active core +8.9 to +15.9 (7.0 m), channel top +24.858, steam-water pipes
+  +21.1 to +23.37. Relative to the core bottom, drum centre +21.1 m ([MOC07] RBMK-1000: +21.85)
+  and GDH +0.55 m ([MOC07] +0.35): **the heads that drive the loop agree within ~0.75 m**.
+  Header and pump elevations differ by 4–8 m between the two sources; they cancel around a
+  single-phase closed path but set the pump's suction head: OPEN for NPSH, not for flow.
+- **Drum pressure is quoted ABSOLUTE** (6.47–6.96 MPa = 66–71 kgf/cm², Table 5.2); the relief
+  settings in Table 5.11 are excess pressure. Whether DREG's Psd is gauge or absolute stays OPEN
+  (~1 kgf/cm²).
+
+**Still open:** the pump head–flow (and torque) curve — not in the source book; homologous curves
+for n_s = 102 remain the stated assumption, now with a sourced inertia and coastdown time to check
+them against the DREG per-pump flows. RBMK-1000 per-channel line lengths (ranges only).

@@ -1,0 +1,32 @@
+# [ALM98] Almenas, Kaliatka, Ušpuras, Ignalina RBMK-1500 Source Book (LEI 1998), Fig. 5.5 (book p. 81,
+# PDF p. 84; refs [94,95] there): isolation and control (ZRK) valve, pressure drop vs flow at 8 stem
+# positions.  Local copy sources/ignalina-rbmk-1500-source-book_compress.pdf
+# (md5 115aa3ff71b3ef44909d4b5fb073eb43).  Read off a 400-dpi render 2026-10-18, 3 points per curve,
+# reading uncertainty ~ +-0.3 m3/h, +-10 kPa.  xi = dp / (rho v^2/2), v = Q/A at the tabulated
+# flow cross-section, rho = 767 kg/m3 (water ~265 C, 8 MPa): the velocity-head form of [D] Table 3.1.
+# Fully open = 24 mm, as [D] p. 62 states for the RBMK-1000 valve.
+curve,stem_mm,area_mm2,Q_m3h,dp_kPa,xi
+1,2,54,3.7,372,2.68
+1,2,54,5.8,508,1.49
+1,2,54,7.0,691,1.39
+2,4,102,6.4,161,1.38
+2,4,102,10.0,388,1.36
+2,4,102,12.0,580,1.42
+3,6,153,11.4,166,1.01
+3,6,153,15.4,291,0.97
+3,6,153,19.6,470,0.97
+4,8,206,14.6,119,0.80
+4,8,206,20.0,250,0.90
+4,8,206,25.0,363,0.83
+5,10,263,16.0,90,0.82
+5,10,263,21.9,192,0.94
+5,10,263,27.6,256,0.79
+6,12,319,20.0,78,0.67
+6,12,319,26.4,135,0.67
+6,12,319,33.6,250,0.76
+7,16,437,25.3,68,0.69
+7,16,437,30.3,95,0.67
+7,16,437,43.8,205,0.69
+8,24,691,43.8,75,0.63
+8,24,691,48.6,93,0.64
+8,24,691,50.0,107,0.69
