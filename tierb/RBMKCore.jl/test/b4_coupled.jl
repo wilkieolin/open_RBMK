@@ -223,7 +223,26 @@ out = open(joinpath(dumpdir, @sprintf("b4_trace_dt%g%s.txt", dt, THSOLVER == "co
 println(out, "# t_s P/P0 E_GJ TFmax_K DCAmin ncyc kin_it")
 THSOLVER == "loop" && (lout = open(joinpath(dumpdir, @sprintf("b4_loop_dt%g_h%g_v%g_q%g.txt", dt, hsh, Vst, QgMW)), "w"))
 energy = 0.0; Pprev = P0MW
-for n in 1:nsteps
+# B4_TH=loop checkpoints (the transient is hours): every B4_CKPT steps the kinetics state, the loop
+# halves, the FMAP fields and the trace lines; B4_RESUME=1 restarts from the latest.  Keyed on the
+# pre-run key, dt and the driver's and kinetics' sources.
+n0 = 0; trl = String[]; lol = String[]
+if THSOLVER == "loop"
+    CKPT = parse(Int, get(ENV, "B4_CKPT", "50"))
+    ckkey = bytes2hex(sha1(prekey * string(dt) * read(@__FILE__, String) *
+                           read(joinpath(@__DIR__, "..", "src", "GPUDual.jl"), String) *
+                           read(joinpath(@__DIR__, "..", "src", "DualKinetics.jl"), String)))[1:12]
+    ckfile = joinpath(dumpdir, "b4_loop_ckpt_" * ckkey * ".jls")
+    if get(ENV, "B4_RESUME", "0") == "1" && isfile(ckfile)
+        ck = deserialize(ckfile)
+        global n0 = ck.n; global energy = ck.energy; global Pprev = ck.Pprev; global halves = ck.halves
+        tf .= ck.tf; dca .= ck.dca; global trl = ck.trl; global lol = ck.lol
+        global sg = GKinState(map(CuArray, ck.phi), map(CuArray, ck.C), map(CuArray, ck.Pd), ck.t)
+        foreach(l -> println(out, l), trl); foreach(l -> println(lout, l), lol)
+        println("resumed from ", basename(ckfile), " at step ", n0)
+    end
+end
+for n in n0+1:nsteps
     tt = n * dt
     shift = Dict(id => 40.0 * tt for id in movers)
     tb = @elapsed begin
@@ -251,7 +270,8 @@ for n in 1:nsteps
             rethrow()
         end
         loop_to_fmap!(tf, dca)
-        println(lout, @sprintf("%.4f ", tt), loopline(36.0 + tt)); flush(lout)
+        ll = @sprintf("%.4f ", tt) * loopline(36.0 + tt); push!(lol, ll)
+        println(lout, ll); flush(lout)
     end) : @elapsed Threads.@threads for ich in 1:nch
         planes = chans[ich][3]
         pow = zeros(nz)
@@ -279,7 +299,13 @@ for n in 1:nsteps
         end
     end
     global energy += 0.5 * (Pprev + P0MW * P) * dt / 1e3; global Pprev = P0MW * P
-    @printf(out, "%.4f %.6e %.5e %.2f %.5f %d %d\n", tt, P, energy, maximum(tf), minimum(dca), ncyc[], nit)
+    tl = @sprintf("%.4f %.6e %.5e %.2f %.5f %d %d", tt, P, energy, maximum(tf), minimum(dca), ncyc[], nit)
+    println(out, tl); push!(trl, tl)
+    if THSOLVER == "loop" && n % CKPT == 0
+        serialize(ckfile * ".tmp", (; n, energy, Pprev, halves, tf, dca, trl, lol, phi=map(Array, sg.phi),
+                                    C=map(Array, sg.C), Pd=map(Array, sg.Pd_old), t=sg.t))
+        mv(ckfile * ".tmp", ckfile; force=true)
+    end
     flush(out)
     (n % 10 == 0 || n <= 3) && (@printf("step %4d t %.2f  P/P0 %.5e  E %.3f GJ  TFmax %.1f  DCAmin %.4f  ncyc %d  (%d it; build %.1f kin %.1f th %.1f s)\n",
                                        n, tt, P, energy, maximum(tf), minimum(dca), ncyc[], nit, tb, tk, tth); flush(stdout))
