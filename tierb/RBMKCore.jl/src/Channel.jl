@@ -263,6 +263,16 @@ function wall_tight(ts, tcalo, xfl, hmavg, hlsat, hgsat, rel, prl, zkone, zkl, z
     gw(T) = twal(T)[1] - T
     lo = min(tcalo, ts) - 1.0; hi = max(zf[1] / zf[2], ts) + 1.0
     glo = gw(lo); ghi = gw(hi)
+    # widen until bracketed (the surface can sit > 1 K below the coolant when the rod's heat
+    # flux reverses, or above the conduction estimate in post-CHF)
+    for _ in 1:40
+        glo >= 0.0 && break
+        lo = max(273.16, lo - 2 * (hi - lo)); glo = gw(lo); lo == 273.16 && break
+    end
+    for _ in 1:40
+        ghi <= 0.0 && break
+        hi += 2 * (hi - lo); ghi = gw(hi)
+    end
     glo >= 0.0 && ghi <= 0.0 || error("THMH2O tight: wall root not bracketed ($lo $glo, $hi $ghi)")
     side = 0
     T = lo
