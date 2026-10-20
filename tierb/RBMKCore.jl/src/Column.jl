@@ -574,8 +574,8 @@ the cell below), exactly as in the march; the Jacobian keeps only the
 nearest-neighbour coupling, so the iteration is an inexact Newton.
 """
 function col_step_newton(g, o, s0::ColState, pow, burn, L::ChanLines, Av, ph, pd, tin, dt;
-                         tol=1e-9, maxit=40, depth=0, localonset=true, cache=nothing, qext=nothing)
-    newton_substep(g, o, s0, pow, burn, (:loop, L, Av, ph, pd), tin, dt; tol, maxit, depth, localonset, cache, qext)
+                         tol=1e-9, maxit=40, depth=0, localonset=true, cache=nothing, qext=nothing, loose=0.0)
+    newton_substep(g, o, s0, pow, burn, (:loop, L, Av, ph, pd), tin, dt; tol, maxit, depth, localonset, cache, qext, loose)
 end
 
 """
@@ -608,26 +608,30 @@ mutable struct NewtonCache
 end
 NewtonCache() = NewtonCache(nothing, 0, 0.0, 0, 0, 0.0, 0.0, 0.0, 0.0)
 
-function newton_substep(g, o, s0, pow, burn, bc, tin, dt; tol, maxit, depth, localonset, cache, qext=nothing)
+function newton_substep(g, o, s0, pow, burn, bc, tin, dt; tol, maxit, depth, localonset, cache, qext=nothing, loose=0.0)
     try
-        col_step_newton1(g, o, s0, pow, burn, bc, tin, dt; tol, maxit, localonset, cache, qext)
+        col_step_newton1(g, o, s0, pow, burn, bc, tin, dt; tol, maxit, localonset, cache, qext, loose)
     catch e
         (e isa ColFailure && depth < 8) || rethrow()
         NEWTON_LOG[] && println("  substep at depth $depth (dt $dt): ", first(e.msg, 160))
         # (the step's end values held over both halves; a flux BC is interpolated)
         bch = bc[1] === :flux ? (:flux, 0.5 * (s0.Gin + bc[2])) : bc
-        sh = newton_substep(g, o, s0, pow, burn, bch, tin, dt / 2; tol, maxit, depth=depth + 1, localonset, cache, qext)
-        s1 = newton_substep(g, o, sh, pow, burn, bc, tin, dt / 2; tol, maxit, depth=depth + 1, localonset, cache, qext)
+        sh = newton_substep(g, o, s0, pow, burn, bch, tin, dt / 2; tol, maxit, depth=depth + 1, localonset, cache, qext, loose)
+        s1 = newton_substep(g, o, sh, pow, burn, bc, tin, dt / 2; tol, maxit, depth=depth + 1, localonset, cache, qext, loose)
         s1.substeps = sh.substeps + s1.substeps + 1
         s1
     end
 end
 
 const FLOOR = 1e-5       # scaled residual the closures' inner tolerances allow on the mass and energy rows
+"""Steps accepted under `loose` (count, worst |r|), reset by the caller."""
+const LOOSE_N = Threads.Atomic{Int}(0)
+const LOOSE_MAX = Threads.Atomic{Float64}(0.0)
+note_loose!(x) = (Threads.atomic_add!(LOOSE_N, 1); Threads.atomic_max!(LOOSE_MAX, x))
 const PFLOOR = 1e-4      # ... and on the pressure-scaled rows (momentum, lines; 1 bar): 10 Pa, ~1e-4 of a
                          # channel's dp -- near the onset cell the wall/void closures' noise reaches ~5 Pa
 
-function col_step_newton1(g, o, s0::ColState, pow, burn, bc, tin, dt; tol, maxit, localonset, cache, qext=nothing)
+function col_step_newton1(g, o, s0::ColState, pow, burn, bc, tin, dt; tol, maxit, localonset, cache, qext=nothing, loose=0.0)
     loop = bc[1] === :loop
     L, Av, ph, pd = loop ? bc[2:5] : (nothing, 0.0, 0.0, 0.0)
     Gbc = loop ? 0.0 : bc[2]; pout = s0.pout
@@ -709,7 +713,9 @@ function col_step_newton1(g, o, s0::ColState, pow, burn, bc, tin, dt; tol, maxit
     resid!(r, x; keep=true) || throw(ColFailure("newton: old state outside the property range"))
     blk(i) = i == 1 ? 0 : (i == n ? N + 1 : (i - 2) ÷ 3 + 1)   # block (cell) of unknown/row i
     prow(i) = i == n || (i == 1 ? loop : (i - 2) % 3 == 2)      # a pressure-scaled row
-    atfloor(r) = all(abs(r[i]) < (prow(i) ? PFLOOR : FLOOR) for i in 1:n)
+    # loose > 0 (a last resort, Loop.loop_step!): a stall below it is accepted and counted
+    strict(r) = all(abs(r[i]) < (prow(i) ? PFLOOR : FLOOR) for i in 1:n)
+    atfloor(r) = strict(r) || (loose > 0 && norm(r, Inf) < loose)
     del(i) = i == 1 || (i - 2) % 3 == 2 ? 1e-6 * (abs(x[i]) + 10.0) : (i == n || (i - 2) % 3 == 1 ? 10.0 : 1e-6 * abs(x[i]))
     nr = norm(r, Inf); its = 0
     nres = 1; nbuild = 0
@@ -796,6 +802,7 @@ function col_step_newton1(g, o, s0::ColState, pow, burn, bc, tin, dt; tol, maxit
         end
     end
     atfloor(r) || throw(ColFailure("newton: $its iterations, |r| = $nr"))
+    strict(r) || note_loose!(nr)
     # commit
     s = deepcopy(s0); s.Gin = x[1]; s.ptop = x[n]; s.sweeps = its; s.substeps = 0
     s.hin = prop_pT(x[ix(1, 2)], tin).h; s.tin = tin

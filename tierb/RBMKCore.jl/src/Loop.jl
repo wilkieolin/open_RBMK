@@ -261,6 +261,9 @@ end
 
 # the inputs of the last channel step that failed in loop_step! (for an offline replay)
 const FAILDUMP = Ref{Any}(nothing)
+# the last-resort acceptance of a stalled channel step: 1e-3 of a cell's mass/energy storage +
+# throughflow, or 100 Pa on a pressure row
+const LOOSE = 1e-3
 
 """
 One step of a loop half.  Unknowns ph (group header) and W (pump flow): the
@@ -292,8 +295,8 @@ function loop_step!(L::LoopHalf, g, o, pows, burns, dt; wst=0.0, wfw=0.0, hfw=0.
         Hp, dHdQ = pumps_dp(L.pump, wnew, W / rho_leg, rho_leg)    # parallel pumps share the rise
         dHdW = dHdQ / rho_leg
         Threads.@threads for i in 1:nch
-            stepc(c) = col_step_newton(g[i], o, L.chans[i], pows[i], burns[i], L.lines[i], L.Av[i], ph, pd, tin, dt;
-                                       cache=c, qext=qext === nothing ? nothing : qext[i])
+            stepc(c; loose=0.0) = col_step_newton(g[i], o, L.chans[i], pows[i], burns[i], L.lines[i], L.Av[i], ph, pd, tin,
+                                                  dt; cache=c, qext=qext === nothing ? nothing : qext[i], loose)
             s = try
                 try
                     stepc(L.caches[i])
@@ -304,7 +307,13 @@ function loop_step!(L::LoopHalf, g, o, pows, burns, dt; wst=0.0, wfw=0.0, hfw=0.
                     # its iteration only), and the next step starts a fresh chord
                     e isa ColFailure || rethrow()
                     c = L.caches[i]
-                    s = stepc(nothing)
+                    # and, failing that, the best iterate below LOOSE (counted: Column.Lines.LOOSE_N/MAX)
+                    s = try
+                        stepc(nothing)
+                    catch e2
+                        e2 isa ColFailure || rethrow()
+                        stepc(nothing; loose=LOOSE)
+                    end
                     L.caches[i] = NewtonCache(nothing, 0, 0.0, c.nbuild, c.nres, c.dGin_dph, c.dGin_dpd, c.dGout_dph, c.dGout_dpd)
                     s
                 end

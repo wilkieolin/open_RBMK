@@ -275,7 +275,11 @@ for n in n0+1:nsteps
             rethrow()
         end
         loop_to_fmap!(tf, dca)
-        ll = @sprintf("%.4f ", tt) * loopline(36.0 + tt); push!(lol, ll)
+        # (ncyc in loop mode: channel steps accepted under Loop.LOOSE this step; worst |r| so far)
+        LN = RBMKCore.Column.Lines
+        Threads.atomic_add!(ncyc, LN.LOOSE_N[]); LN.LOOSE_N[] = 0
+        ll = @sprintf("%.4f ", tt) * loopline(36.0 + tt) * @sprintf(" | loose %d worst %.2e", ncyc[], LN.LOOSE_MAX[])
+        push!(lol, ll)
         println(lout, ll); flush(lout)
     end) : @elapsed Threads.@threads for ich in 1:nch
         planes = chans[ich][3]
