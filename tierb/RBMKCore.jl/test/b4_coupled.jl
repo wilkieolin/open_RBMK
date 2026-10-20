@@ -117,6 +117,9 @@ if THSOLVER == "loop"
           joinpath(dumpdir, "fmap0.asc"), deckpath)
     prekey = bytes2hex(sha1(join([read(f, String) for f in srcs]) * string((hsh, Vst, QgMW))))[1:12]
     precache = joinpath(dumpdir, "b4_loop_prerun_" * prekey * ".jls")
+    # explicit override, for a code change that only touches paths which failed before (logged)
+    haskey(ENV, "B4_PRERUN_FILE") && (precache = ENV["B4_PRERUN_FILE"];
+                                      println("EXPLICIT OVERRIDE: pre-run from ", precache, " (key would be ", prekey, ")"))
     tpre = 0.0
     if isfile(precache)
         halves = deserialize(precache)
@@ -233,6 +236,8 @@ if THSOLVER == "loop"
                            read(joinpath(@__DIR__, "..", "src", "GPUDual.jl"), String) *
                            read(joinpath(@__DIR__, "..", "src", "DualKinetics.jl"), String)))[1:12]
     ckfile = joinpath(dumpdir, "b4_loop_ckpt_" * ckkey * ".jls")
+    haskey(ENV, "B4_CKPT_FILE") && (ckfile = ENV["B4_CKPT_FILE"];
+                                    println("EXPLICIT OVERRIDE: checkpoint ", ckfile, " (key would be ", ckkey, ")"))
     if get(ENV, "B4_RESUME", "0") == "1" && isfile(ckfile)
         ck = deserialize(ckfile)
         global n0 = ck.n; global energy = ck.energy; global Pprev = ck.Pprev; global halves = ck.halves

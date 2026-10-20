@@ -30,7 +30,7 @@
 module Loop
 
 using ..IF97: tsat97, psat97, prop_pT97, prop_Tx97
-using ..Column: ColState
+using ..Column: ColState, ColFailure
 using ..Column.Lines: ChanLines, col_step_newton, NewtonCache
 using Printf
 
