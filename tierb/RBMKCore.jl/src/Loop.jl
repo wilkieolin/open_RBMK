@@ -351,8 +351,11 @@ function loop_step!(L::LoopHalf, g, o, pows, burns, dt; wst=0.0, wfw=0.0, hfw=0.
     kmaxs = [findlast(!=(0.0), pows[i]) for i in 1:nch]
     wout = [L.mult[i] * new[i].G[kmaxs[i]] * L.lines[i].Ach for i in 1:nch]
     hout = [new[i].h[kmaxs[i]] for i in 1:nch]
+    # feedwater joins the drum's liquid in the mixers at the downcomer inlets ([D]): the leg
+    # carries W = drum liquid (W - wfw) + feedwater (leg_state), so the drum gives up W - wfw
+    # and does not itself receive the feedwater (it was counted in both, cooling twice)
     d1, pd1 = freeze === :pd ? (L.drum, L.pd) :
-              drum_step(L.drum, L.leg.Vdrum + L.leg.Vsteam, dt, vcat(wout, wfw), vcat(hout, hfw), W, wst)
+              drum_step(L.drum, L.leg.Vdrum + L.leg.Vsteam, dt, wout, hout, W - wfw, wst)
     _, tnext = leg_state(L.pump, wnew, pd1, ph, W, wfw, hfw)
     L.chans .= new; L.W = W; L.ph = ph; L.w = wnew; L.drum = d1; L.pd = pd1; L.tin = tnext
     L

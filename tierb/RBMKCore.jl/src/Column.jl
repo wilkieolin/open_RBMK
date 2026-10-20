@@ -644,7 +644,10 @@ function col_step_newton1(g, o, s0::ColState, pow, burn, bc, tin, dt; tol, maxit
     qcool = pow .* g.fcool ./ dv
     # heat entering the coolant directly, not through the fuel (W per slice): the
     # graphite stack's release through the pressure tube (Loop, tools/graphite_heat.py)
-    qext === nothing || (qcool = qcool .+ qext ./ dv)
+    # (per m3 of COOLANT, as qcool: THM's fcool carries rapcool = 3 sass / (nfuel acool) for
+    # that; the bundle's coolant area is nfuel/3 x the hexagonal cell's acool.  Dividing by the
+    # cell volume dv instead under-counted this heat 28x -- PROGRESS (44))
+    qext === nothing || (qcool = qcool .+ qext ./ (g.fnfu / 3 * g.acool .* g.hz))
     chi = loop ? bundle_chi(L.eps_bundle) : 0.0
     W0in = loop ? s0.Gin * L.Ach : 0.0; W0out = loop ? s0.G[kmax] * L.Ach : 0.0
     w = RodWork(nd - 1)
