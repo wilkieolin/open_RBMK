@@ -347,6 +347,11 @@ function thmh2o(sv::H2OSave, itime, k, k0, pinlet, mflow, hmavg, ent, hd, radcl,
         if hlv > 0.0 && sv.dhsub > 0.0 && hmavg >= hlsat - sv.dhsub
             f2 = (hmavg - hlsat) / hlv
             f3 = (sv.dhsub / hlv) * exp(-(hmavg - hlsat) / sv.dhsub - 1.0)
+        elseif localonset && hlv > 0.0 && sv.dhsub == 0.0 && hmavg > hlsat
+            # no heat flux into this cell (dhsub = 0): the profile's limit dhsub -> 0+ is
+            # equilibrium, x = x_eq; leaving x = 0 here made the void jump from 0 to the
+            # profile's (~x_eq) as the cell's heat flux crossed zero (B4_TH=loop, 5.09 s)
+            f2 = (hmavg - hlsat) / hlv
         end
         if hmavg >= hgsat
             xfl = 1.0; eps = 1.0; hlavg = 0.0
