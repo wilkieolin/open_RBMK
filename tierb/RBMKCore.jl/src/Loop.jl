@@ -298,10 +298,15 @@ function loop_step!(L::LoopHalf, g, o, pows, burns, dt; wst=0.0, wfw=0.0, hfw=0.
                 try
                     stepc(L.caches[i])
                 catch e
-                    # the cached chord Jacobian can lead Newton into a stall a cold start avoids
+                    # the chord Jacobian (kept across iterations and sub-steps) can lead Newton
+                    # into a stall that full Newton, rebuilt every iteration, avoids: retry without
+                    # a cache; the header closure keeps this channel's last dGin/dph (a slope for
+                    # its iteration only), and the next step starts a fresh chord
                     e isa ColFailure || rethrow()
-                    L.caches[i] = NewtonCache()
-                    stepc(L.caches[i])
+                    c = L.caches[i]
+                    s = stepc(nothing)
+                    L.caches[i] = NewtonCache(nothing, 0, 0.0, c.nbuild, c.nres, c.dGin_dph, c.dGin_dpd, c.dGout_dph, c.dGout_dpd)
+                    s
                 end
             catch e
                 FAILDUMP[] = (; i, g=g[i], o, s0=deepcopy(L.chans[i]), pow=copy(pows[i]), burn=burns[i], lines=L.lines[i],
