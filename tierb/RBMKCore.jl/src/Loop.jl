@@ -292,9 +292,17 @@ function loop_step!(L::LoopHalf, g, o, pows, burns, dt; wst=0.0, wfw=0.0, hfw=0.
         Hp, dHdQ = pumps_dp(L.pump, wnew, W / rho_leg, rho_leg)    # parallel pumps share the rise
         dHdW = dHdQ / rho_leg
         Threads.@threads for i in 1:nch
+            stepc(c) = col_step_newton(g[i], o, L.chans[i], pows[i], burns[i], L.lines[i], L.Av[i], ph, pd, tin, dt;
+                                       cache=c, qext=qext === nothing ? nothing : qext[i])
             s = try
-                col_step_newton(g[i], o, L.chans[i], pows[i], burns[i], L.lines[i], L.Av[i], ph, pd, tin, dt;
-                                cache=L.caches[i], qext=qext === nothing ? nothing : qext[i])
+                try
+                    stepc(L.caches[i])
+                catch e
+                    # the cached chord Jacobian can lead Newton into a stall a cold start avoids
+                    e isa ColFailure || rethrow()
+                    L.caches[i] = NewtonCache()
+                    stepc(L.caches[i])
+                end
             catch e
                 FAILDUMP[] = (; i, g=g[i], o, s0=deepcopy(L.chans[i]), pow=copy(pows[i]), burn=burns[i], lines=L.lines[i],
                               Av=L.Av[i], ph, pd, tin, dt, qext=qext === nothing ? nothing : qext[i], err=e)
