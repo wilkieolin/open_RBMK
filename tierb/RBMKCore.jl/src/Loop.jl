@@ -279,7 +279,12 @@ The core-inlet temperature for the step is the leg state at the start of the ste
 slice), e.g. from the graphite.
 """
 function loop_step!(L::LoopHalf, g, o, pows, burns, dt; wst=0.0, wfw=0.0, hfw=0.0,
-                    pumpmode=:grid, qext=nothing, maxouter=8, tol=1e-6)
+                    pumpmode=:grid, qext=nothing, maxouter=8, tol=1e-6, freeze=:none)
+    # freeze (for decompositions): :pd holds the drum (its pressure, mass and energy), as an
+    # unlimited steam volume would; :bc holds every loop boundary -- drum and header pressure,
+    # core-inlet temperature, pumps -- and steps only the channels, each free to take the flow
+    # its own line gives at the held pressures
+    freeze in (:none, :pd, :bc) || error("loop_step!: freeze = $freeze")
     nch = length(L.chans)
     W0 = L.W; ph = L.ph; W = W0; pd = L.pd; tin = L.tin
     rho_leg = prop_pT97(pd, min(tin, tsat97(pd) - 1e-6)).rho
@@ -327,6 +332,7 @@ function loop_step!(L::LoopHalf, g, o, pows, burns, dt; wst=0.0, wfw=0.0, hfw=0.
             dGs[i] = L.mult[i] * L.caches[i].dGin_dph * L.lines[i].Ach
         end
         Win = sum(Gs); dWdph = sum(dGs)
+        freeze === :bc && (W = Win; break)
         f1 = Win - W
         f2 = L.leg.I * (W - W0) / dt + L.leg.Kf * W * abs(W) / rho_leg - (pd + rho_leg * GRAV * L.leg.dz + Hp) + ph
         J11 = dWdph; J12 = -1.0
@@ -338,10 +344,15 @@ function loop_step!(L::LoopHalf, g, o, pows, burns, dt; wst=0.0, wfw=0.0, hfw=0.
         (abs(f1) < tol * abs(W) && abs(dph) < 1e-6 * ph) && break
         outer == maxouter && @warn "loop_step!: header closure not converged" f1 dph
     end
+    if freeze === :bc
+        L.chans .= new; L.W = W
+        return L
+    end
     kmaxs = [findlast(!=(0.0), pows[i]) for i in 1:nch]
     wout = [L.mult[i] * new[i].G[kmaxs[i]] * L.lines[i].Ach for i in 1:nch]
     hout = [new[i].h[kmaxs[i]] for i in 1:nch]
-    d1, pd1 = drum_step(L.drum, L.leg.Vdrum + L.leg.Vsteam, dt, vcat(wout, wfw), vcat(hout, hfw), W, wst)
+    d1, pd1 = freeze === :pd ? (L.drum, L.pd) :
+              drum_step(L.drum, L.leg.Vdrum + L.leg.Vsteam, dt, vcat(wout, wfw), vcat(hout, hfw), W, wst)
     _, tnext = leg_state(L.pump, wnew, pd1, ph, W, wfw, hfw)
     L.chans .= new; L.W = W; L.ph = ph; L.w = wnew; L.drum = d1; L.pd = pd1; L.tin = tnext
     L

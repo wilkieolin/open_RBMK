@@ -80,6 +80,9 @@ if THSOLVER == "loop"
     include("loop_setup.jl"); using SHA, Serialization
     hsh = parse(Float64, get(ENV, "B4_HSH", "1.2")); Vst = parse(Float64, get(ENV, "B4_VST", "296"))
     QgMW = parse(Float64, get(ENV, "B4_QG", "34"))
+    # B4_FREEZE=pd|bc: after AZ-5 only (the pre-run, and so the t = 0 state, is unchanged);
+    # see Loop.loop_step!'s `freeze` -- the decomposition of the loop's effect (PROGRESS (44))
+    FREEZE = Symbol(get(ENV, "B4_FREEZE", "none"))
     dreg = load_dreg()
     kfit, npts = infer_rundown(dreg, hsh)
     @printf("loop: run-down pumps a(t) = 1 - %.3e t from %d DREG points (hsh %.2f ASSUMPTION); a(AZ-5) %.4f\n",
@@ -95,7 +98,7 @@ if THSOLVER == "loop"
             wfw = dinterp(dreg, side, "Gfw", tabs) / 3.6
             hfw = prop_pT97(Lh.pd, dinterp(dreg, side, "Tfw", tabs) + 273.15).h
             loop_step!(Lh, H.g, o_t, [chpow(i) for i in H.idx], H.burn, dtl; wst=0.0, wfw, hfw,
-                       pumpmode=rundown(tabs), qext=H.qext)
+                       pumpmode=rundown(tabs), qext=H.qext, freeze=tabs > 36.0 ? FREEZE : :none)
         end
     end
     loopline(tabs) = join([@sprintf("%s pd %.3f (DREG %.2f) ph %.3f W %.0f tin %.2f", s, halves[s].L.pd / LKGF,
@@ -222,9 +225,9 @@ end
 movers = vcat(get(d.groups, 1, Int[]), get(d.groups, 2, Int[]))
 out = open(joinpath(dumpdir, @sprintf("b4_trace_dt%g%s.txt", dt, THSOLVER == "col" ? "_col" * string(SCHEME) :
                                                             THSOLVER == "newton" ? "_newton" :
-                                                            THSOLVER == "loop" ? @sprintf("_loop_h%g_v%g_q%g", hsh, Vst, QgMW) : "")), "w")
+                                                            THSOLVER == "loop" ? @sprintf("_loop_h%g_v%g_q%g", hsh, Vst, QgMW) * (FREEZE === :none ? "" : "_frz" * string(FREEZE)) : "")), "w")
 println(out, "# t_s P/P0 E_GJ TFmax_K DCAmin ncyc kin_it")
-THSOLVER == "loop" && (lout = open(joinpath(dumpdir, @sprintf("b4_loop_dt%g_h%g_v%g_q%g.txt", dt, hsh, Vst, QgMW)), "w"))
+THSOLVER == "loop" && (lout = open(joinpath(dumpdir, @sprintf("b4_loop_dt%g_h%g_v%g_q%g", dt, hsh, Vst, QgMW) * (FREEZE === :none ? "" : "_frz" * string(FREEZE)) * ".txt"), "w"))
 energy = 0.0; Pprev = P0MW
 # B4_TH=loop checkpoints (the transient is hours): every B4_CKPT steps the kinetics state, the loop
 # halves, the FMAP fields and the trace lines; B4_RESUME=1 restarts from the latest.  Keyed on the
@@ -232,7 +235,7 @@ energy = 0.0; Pprev = P0MW
 n0 = 0; trl = String[]; lol = String[]
 if THSOLVER == "loop"
     CKPT = parse(Int, get(ENV, "B4_CKPT", "50"))
-    ckkey = bytes2hex(sha1(prekey * string(dt) * read(@__FILE__, String) *
+    ckkey = bytes2hex(sha1(prekey * string(dt) * string(FREEZE) * read(@__FILE__, String) *
                            read(joinpath(@__DIR__, "..", "src", "GPUDual.jl"), String) *
                            read(joinpath(@__DIR__, "..", "src", "DualKinetics.jl"), String)))[1:12]
     ckfile = joinpath(dumpdir, "b4_loop_ckpt_" * ckkey * ".jls")
