@@ -180,3 +180,25 @@ Chapter 5 (MCC), Tables 5.1–5.9, Figs. 5.1, 5.2, 5.5. RBMK-1500, the RBMK-1000
 **Still open:** the pump head–flow (and torque) curve — not in the source book; homologous curves
 for n_s = 102 remain the stated assumption, now with a sourced inertia and coastdown time to check
 them against the DREG per-pump flows. RBMK-1000 per-channel line lengths (ranges only).
+
+## Steam volume to the stop valves — sourcing, 2026-10-20
+
+- **RBMK-1500 ([ALM98] Table 5.1, item 15):** "Pipes from separator drums to turbine", 404.7 m³
+  of steam per loop (drums' own steam space 173.6 m³ per loop, separately).
+- **Main steam line size is the same in both designs:** 600 mm — [ALM98] p. 39 ("rupture of the
+  600 mm diameter main steam pipeline"), TECDOC-722 Sec. III.3.1 for Smolensk-3, an RBMK-1000
+  ("one of four 600 mm steam lines"). The volume is therefore set by line LENGTHS and layout,
+  not by the power rating; scaling 404.7 by steam flow (5600/7650 → 296 m³) had no basis.
+- **RBMK-1000 topology ([D] Sec. 4, pp. ~82 and the machine-hall scheme):** each drum releases
+  steam through 14 outlets; 7 join the steam collector of one turbine, 7 of the other, "so the
+  separators are loaded evenly with one or two turbines running"; 8 steam lines to the two
+  K-500-65 turbines, two isolation valves on each. The two loop halves therefore share ONE
+  steam system up to the stop valves; the model's per-half volumes are an approximation.
+  Smolensk-3 also has a 300 mm line between the halves' steam lines and 4 x 400 mm to the
+  auxiliary-steam collectors (TECDOC-722).
+- **No RBMK-1000 line lengths found** in [D], INSAG-7, GRS-121 or TECDOC-722.
+- **Constraint from the record (PROGRESS (44)):** the pre-AZ-5 drum pressure rise in DREG
+  (01:23:04 → 01:23:40; L +2.90, R +4.20 kgf/cm², mean 3.55) against the loop model over
+  V = 0–900 m³ per half and graphite heat 26–40 MW: the mean of the halves is matched for
+  V ≈ 150–450 m³; 0 and 900 are excluded. The halves separately disagree (L favours ~700–900,
+  R exceeds the model even at 0), consistent with a shared steam system or a Psd offset.
