@@ -118,7 +118,7 @@ if THSOLVER == "loop"
     srcs = [joinpath(@__DIR__, "..", "src", f) for f in ("Channel.jl", "Column.jl", "Loop.jl", "IF97.jl")]
     push!(srcs, joinpath(@__DIR__, "loop_setup.jl"), joinpath(LROOT, "sources", "derived", "dreg_mfcc_full.csv"),
           joinpath(dumpdir, "fmap0.asc"), deckpath)
-    prekey = bytes2hex(sha1(join([read(f, String) for f in srcs]) * string((hsh, Vst, QgMW))))[1:12]
+    prekey = bytes2hex(sha1(join([read(f, String) for f in srcs]) * string((hsh, Vst, QgMW, get(ENV, "DRUM_TAU", "eq")))))[1:12]
     precache = joinpath(dumpdir, "b4_loop_prerun_" * prekey * ".jls")
     # explicit override, for a code change that only touches paths which failed before (logged)
     haskey(ENV, "B4_PRERUN_FILE") && (precache = ENV["B4_PRERUN_FILE"];
@@ -225,9 +225,9 @@ end
 movers = vcat(get(d.groups, 1, Int[]), get(d.groups, 2, Int[]))
 out = open(joinpath(dumpdir, @sprintf("b4_trace_dt%g%s.txt", dt, THSOLVER == "col" ? "_col" * string(SCHEME) :
                                                             THSOLVER == "newton" ? "_newton" :
-                                                            THSOLVER == "loop" ? @sprintf("_loop_h%g_v%g_q%g", hsh, Vst, QgMW) * (FREEZE === :none ? "" : "_frz" * string(FREEZE)) : "")), "w")
+                                                            THSOLVER == "loop" ? @sprintf("_loop_h%g_v%g_q%g", hsh, Vst, QgMW) * (haskey(ENV, "DRUM_TAU") ? "_tau" * ENV["DRUM_TAU"] : "") * (FREEZE === :none ? "" : "_frz" * string(FREEZE)) : "")), "w")
 println(out, "# t_s P/P0 E_GJ TFmax_K DCAmin ncyc kin_it")
-THSOLVER == "loop" && (lout = open(joinpath(dumpdir, @sprintf("b4_loop_dt%g_h%g_v%g_q%g", dt, hsh, Vst, QgMW) * (FREEZE === :none ? "" : "_frz" * string(FREEZE)) * ".txt"), "w"))
+THSOLVER == "loop" && (lout = open(joinpath(dumpdir, @sprintf("b4_loop_dt%g_h%g_v%g_q%g", dt, hsh, Vst, QgMW) * (haskey(ENV, "DRUM_TAU") ? "_tau" * ENV["DRUM_TAU"] : "") * (FREEZE === :none ? "" : "_frz" * string(FREEZE)) * ".txt"), "w"))
 energy = 0.0; Pprev = P0MW
 # B4_TH=loop checkpoints (the transient is hours): every B4_CKPT steps the kinetics state, the loop
 # halves, the FMAP fields and the trace lines; B4_RESUME=1 restarts from the latest.  Keyed on the

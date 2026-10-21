@@ -27,7 +27,7 @@ stem = ARGS[1]; dumpdir = ARGS[2]
 hsh = parse(Float64, get(ARGS, 3, "1.2")); Vst = parse(Float64, get(ARGS, 4, "296"))
 QgMW = parse(Float64, get(ARGS, 5, "34")); dt = parse(Float64, get(ARGS, 6, "0.5"))
 SUB = parse(Int, get(ENV, "B3B_SUB", "1")); WDECK = get(ENV, "B3B_WDECK", "0") == "1"
-tag = @sprintf("h%g_v%g_q%g_dt%g", hsh, Vst, QgMW, dt) * (SUB == 1 ? "" : "_sub$SUB") * (WDECK ? "_wdeck" : "")
+tag = @sprintf("h%g_v%g_q%g_dt%g", hsh, Vst, QgMW, dt) * (haskey(ENV, "DRUM_TAU") ? "_tau" * ENV["DRUM_TAU"] : "") * (SUB == 1 ? "" : "_sub$SUB") * (WDECK ? "_wdeck" : "")
 dreg = load_dreg()
 
 # ---------------------------------------------------------------- deck and t = 0 FMAP

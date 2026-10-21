@@ -131,6 +131,8 @@ function build_halves(chans, hz, hx, hy, pw0, burn, tf0, speed, pout, tin_deck, 
                 1e4 * minimum(Avs), 1e4 * maximum(Avs), 1e4 * mean(Avs))
         R = 1.3; h = 1.8; Al = R^2 * acos((R - h) / R) - (R - h) * sqrt(2R * h - h^2)
         drum = Loop.drum_init(pd0, leg.Vdrum + leg.Vsteam, Al * 60.0)
+        # DRUM_TAU set: the two-region non-equilibrium drum (Loop.Drum2), interface time tau s
+        haskey(ENV, "DRUM_TAU") && (drum = drum2_from(drum, leg.Vdrum + leg.Vsteam, parse(Float64, ENV["DRUM_TAU"])))
         LH = LoopHalf(leg, pp, fill(pp.wr, 4), W, ph0, drum, pd0, tin0, cs, [NewtonCache() for _ in 1:n], lns, Avs,
                       fill(Float64(sub), n))
         out[side] = (L=LH, idx=idx, g=gs, pow=pows, burn=bus, qext=qx, Ptot=Ptot, QgMW=QgMW)
@@ -139,7 +141,4 @@ function build_halves(chans, hz, hx, hy, pw0, burn, tf0, speed, pout, tin_deck, 
 end
 
 """Liquid volume in the drums of a loop half (for level changes)."""
-function drum_liquid(L::LoopHalf)
-    ps = Loop.sat(L.pd); x = (L.drum.U / L.drum.M - ps.ul) / (ps.ug - ps.ul)
-    L.drum.M * (1 - x) * ps.vl
-end
+drum_liquid(L::LoopHalf) = drum_liquid_volume(L.drum, L.leg.Vdrum + L.leg.Vsteam)

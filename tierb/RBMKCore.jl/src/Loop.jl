@@ -34,15 +34,17 @@ using ..Column: ColState, ColFailure
 using ..Column.Lines: ChanLines, col_step_newton, NewtonCache
 using Printf
 
-export drum_level, leg_state, pump_flow, pumps_dp, DrumState, drum_pressure, drum_init, drum_step, PumpParams, pump_head, pump_torque, LegParams,
+export AbstractDrum, Drum2, drum2_from, drum_hl, drum_liquid_volume, drum_level, leg_state, pump_flow, pumps_dp, DrumState, drum_pressure, drum_init, drum_step, PumpParams, pump_head, pump_torque, LegParams,
        leg_unit4, pump_mcp, LoopHalf, loop_step!
 
 const GRAV = 9.81
 const KGF = 98066.5
 
 # ------------------------------------------------------------------ drum
+abstract type AbstractDrum end
+
 """Saturated lumped drum: total mass M (kg) and internal energy U (J) in volume V (m3)."""
-struct DrumState
+struct DrumState <: AbstractDrum
     M::Float64
     U::Float64
 end
@@ -90,6 +92,118 @@ function drum_step(d::DrumState, V, dt, win, hin, wdc, wst)
         p, s = p1, s1
     end
     DrumState(M, U), p
+end
+
+# ------------------------------------------------------------------ two-region drum
+"""
+Non-equilibrium drum: a vapor region (Mg, Hg) and a liquid region (Ml, Hl) at one pressure
+in the fixed volume V (drums + steam piping), each free to leave saturation -- the vapor
+superheats under compression, the liquid falls subcooled when the pressure rises ahead of it.
+The two exchange mass only through
+
+  Gamma = Ml cp (Tsat(p) - Tl) / (hfg tau)    (condensation on subcooled liquid, Gamma > 0)
+
+and by phase separation: two-phase content in either region (flashing liquid, wet vapor)
+moves to the other at the end of each step.  tau -> 0 is the equilibrium drum (DrumState);
+tau = Inf freezes the liquid.  tau is an ASSUMPTION, bracketed (PROGRESS (45)).
+"""
+struct Drum2 <: AbstractDrum
+    Mg::Float64; Hg::Float64        # vapor region: mass (kg), enthalpy (J)
+    Ml::Float64; Hl::Float64        # liquid region
+    p::Float64
+    tau::Float64                    # s, interface relaxation time
+end
+
+# specific volume and temperature of water at (p, h): IF97 regions 1/2, lever rule if two-phase
+function vT_ph(p, h)
+    s = sat(p)
+    if s.hl <= h <= s.hg
+        x = (h - s.hl) / (s.hg - s.hl)
+        return s.vl + x * (s.vg - s.vl), s.ts, x
+    end
+    T = h < s.hl ? s.ts - 1.0 : s.ts + 1.0
+    for _ in 1:50
+        q = prop_pT97(p, T); dT = (h - q.h) / q.cp
+        T += dT
+        h < s.hl && (T = min(T, s.ts - 1e-9)); h > s.hg && (T = max(T, s.ts + 1e-9))
+        abs(dT) < 1e-10 && break
+    end
+    1 / prop_pT97(p, T).rho, T, h < s.hl ? 0.0 : 1.0
+end
+
+"""The two-region drum at the equilibrium drum's state (same p, liquid and vapor saturated)."""
+function drum2_from(d::DrumState, V, tau)
+    p, s = drum_pressure(d, V)
+    x = (d.U / d.M - s.ul) / (s.ug - s.ul)
+    Mg = d.M * x; Ml = d.M - Mg
+    Drum2(Mg, Mg * s.hg, Ml, Ml * s.hl, p, tau)
+end
+
+drum_hl(d::DrumState, pd) = sat(pd).hl                      # downcomer liquid enthalpy
+drum_hl(d::Drum2, pd) = d.Hl / d.Ml
+function drum_liquid_volume(d::DrumState, V)
+    p, s = drum_pressure(d, V)
+    x = (d.U / d.M - s.ul) / (s.ug - s.ul)
+    d.M * (1 - x) * s.vl
+end
+drum_liquid_volume(d::Drum2, V) = d.Ml * vT_ph(d.p, d.Hl / d.Ml)[1]
+
+"""
+Backward-Euler step of the two-region drum.  win/hin: the risers' mixture, separated at the
+drum pressure (steam fraction to the vapor, the rest to the liquid: energy exact); wdc: liquid
+to the downcomers at the liquid region's own enthalpy; wst: steam out at the vapor's.  Each
+region's dH - V dp = sum(h dm) (the p dV work exact); p closes V_g + V_l = V.
+"""
+function drum_step(d::Drum2, V, dt, win, hin, wdc, wst)
+    s0 = sat(d.p)
+    hg0 = d.Hg / d.Mg; hl0 = d.Hl / d.Ml
+    vg0, _, _ = vT_ph(d.p, hg0); vl0, Tl0, _ = vT_ph(d.p, hl0)
+    Vg0 = d.Mg * vg0; Vl0 = d.Ml * vl0
+    # separation of the incoming mixture at the drum pressure
+    mg_in = 0.0; Hg_in = 0.0; ml_in = 0.0; Hl_in = 0.0
+    for (w, h) in zip(win, hin)
+        x = clamp((h - s0.hl) / (s0.hg - s0.hl), 0.0, 1.0)
+        mg_in += w * x; Hg_in += w * x * s0.hg
+        ml_in += w * (1 - x); Hl_in += w * (h - x * s0.hg)
+    end
+    # condensation on the subcooled liquid (explicit; at most to saturation in one step)
+    Gam = 0.0
+    if isfinite(d.tau) && Tl0 < s0.ts
+        cpl = prop_pT97(d.p, Tl0).cp
+        Gam = d.Ml * cpl * (s0.ts - Tl0) / ((s0.hg - s0.hl) * max(d.tau, dt))
+    end
+    Mg1 = d.Mg + dt * (mg_in - wst - Gam)
+    Ml1 = d.Ml + dt * (ml_in - wdc + Gam)
+    Sg = dt * (Hg_in - wst * hg0 - Gam * s0.hg)
+    Sl = dt * (Hl_in - wdc * hl0 + Gam * s0.hg)
+    Hg(p) = d.Hg + Sg + Vg0 * (p - d.p)
+    Hl(p) = d.Hl + Sl + Vl0 * (p - d.p)
+    R(p) = Mg1 * vT_ph(p, Hg(p) / Mg1)[1] + Ml1 * vT_ph(p, Hl(p) / Ml1)[1] - V
+    # secant from the old pressure, bisection safeguard
+    a = d.p - 2e5; b = d.p + 2e5; fa = R(a); fb = R(b)
+    while fa * fb > 0
+        a -= 5e5; b += 5e5; fa = R(a); fb = R(b)
+        b - a > 1e7 && error("Drum2: no pressure closes the volume")
+    end
+    p = 0.5(a + b)
+    for _ in 1:100
+        p = (a * fb - b * fa) / (fb - fa); fp = R(p)
+        abs(fp) < 1e-10 * V && break
+        if fa * fp < 0; b, fb = p, fp; fa /= 2 else; a, fa = p, fp; fb /= 2 end
+        abs(b - a) < 1e-3 && break
+    end
+    Hg1 = Hg(p); Hl1 = Hl(p)
+    # phase separation: flashed vapor in the liquid region rises, condensate in the vapor rains out
+    s1 = sat(p)
+    if Hl1 / Ml1 > s1.hl
+        x = (Hl1 / Ml1 - s1.hl) / (s1.hg - s1.hl); m = x * Ml1
+        Ml1 -= m; Hl1 -= m * s1.hg; Mg1 += m; Hg1 += m * s1.hg
+    end
+    if Hg1 / Mg1 < s1.hg
+        x = (Hg1 / Mg1 - s1.hl) / (s1.hg - s1.hl); m = (1 - x) * Mg1
+        Mg1 -= m; Hg1 -= m * s1.hl; Ml1 += m; Hl1 += m * s1.hl
+    end
+    Drum2(Mg1, Hg1, Ml1, Hl1, p, d.tau), p
 end
 
 # ------------------------------------------------------------------ pumps
@@ -230,7 +344,7 @@ mutable struct LoopHalf
     w::Vector{Float64}             # pump speeds, rad/s
     W::Float64                     # total pump mass flow, kg/s
     ph::Float64                    # group-header pressure, Pa
-    drum::DrumState
+    drum::AbstractDrum
     pd::Float64
     tin::Float64                   # core-inlet water temperature (leg_state), K
     chans::Vector{ColState}
@@ -247,8 +361,7 @@ deposited in the water ([ALM98] Table 5.6: 4300 +- 300 kW per pump at rated, sca
 by the cube of speed -- the affinity law, an ASSUMPTION off the rated point).
 Returns (h, T at pressure ph).
 """
-function leg_state(pump::PumpParams, ws, pd, ph, W, wfw, hfw)
-    hl = Loop.sat(pd).hl
+function leg_state(pump::PumpParams, ws, pd, ph, W, wfw, hfw; hl=Loop.sat(pd).hl)
     P = sum(pump.Pshaft * (w / pump.wr)^3 for w in ws)
     h = ((W - wfw) * hl + wfw * hfw + P) / W
     T = tsat97(ph) - 5.0
@@ -356,7 +469,7 @@ function loop_step!(L::LoopHalf, g, o, pows, burns, dt; wst=0.0, wfw=0.0, hfw=0.
     # and does not itself receive the feedwater (it was counted in both, cooling twice)
     d1, pd1 = freeze === :pd ? (L.drum, L.pd) :
               drum_step(L.drum, L.leg.Vdrum + L.leg.Vsteam, dt, wout, hout, W - wfw, wst)
-    _, tnext = leg_state(L.pump, wnew, pd1, ph, W, wfw, hfw)
+    _, tnext = leg_state(L.pump, wnew, pd1, ph, W, wfw, hfw; hl=drum_hl(d1, pd1))
     L.chans .= new; L.W = W; L.ph = ph; L.w = wnew; L.drum = d1; L.pd = pd1; L.tin = tnext
     L
 end
