@@ -6995,8 +6995,8 @@ moves the peak by 1 % and the energy by 1.6 %. After AZ-5 the drum pressure rise
 
 Even with no steam piping the model's +6 s rise is +0.9 kgf/cm² per second where L recorded +5.3;
 the core flow falls 10 % by +7 s against INSAG-7's ~40 %. The record therefore asks for either far
-more energy reaching the water by +6 s than this model's 25 GJ (the fixed-pressure runs have ~45 GJ
-there), or a faster pressure response than a lumped drum in thermal equilibrium can give: here
+more energy reaching the water by +6 s than this model's 19.0 GJ (the fixed-pressure Newton run has
+52.1 GJ there), or a faster pressure response than a lumped drum in thermal equilibrium can give: here
 every joule entering the drum is shared with its ~170 t of saturated liquid before the pressure
 moves; a steam space that pressurises ahead of the liquid (non-equilibrium) would respond several
 times faster to the same energy. Both are open; the second is a model-form question about the drum,
