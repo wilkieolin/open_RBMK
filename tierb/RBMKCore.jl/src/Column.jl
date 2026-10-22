@@ -397,7 +397,7 @@ using LinearAlgebra
 using ...Channel: prop_pT, tsat
 import ...Channel as Ch
 
-export ChanLines, valve_area, col_step_loop, col_step_newton, col_step_newton_flux, NewtonCache
+export ChanLines, valve_area, col_step_loop, col_step_newton, col_step_newton_flux, col_step_newton_frozen, NewtonCache
 LAST_MISMATCH = nothing      # (debug: the last step's residual function)
 NEWTON_DEBUG = nothing
 const NEWTON_LOG = Ref(false)
@@ -592,6 +592,19 @@ function col_step_newton_flux(g, o, s0::ColState, pow, burn, Gin, tin, dt;
     newton_substep(g, o, s0, pow, burn, (:flux, Gin), tin, dt; tol, maxit, depth, localonset, cache, qext)
 end
 
+"""
+    col_step_newton_frozen(g, o, s0, pow, burn, Gin, pfix, ptop, tin, dt) -> s1
+
+Fixed flow and a fixed pressure FIELD: the inlet mass flux held at Gin and every fuel cell's
+bottom-face pressure at pfix[j] (the top face at ptop) -- THM's assumptions with a column's
+own pressure profile in place of one outlet pressure (the decomposition of PROGRESS (46)).
+"""
+function col_step_newton_frozen(g, o, s0::ColState, pow, burn, Gin, pfix, ptop, tin, dt;
+                                tol=1e-9, maxit=40, depth=0, localonset=true, cache=nothing, qext=nothing, loose=0.0)
+    newton_substep(g, o, s0, pow, burn, (:frozen, Gin, pfix, ptop), tin, dt; tol, maxit, depth, localonset, cache, qext,
+                   loose)
+end
+
 mutable struct NewtonCache
     F::Any                   # LU of the last Jacobian (or nothing)
     n::Int
@@ -615,7 +628,8 @@ function newton_substep(g, o, s0, pow, burn, bc, tin, dt; tol, maxit, depth, loc
         (e isa ColFailure && depth < 8) || rethrow()
         NEWTON_LOG[] && println("  substep at depth $depth (dt $dt): ", first(e.msg, 160))
         # (the step's end values held over both halves; a flux BC is interpolated)
-        bch = bc[1] === :flux ? (:flux, 0.5 * (s0.Gin + bc[2])) : bc
+        bch = bc[1] === :flux ? (:flux, 0.5 * (s0.Gin + bc[2])) :
+              bc[1] === :frozen ? (:frozen, 0.5 * (s0.Gin + bc[2]), bc[3], bc[4]) : bc
         sh = newton_substep(g, o, s0, pow, burn, bch, tin, dt / 2; tol, maxit, depth=depth + 1, localonset, cache, qext, loose)
         s1 = newton_substep(g, o, sh, pow, burn, bc, tin, dt / 2; tol, maxit, depth=depth + 1, localonset, cache, qext, loose)
         s1.substeps = sh.substeps + s1.substeps + 1
@@ -635,6 +649,7 @@ function col_step_newton1(g, o, s0::ColState, pow, burn, bc, tin, dt; tol, maxit
     loop = bc[1] === :loop
     L, Av, ph, pd = loop ? bc[2:5] : (nothing, 0.0, 0.0, 0.0)
     Gbc = loop ? 0.0 : bc[2]; pout = s0.pout
+    pfx = bc[1] === :frozen ? bc[3] : nothing; ptfx = bc[1] === :frozen ? bc[4] : pout
     nd = g.ndtot; dtinv = 1.0 / dt
     cells = findall(!=(0.0), pow)
     kmin, kmax = first(cells), last(cells); N = kmax - kmin + 1
@@ -696,14 +711,15 @@ function col_step_newton1(g, o, s0::ColState, pow, burn, bc, tin, dt; tol, maxit
                 Fk = dfric(Gc, ce.xfl, g.hd, Lq.rho, V.rho, Lq.mu, chi) * dz
                 r[ix(j, 3)] = (pnext - (pk - a * (Gc - Gc0) - (Gt^2 / ce.rhoY - Gb^2 / rhob) - Fk - ce.rhoY * GRAV * dz)) / sp
             else
-                r[ix(j, 3)] = (pnext - pout) / sp            # THM: no momentum, p = outlet pressure
+                # THM: no momentum, p = outlet pressure (:frozen: each face at its frozen pressure)
+                r[ix(j, 3)] = (pnext - (pfx === nothing ? pout : j < N ? pfx[j+1] : ptfx)) / sp
             end
             rhob = ce.rhoY
         end
         (PMIN <= ptop <= PMAX) || return false
         cN = ces[N]
         r[n] = loop ? (ptop - dp_outlet(L, x[ix(N, 3)] * L.Ach, W0out, cN.xfl, cN.rhoY, ptop, dt) - pd) / sp :
-                      (x[ix(1, 2)] - pout) / sp         # (flux: closes p_1; its Jacobian row is set exactly)
+                      (x[ix(1, 2)] - (pfx === nothing ? pout : pfx[1])) / sp   # (flux: closes p_1; its Jacobian row is set exactly)
         true
     end
     # initial iterate: the old state

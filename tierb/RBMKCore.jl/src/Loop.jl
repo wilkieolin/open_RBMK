@@ -31,7 +31,7 @@ module Loop
 
 using ..IF97: tsat97, psat97, prop_pT97, prop_Tx97
 using ..Column: ColState, ColFailure
-using ..Column.Lines: ChanLines, col_step_newton, NewtonCache
+using ..Column.Lines: ChanLines, col_step_newton, col_step_newton_frozen, NewtonCache
 using Printf
 
 export AbstractDrum, Drum2, drum2_from, drum_hl, drum_liquid_volume, drum_level, leg_state, pump_flow, pumps_dp, DrumState, drum_pressure, drum_init, drum_step, PumpParams, pump_head, pump_torque, LegParams,
@@ -378,6 +378,31 @@ const FAILDUMP = Ref{Any}(nothing)
 # throughflow, or 100 Pa on a pressure row
 const LOOSE = 1e-3
 
+# per loop half, the channels' (Gin, pfix, ptop) when freeze = :chan began
+const FROZEN = IdDict{Any,Any}()
+function chan_frozen_step!(L, g, o, pows, burns, dt; qext=nothing)
+    fz = get!(FROZEN, L) do
+
+        for i in eachindex(L.caches); L.caches[i] = NewtonCache(); end
+        [(c.Gin, [c.p[k] for k in findall(!=(0.0), pows[i])], c.ptop) for (i, c) in enumerate(L.chans)]
+    end
+    new = similar(L.chans)
+    Threads.@threads for i in eachindex(L.chans)
+        Gin, pf, pt = fz[i]
+        stepc(c) = col_step_newton_frozen(g[i], o, L.chans[i], pows[i], burns[i], Gin, pf, pt, L.tin, dt;
+                                          cache=c, qext=qext === nothing ? nothing : qext[i])
+        new[i] = try
+            stepc(L.caches[i])
+        catch e
+            e isa ColFailure || rethrow()
+            L.caches[i] = NewtonCache(); stepc(nothing)
+        end
+    end
+    L.chans .= new
+    L.W = sum(L.mult[i] * new[i].Gin * L.lines[i].Ach for i in eachindex(new))
+    L
+end
+
 """
 One step of a loop half.  Unknowns ph (group header) and W (pump flow): the
 channels are solved at the current ph (threaded), their sensitivities dGin/dph
@@ -397,7 +422,10 @@ function loop_step!(L::LoopHalf, g, o, pows, burns, dt; wst=0.0, wfw=0.0, hfw=0.
     # unlimited steam volume would; :bc holds every loop boundary -- drum and header pressure,
     # core-inlet temperature, pumps -- and steps only the channels, each free to take the flow
     # its own line gives at the held pressures
-    freeze in (:none, :pd, :bc) || error("loop_step!: freeze = $freeze")
+    # :chan additionally holds every channel's inlet flux and pressure field at their values when
+    # the freeze began (fixed-flow, fixed-pressure TH from the loop's own state)
+    freeze in (:none, :pd, :bc, :chan) || error("loop_step!: freeze = $freeze")
+    freeze === :chan && return chan_frozen_step!(L, g, o, pows, burns, dt; qext)
     nch = length(L.chans)
     W0 = L.W; ph = L.ph; W = W0; pd = L.pd; tin = L.tin
     rho_leg = prop_pT97(pd, min(tin, tsat97(pd) - 1e-6)).rho
