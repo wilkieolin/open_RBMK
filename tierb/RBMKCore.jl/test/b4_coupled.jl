@@ -227,6 +227,14 @@ out = open(joinpath(dumpdir, @sprintf("b4_trace_dt%g%s.txt", dt, THSOLVER == "co
                                                             THSOLVER == "newton" ? "_newton" :
                                                             THSOLVER == "loop" ? @sprintf("_loop_h%g_v%g_q%g", hsh, Vst, QgMW) * (haskey(ENV, "DRUM_TAU") ? "_tau" * ENV["DRUM_TAU"] : "") * (FREEZE === :none ? "" : "_frz" * string(FREEZE)) : "")), "w")
 println(out, "# t_s P/P0 E_GJ TFmax_K DCAmin ncyc kin_it")
+# fuel / cladding against the failure criteria, every step (test/fuel_diag.jl)
+include("fuel_diag.jl")
+fuel_items() = THSOLVER == "loop" ?
+    [(H.g[j], H.L.chans[j], chans[i][3]) for H in values(halves) for (j, i) in enumerate(H.idx)] :
+    [(geoms[ich], states[ich], chans[ich][3]) for ich in 1:nch]
+fout = open(replace(out.name[7:end-1], "b4_trace_" => "b4_fuel_"), "w")
+println(fout, fuel_header()); fd0 = fuel_diag(fuel_items())
+@printf(fout, "# total fuel %.2f t; t = 0: %s\n", fd0.mtot / 1e3, fuel_line(0.0, fd0))
 THSOLVER == "loop" && (lout = open(joinpath(dumpdir, @sprintf("b4_loop_dt%g_h%g_v%g_q%g", dt, hsh, Vst, QgMW) * (haskey(ENV, "DRUM_TAU") ? "_tau" * ENV["DRUM_TAU"] : "") * (FREEZE === :none ? "" : "_frz" * string(FREEZE)) * ".txt"), "w"))
 energy = 0.0; Pprev = P0MW
 # B4_TH=loop checkpoints (the transient is hours): every B4_CKPT steps the kinetics state, the loop
@@ -313,6 +321,7 @@ for n in n0+1:nsteps
     global energy += 0.5 * (Pprev + P0MW * P) * dt / 1e3; global Pprev = P0MW * P
     tl = @sprintf("%.4f %.6e %.5e %.2f %.5f %d %d", tt, P, energy, maximum(tf), minimum(dca), ncyc[], nit)
     println(out, tl); push!(trl, tl)
+    THSOLVER in ("loop", "newton") && (println(fout, fuel_line(tt, fuel_diag(fuel_items()))); flush(fout))
     if THSOLVER == "loop" && n % CKPT == 0
         serialize(ckfile * ".tmp", (; n, energy, Pprev, halves, tf, dca, trl, lol, phi=map(Array, sg.phi),
                                     C=map(Array, sg.C), Pd=map(Array, sg.Pd_old), t=sg.t))
@@ -322,4 +331,4 @@ for n in n0+1:nsteps
     (n % 10 == 0 || n <= 3) && (@printf("step %4d t %.2f  P/P0 %.5e  E %.3f GJ  TFmax %.1f  DCAmin %.4f  ncyc %d  (%d it; build %.1f kin %.1f th %.1f s)\n",
                                        n, tt, P, energy, maximum(tf), minimum(dca), ncyc[], nit, tb, tk, tth); flush(stdout))
 end
-close(out); THSOLVER == "loop" && close(lout)
+close(out); close(fout); THSOLVER == "loop" && close(lout)
