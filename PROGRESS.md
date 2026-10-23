@@ -7175,7 +7175,7 @@ drum rise — consistent with (46).
 **The cladding temperatures are not physics.** THM's `CRITFL` (1.8 MW/m² in the decks) only aborts
 the steady solve; in a transient there is no critical-heat-flux dryout — the wall stays in nucleate
 boiling until the coolant has evaporated completely. Real hot channels in a 1–2 s excursion would
-pass the boiling crisis (annular-film dryout at x ~ 0.2–0.4 in RBMK geometry) and their cladding
+pass the boiling crisis (annular-film dryout; the critical quality and CHF correlation for RBMK bundles are still to be sourced) and their cladding
 would heat by hundreds of K within a second. The 700/1200 °C check, and with it the cladding's own
 failure path and the dryout's effect on heat transfer to the coolant (it REDUCES it: less energy to
 the water, more kept in the fuel and cladding), wait for a CHF + post-CHF model.
