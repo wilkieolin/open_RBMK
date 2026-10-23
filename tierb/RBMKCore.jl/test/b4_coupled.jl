@@ -235,6 +235,13 @@ fuel_items() = THSOLVER == "loop" ?
 fout = open(replace(out.name[7:end-1], "b4_trace_" => "b4_fuel_"), "w")
 println(fout, fuel_header()); fd0 = fuel_diag(fuel_items())
 @printf(fout, "# total fuel %.2f t; t = 0: %s\n", fd0.mtot / 1e3, fuel_line(0.0, fd0))
+# power shape against INSAG-7's Kv / Kr / Kz, and the adiabatic local energy (test/shape_diag.jl);
+# bundle powers every 0.1 s from 3.5 s appended to b4_pw_*.bin as (t, pwk) Float64 records
+include("shape_diag.jl")
+sacc = ShapeAcc(pw0, nch, nb, fd0.mtot / length(pw0))
+sout = open(replace(out.name[7:end-1], "b4_trace_" => "b4_shape_"), "w")
+println(sout, shape_header()); println(sout, shape_line!(sacc, 0.0, 0.0, pw0))
+pwout = open(replace(replace(out.name[7:end-1], "b4_trace_" => "b4_pw_"), ".txt" => ".bin"), "w")
 THSOLVER == "loop" && (lout = open(joinpath(dumpdir, @sprintf("b4_loop_dt%g_h%g_v%g_q%g", dt, hsh, Vst, QgMW) * (haskey(ENV, "DRUM_TAU") ? "_tau" * ENV["DRUM_TAU"] : "") * (FREEZE === :none ? "" : "_frz" * string(FREEZE)) * ".txt"), "w"))
 energy = 0.0; Pprev = P0MW
 # B4_TH=loop checkpoints (the transient is hours): every B4_CKPT steps the kinetics state, the loop
@@ -255,6 +262,7 @@ if THSOLVER == "loop"
         tf .= ck.tf; dca .= ck.dca; global trl = ck.trl; global lol = ck.lol
         global sg = GKinState(map(CuArray, ck.phi), map(CuArray, ck.C), map(CuArray, ck.Pd), ck.t)
         foreach(l -> println(out, l), trl); foreach(l -> println(lout, l), lol)
+        hasproperty(ck, :eadia) ? (sacc.e .= ck.eadia) : println("checkpoint has no adiabatic energies: b4_shape's Eadia restarts at 0")
         println("resumed from ", basename(ckfile), " at step ", n0)
     end
 end
@@ -322,13 +330,15 @@ for n in n0+1:nsteps
     tl = @sprintf("%.4f %.6e %.5e %.2f %.5f %d %d", tt, P, energy, maximum(tf), minimum(dca), ncyc[], nit)
     println(out, tl); push!(trl, tl)
     THSOLVER in ("loop", "newton") && (println(fout, fuel_line(tt, fuel_diag(fuel_items()))); flush(fout))
+    println(sout, shape_line!(sacc, tt, dt, pwk)); flush(sout)
+    (tt >= 3.5 - 1e-9 && n % 10 == 0) && (write(pwout, tt); write(pwout, pwk); flush(pwout))
     if THSOLVER == "loop" && n % CKPT == 0
         serialize(ckfile * ".tmp", (; n, energy, Pprev, halves, tf, dca, trl, lol, phi=map(Array, sg.phi),
-                                    C=map(Array, sg.C), Pd=map(Array, sg.Pd_old), t=sg.t))
+                                    C=map(Array, sg.C), Pd=map(Array, sg.Pd_old), t=sg.t, eadia=sacc.e))
         mv(ckfile * ".tmp", ckfile; force=true)
     end
     flush(out)
     (n % 10 == 0 || n <= 3) && (@printf("step %4d t %.2f  P/P0 %.5e  E %.3f GJ  TFmax %.1f  DCAmin %.4f  ncyc %d  (%d it; build %.1f kin %.1f th %.1f s)\n",
                                        n, tt, P, energy, maximum(tf), minimum(dca), ncyc[], nit, tb, tk, tth); flush(stdout))
 end
-close(out); close(fout); THSOLVER == "loop" && close(lout)
+close(out); close(fout); close(sout); close(pwout); THSOLVER == "loop" && close(lout)
