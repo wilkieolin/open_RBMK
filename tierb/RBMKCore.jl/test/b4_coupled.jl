@@ -52,8 +52,14 @@ tr = match(r"THM: THER FMAP :: EDIT 0 TIME <<t0>> <<dt>> HISTORY 2\s+CONV (\S+) 
 @assert tr !== nothing "transient THM: call not found"
 tv = parse.(Float64, tr.captures)
 o_s = ThmOpts(cflux=critfl, khgap=hgap, maxit1=Int(conv[1]), maxit2=Int(conv[2]), ermaxt=conv[4])
+# B4_CHF=1: the boiling crisis and post-CHF wall heat transfer on the Newton path (Channel's
+# ThmOpts.postchf, PROGRESS (49)); B4_CHFMUL: transient CHF enhancement (1, sensitivity 2);
+# B4_ZRSEC=1: only the cladding's enthalpy-form heat storage that postchf implies (to separate it)
+const CHF = get(ENV, "B4_CHF", "0") == "1"; const CHFMUL = parse(Float64, get(ENV, "B4_CHFMUL", "1"))
+const ZRSEC = get(ENV, "B4_ZRSEC", "0") == "1"
 o_t = ThmOpts(cflux=critfl, khgap=hgap, maxit1=Int(tv[1]), maxit2=Int(tv[2]), maxitc=Int(tv[3]),
-              ermaxt=tv[4], ermaxc=tv[5], cyccap=tv[6], frlx=tv[7])
+              ermaxt=tv[4], ermaxc=tv[5], cyccap=tv[6], frlx=tv[7], postchf=CHF, chfmul=CHFMUL, zrsec=ZRSEC)
+const CHFTAG = (CHF ? "_chf" * (CHFMUL == 1 ? "" : @sprintf("x%g", CHFMUL)) : "") * (ZRSEC && !CHF ? "_zrsec" : "")
 println("THM: INLET $pout $tin, transient CONV $(tv[1:5]) CYCLE-OK $(tv[6]) FLOW-RELAX $(tv[7])")
 
 # --- t = 0 FMAP from DONJON
@@ -84,6 +90,7 @@ if THSOLVER == "loop"
     # see Loop.loop_step!'s `freeze` -- the decomposition of the loop's effect (PROGRESS (44))
     FREEZE = Symbol(get(ENV, "B4_FREEZE", "none"))
     dreg = load_dreg()
+    XTAG = (get(ENV, "LOOP_PSD_GAUGE", "0") == "1" ? "_pg" : "") * (get(ENV, "LOOP_WREC", "0") == "1" ? "_wrec" : "")
     kfit, npts = infer_rundown(dreg, hsh)
     @printf("loop: run-down pumps a(t) = 1 - %.3e t from %d DREG points (hsh %.2f ASSUMPTION); a(AZ-5) %.4f\n",
             kfit, npts, hsh, 1 - 36kfit)
@@ -92,13 +99,32 @@ if THSOLVER == "loop"
     # the run-down pumps: the DREG-fitted a(t) also through the 7 s after AZ-5 (an ASSUMPTION:
     # the trip/coast times of pumps 3, 4 are not sourced; DREG flows exist to 01:23:43)
     rundown(tabs) = Any[:grid, :grid, max(0.0, 1 - kfit * tabs) * pp.wr, max(0.0, 1 - kfit * tabs) * pp.wr]
+    # LOOP_WREC=1 (starting-state probe, PROGRESS (49)): through the pre-run each half's pump flow
+    # is the DREG record (loop_step!'s Wpres) -- the recorded -12/-14 % that the model's own pumps
+    # and leg do not give (43); the leg loss it implies (Loop.KEFF) is averaged over the last
+    # second before AZ-5 and held after it (an ASSUMPTION: the cause of the drop is unsourced; it
+    # enters as a leg resistance).  The post-AZ-5 record stays a check.
+    WREC = get(ENV, "LOOP_WREC", "0") == "1"
+    PGAUGE = get(ENV, "LOOP_PSD_GAUGE", "0") == "1"
+    kacc = Dict("L" => Float64[], "R" => Float64[])
     function loop_advance!(tabs, dtl, chpow)
         for side in ("L", "R")
             H = halves[side]; Lh = H.L
             wfw = dinterp(dreg, side, "Gfw", tabs) / 3.6
             hfw = prop_pT97(Lh.pd, dinterp(dreg, side, "Tfw", tabs) + 273.15).h
+            Wp = (WREC && tabs <= 36.0 + 1e-9) ? dreg_flow(dreg, side, tabs, Lh.pd) : nothing
             loop_step!(Lh, H.g, o_t, [chpow(i) for i in H.idx], H.burn, dtl; wst=0.0, wfw, hfw,
-                       pumpmode=rundown(tabs), qext=H.qext, freeze=tabs > 36.0 ? FREEZE : :none)
+                       pumpmode=rundown(tabs), qext=H.qext, freeze=tabs > 36.0 ? FREEZE : :none, Wpres=Wp)
+            if Wp !== nothing
+                tabs >= 35.0 - 1e-9 && push!(kacc[side], RBMKCore.Loop.KEFF[Lh])
+                if tabs >= 36.0 - 1e-9
+                    kf = sum(kacc[side]) / length(kacc[side]); lg = Lh.leg
+                    Lh.leg = RBMKCore.Loop.LegParams(I=lg.I, Kf=kf, Kpipe=lg.Kpipe, dz=lg.dz, Vdrum=lg.Vdrum,
+                                                     Vsteam=lg.Vsteam, npump=lg.npump, sourced=false)
+                    @printf("  %s: recorded flow imposed to AZ-5; leg loss held after it: Kf %.4g (was %.4g, x%.2f)\n",
+                            side, kf, lg.Kf, kf / lg.Kf)
+                end
+            end
         end
     end
     loopline(tabs) = join([@sprintf("%s pd %.3f (DREG %.2f) ph %.3f W %.0f tin %.2f", s, halves[s].L.pd / LKGF,
@@ -118,7 +144,7 @@ if THSOLVER == "loop"
     srcs = [joinpath(@__DIR__, "..", "src", f) for f in ("Channel.jl", "Column.jl", "Loop.jl", "IF97.jl")]
     push!(srcs, joinpath(@__DIR__, "loop_setup.jl"), joinpath(LROOT, "sources", "derived", "dreg_mfcc_full.csv"),
           joinpath(dumpdir, "fmap0.asc"), deckpath)
-    prekey = bytes2hex(sha1(join([read(f, String) for f in srcs]) * string((hsh, Vst, QgMW, get(ENV, "DRUM_TAU", "eq")))))[1:12]
+    prekey = bytes2hex(sha1(join([read(f, String) for f in srcs]) * string((hsh, Vst, QgMW, get(ENV, "DRUM_TAU", "eq"))) * (PGAUGE ? "pg" : "") * (WREC ? "wrec" : "") * CHFTAG))[1:12]
     precache = joinpath(dumpdir, "b4_loop_prerun_" * prekey * ".jls")
     # explicit override, for a code change that only touches paths which failed before (logged)
     haskey(ENV, "B4_PRERUN_FILE") && (precache = ENV["B4_PRERUN_FILE"];
@@ -224,8 +250,8 @@ end
 # --- the transient
 movers = vcat(get(d.groups, 1, Int[]), get(d.groups, 2, Int[]))
 out = open(joinpath(dumpdir, @sprintf("b4_trace_dt%g%s.txt", dt, THSOLVER == "col" ? "_col" * string(SCHEME) :
-                                                            THSOLVER == "newton" ? "_newton" :
-                                                            THSOLVER == "loop" ? @sprintf("_loop_h%g_v%g_q%g", hsh, Vst, QgMW) * (haskey(ENV, "DRUM_TAU") ? "_tau" * ENV["DRUM_TAU"] : "") * (FREEZE === :none ? "" : "_frz" * string(FREEZE)) : "")), "w")
+                                                            THSOLVER == "newton" ? "_newton" * CHFTAG :
+                                                            THSOLVER == "loop" ? @sprintf("_loop_h%g_v%g_q%g", hsh, Vst, QgMW) * (haskey(ENV, "DRUM_TAU") ? "_tau" * ENV["DRUM_TAU"] : "") * XTAG * CHFTAG * (FREEZE === :none ? "" : "_frz" * string(FREEZE)) : "")), "w")
 println(out, "# t_s P/P0 E_GJ TFmax_K DCAmin ncyc kin_it")
 # fuel / cladding against the failure criteria, every step (test/fuel_diag.jl)
 include("fuel_diag.jl")
@@ -242,7 +268,7 @@ sacc = ShapeAcc(pw0, nch, nb, fd0.mtot / length(pw0))
 sout = open(replace(out.name[7:end-1], "b4_trace_" => "b4_shape_"), "w")
 println(sout, shape_header()); println(sout, shape_line!(sacc, 0.0, 0.0, pw0))
 pwout = open(replace(replace(out.name[7:end-1], "b4_trace_" => "b4_pw_"), ".txt" => ".bin"), "w")
-THSOLVER == "loop" && (lout = open(joinpath(dumpdir, @sprintf("b4_loop_dt%g_h%g_v%g_q%g", dt, hsh, Vst, QgMW) * (haskey(ENV, "DRUM_TAU") ? "_tau" * ENV["DRUM_TAU"] : "") * (FREEZE === :none ? "" : "_frz" * string(FREEZE)) * ".txt"), "w"))
+THSOLVER == "loop" && (lout = open(joinpath(dumpdir, @sprintf("b4_loop_dt%g_h%g_v%g_q%g", dt, hsh, Vst, QgMW) * (haskey(ENV, "DRUM_TAU") ? "_tau" * ENV["DRUM_TAU"] : "") * XTAG * CHFTAG * (FREEZE === :none ? "" : "_frz" * string(FREEZE)) * ".txt"), "w"))
 energy = 0.0; Pprev = P0MW
 # B4_TH=loop checkpoints (the transient is hours): every B4_CKPT steps the kinetics state, the loop
 # halves, the FMAP fields and the trace lines; B4_RESUME=1 restarts from the latest.  Keyed on the

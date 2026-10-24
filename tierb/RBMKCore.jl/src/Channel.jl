@@ -87,6 +87,13 @@ Base.@kwdef struct ThmOpts
     maxitc::Int = 50          # transient flow
     frlx::Float64 = 1.0       # patch 0006 FLOW-RELAX
     cyccap::Float64 = 0.0     # patch 0005 CYCLE-OK
+    # boiling crisis and post-CHF heat transfer on the Newton path (tight wall solve only;
+    # PROGRESS (49)); off reproduces every earlier result exactly
+    postchf::Bool = false
+    chfmul::Float64 = 1.0     # transient CHF enhancement (sensitivity: x2, chf_postchf_correlations.md Sec. 3)
+    # the cladding's heat storage as an enthalpy difference (zr_csec); implied by postchf, where a
+    # cladding crossing the alpha-beta spike needs it; alone, to separate its effect
+    zrsec::Bool = false
 end
 
 """Per-channel state between calls (THM's MPTHM records)."""
@@ -151,8 +158,17 @@ function thmccd(temp, poros)
     ro * cp
 end
 
-function thmgcd(temp)
+function thmgcd(temp; smooth=false)
     ro = 6690.0 - 0.1855 * temp
+    # smooth (ThmOpts.postchf): THM's alpha-beta segments are discontinuous by 0.84 J/kg/K at
+    # 1090 K and 37 at 1243 K; a rod fixed point sitting on a jump 2-cycles for ever.  Joined
+    # continuously through the same vertices (374.76 at 1090, 923.86 at 1169, 356.0 at 1243)
+    if smooth && 1090.0 < temp < 1243.0
+        c1090 = 226.7 + 0.2066 * 1090.0 - 0.6492e-04 * 1090.0^2; c1169 = 6.94 * 1169.0 - 7189.0
+        cp = temp <= 1169.0 ? c1090 + (c1169 - c1090) * (temp - 1090.0) / 79.0 :
+                              c1169 + (356.0 - c1169) * (temp - 1169.0) / 74.0
+        return ro * cp
+    end
     cp = temp <= 1090.0 ? 226.7 + 0.2066 * temp - 0.6492e-04 * temp^2 :
          temp <= 1169.0 ? 6.94 * temp - 7189.0 :
          temp <= 1243.0 ? 9312.9 - 7.177 * temp : 356.0
@@ -252,7 +268,7 @@ function wall_coef(T, ts, xfl, hmavg, hlsat, hgsat, rel, prl, zkone, zkl, zkg, c
 end
 
 function wall_tight(ts, tcalo, xfl, hmavg, hlsat, hgsat, rel, prl, zkone, zkl, zkg, cpl, rhol, rhog, zmug, zmul, rho,
-                    pinlet, hd, radcl, zf)
+                    pinlet, hd, radcl, zf; post=nothing)
     function twal(T)
         f, ha, s, hb, kwa = wall_coef(T, ts, xfl, hmavg, hlsat, hgsat, rel, prl, zkone, zkl, zkg, cpl, rhol, rhog,
                                       zmug, zmul, rho, pinlet, hd)
@@ -287,7 +303,152 @@ function wall_tight(ts, tcalo, xfl, hmavg, hlsat, hgsat, rel, prl, zkone, zkl, z
         end
     end
     tw, kwa = twal(T)
-    tw, max(0.0, (zf[1] - tw * zf[2]) / radcl), kwa
+    phin = max(0.0, (zf[1] - tw * zf[2]) / radcl)
+    (post === nothing || hmavg >= hgsat) && return tw, phin, kwa
+    # ---- boiling crisis (ThmOpts.postchf): the nucleate root stands while its flux is below CHF
+    # and the wall was not past CHF at the start of the step
+    qchf = post.qchf
+    qnuc(T) = (c = wall_coef(T, ts, xfl, hmavg, hlsat, hgsat, rel, prl, zkone, zkl, zkg, cpl, rhol, rhog, zmug, zmul, rho,
+                             pinlet, hd); c[1] * c[2] * (T - tcalo) + c[3] * c[4] * (T - ts))
+    tprev = post.tprev
+    (phin <= qchf && qnuc(tprev) <= qchf) && return tw, phin, kwa
+    # T_chf: q_nuc(T_chf) = q_chf (q_nuc rises with T)
+    a_ = max(ts, tcalo); b_ = a_ + 5.0
+    while qnuc(b_) < qchf && b_ < 2000.0; a_ = b_; b_ += 2 * (b_ - ts) + 5.0; end
+    for _ in 1:80
+        m = 0.5 * (a_ + b_); qnuc(m) < qchf ? (a_ = m) : (b_ = m); b_ - a_ < 1e-7 && break
+    end
+    tchf = 0.5 * (a_ + b_)
+    tmn = max(post.tmin, tchf + 1.0)
+    pf = post
+    qf(T) = q_film(T, ts, tcalo, pinlet, pf.G, max(xfl, 0.0), pf.alpha, pf.rhof, pf.rhogs, pf.hfg, pf.sigma, hd)
+    qmin = qf(tmn); rd = clamp(400.0 * (1.0 - pf.alpha - 0.0025), 0.0, 1.0)
+    qpost(T) = T >= tmn ? qf(T) : (F = ((T - tmn) / (tchf - tmn))^2; F * rd * qchf + (1 - F) * qmin)
+    gp(T) = (zf[1] - T * zf[2]) / radcl - qpost(T)
+    cands = Tuple{Float64,Int}[]
+    phin <= qchf && push!(cands, (tw, kwa))                 # the nucleate root (below T_chf)
+    thi = zf[1] / zf[2] + 1.0                               # rod flux 0 above this: gp < 0
+    if thi > tchf
+        nscan = 48
+        Ta = tchf + 1e-6; ga = gp(Ta)
+        for j in 1:nscan
+            Tb = tchf + (thi - tchf) * (j / nscan)^2; gb = gp(Tb)
+            if (ga > 0) != (gb > 0)
+                lo_, hi_, glo_, ghi_ = Ta, Tb, ga, gb
+                for _ in 1:100
+                    m = 0.5 * (lo_ + hi_); gm = gp(m)
+                    ((gm > 0) == (glo_ > 0)) ? (lo_ = m; glo_ = gm) : (hi_ = m; ghi_ = gm)
+                    hi_ - lo_ < 1e-9 * m && break
+                end
+                r = 0.5 * (lo_ + hi_); push!(cands, (r, r >= tmn ? 5 : 4))
+            end
+            Ta, ga = Tb, gb
+        end
+    end
+    isempty(cands) && return tw, phin, kwa
+    tr, kr = cands[argmin([abs(c[1] - tprev) for c in cands])]
+    tr, max(0.0, (zf[1] - tr * zf[2]) / radcl), kr
+end
+
+# ---------------------------------------------------------------------------
+# Boiling crisis and post-CHF wall heat transfer (B4 Newton path, ThmOpts.postchf; PROGRESS (49)).
+# Sources and their status: sources/derived/chf_postchf_correlations.md.
+#
+# CHF  q_chf = chfmul * min(q_D, q_LUT K1 K2), local conditions (p, G, x_eq):
+#   q_D    [D] p. 70, the RBMK designers' critical-power formula (full-scale 18-rod 7 m rig), in
+#          its exact local-conditions form with the energy-balance subcooling coefficient 41.2
+#          (printed 4.07: a misprint, chf_postchf_correlations.md Sec. 1.1):
+#          q = [4.28e6 d^0.83 (G/1e3)^0.57 - 9.85 d G hfg x] / [6.64e2 d^0.57 (G/1e3)^0.18] kW/m2,
+#          d the heated diameter (m), hfg kJ/kg; a dryout correlation
+#   q_LUT  the 2006 Groeneveld table ([GRO06T], a third-party transcription not checked against
+#          the paywalled primary), trilinear, clamped to the table; K1 = (0.008/D_hy)^0.5,
+#          K2 = min(1, (0.5 + 2 delta/d) exp(-0.5 x^(1/3))) ([TD1203] Table 3.3), delta/d = 0.18
+#          (outer-ring gap 2.45 mm on 13.6 mm rods); the DNB branch at low quality
+# Post-CHF, wall flux q_w(T_w):
+#   T <= T_chf          nucleate (wall_coef, unchanged); T_chf: q_nuc(T_chf) = q_chf
+#   T_chf < T < T_min   transition, Bjornard-Griffith ([CTF23] eqs 587-589):
+#                       F_w R_d q_chf + (1 - F_w) q_film(T_min), F_w = ((T - T_min)/(T_chf - T_min))^2,
+#                       R_d = clamp(400 (alpha_l - 0.0025), 0, 1) -- continuous at T_chf and T_min
+#   T >= T_min          film: modified Bromley-Berenson ([R5V4] eqs 4.2-22..26, C = 0.62, Sudo-Murao
+#                       subcooling; the void factor M_a between its printed anchors 1 (alpha <= 0.2),
+#                       0.0108 (0.95), 0 (0.999) log-linear then linear -- an ASSUMPTION, the spline is
+#                       not given) + Dittus-Boelter to vapour (Re_v = G x D_h/mu_g) + radiation
+#                       (eps_w 0.9, liquid 0.75, vapour 0.02 by void: [R5V4] p. 4-87)
+#   T_min               Groeneveld-Stewart ([DUA18] eqs 2-11..13, secondary; deg C, MPa)
+# Hysteresis: of the wall roots, the one nearest the wall temperature at the start of the step.
+# [D] p. 70's d_ob = 4 S / P_ob for the RBMK channel: flow area 22.427 cm2 (test/loop_setup.jl's Ach),
+# heated perimeter 18 rods x pi x 13.6 mm ([D]) -> 11.66 mm
+const DHEAT_RBMK = 4 * 22.427082e-4 / (18pi * 0.0136)
+const LUT06_P = vcat([0.1, 0.3, 0.5], collect(1.0:21.0)) .* 1e6
+const LUT06_G = [0.0, 50, 100, 300, 500, 750, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500,
+                 6000, 6500, 7000, 7500, 8000]
+const LUT06_X = [-0.5, -0.4, -0.3, -0.2, -0.15, -0.1, -0.05, 0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4,
+                 0.45, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+const LUT06 = Ref{Array{Float64,3}}()
+function lut06()
+    isassigned(LUT06) && return LUT06[]
+    f = joinpath(@__DIR__, "..", "..", "..", "sources", "GRO06T_2006LUTdata_greenwoodms06.txt")
+    rows = [parse.(Float64, split(l)) for l in eachline(f) if !isempty(strip(l))]
+    nP, nG, nX = length(LUT06_P), length(LUT06_G), length(LUT06_X)
+    @assert length(rows) == nP * nG && all(length(r) == nX for r in rows) "$f: not the 504 x 23 table"
+    T = zeros(nP, nG, nX)
+    for ip in 1:nP, ig in 1:nG; T[ip, ig, :] = rows[(ip-1)*nG+ig]; end
+    LUT06[] = T
+end
+function _bracket(v, x)
+    x <= v[1] && return 1, 0.0
+    x >= v[end] && return length(v) - 1, 1.0
+    i = searchsortedlast(v, x); i, (x - v[i]) / (v[i+1] - v[i])
+end
+"""2006 CHF look-up table (W/m2) at (p Pa, G kg/m2/s, x), trilinear, clamped to the table."""
+function chf_lut(p, G, x)
+    T = lut06()
+    ip, fp = _bracket(LUT06_P, p); ig, fg = _bracket(LUT06_G, abs(G)); ix, fx = _bracket(LUT06_X, x)
+    q = 0.0
+    for (a, wa) in ((ip, 1 - fp), (ip + 1, fp)), (b, wb) in ((ig, 1 - fg), (ig + 1, fg)), (c, wc) in ((ix, 1 - fx), (ix + 1, fx))
+        q += wa * wb * wc * T[a, b, c]
+    end
+    1e3 * q
+end
+"""[D] p. 70 in local form (W/m2): d heated diameter (m), G kg/m2/s, hfg J/kg, x equilibrium quality."""
+chf_dol(x, G, hfg, d) = 1e3 * (4.28e6 * d^0.83 * (G / 1e3)^0.57 - 9.85 * d * G * (hfg / 1e3) * x) /
+                        (6.64e2 * d^0.57 * (G / 1e3)^0.18)
+function chf_local(p, G, x, hfg, dheat, dhy; mul=1.0)
+    Gc = max(abs(G), 1.0)
+    k1 = sqrt(0.008 / dhy); k2 = min(1.0, (0.5 + 2 * 0.18) * exp(-0.5 * cbrt(max(x, 0.0))))
+    mul * max(0.0, min(chf_dol(x, Gc, hfg, dheat), chf_lut(p, Gc, x) * k1 * k2))
+end
+"""Groeneveld-Stewart minimum film-boiling temperature (K); hl the liquid enthalpy (J/kg)."""
+function tmin_gs(p, hl, hlsat, hfg, ts)
+    P = p / 1e6
+    gs(P) = 284.7 + 44.1P - 3.72P^2
+    if P <= 9.0
+        t = gs(P) - (hl < hlsat ? (hl - hlsat) / hfg * 1e4 / (2.82 + 1.22P) : 0.0)
+        return t + ZKELV
+    end
+    dT9 = gs(9.0) + ZKELV - tsat(9.0e6)
+    dT9 * (22.064 - P) / (22.064 - 9.0) + ts
+end
+function _ma(alpha)
+    alpha <= 0.2 && return 1.0
+    alpha <= 0.95 && return exp(log(0.0108) * (alpha - 0.2) / 0.75)
+    alpha < 0.999 && return 0.0108 * (0.999 - alpha) / 0.049
+    0.0
+end
+"""Film boiling + vapour convection + radiation wall flux (W/m2) at wall temperature T."""
+function q_film(T, ts, tl, p, G, x, alpha, rhof, rhog_s, hfg, sigma, hd)
+    dT = max(T - ts, 1e-3)
+    v = prop_pT(p, max(0.5 * (T + ts), ts + 1e-3))          # vapour at the film temperature
+    kg, rg, cg, mg = v.k, v.rho, v.cp, v.mu
+    lam = 2pi * sqrt(sigma / (9.81 * (rhof - rhog_s)))
+    hfgp = hfg + 0.5 * cg * dT
+    hfb = 0.62 * (9.81 * rg * kg^3 * (rhof - rhog_s) * hfgp / (lam * dT * mg))^0.25 * _ma(alpha)
+    hfb *= 1.0 + 0.025 * max(ts - tl, 0.01)                 # Sudo-Murao
+    rev = abs(G) * max(x, 0.0) * hd / mg
+    hv = rev > 0.0 ? 0.023 * kg / hd * rev^0.8 * (mg * cg / kg)^0.4 : 0.0
+    el = 0.75 * (1 - alpha) + 0.02 * alpha
+    qr = 5.670374e-8 / (1 / 0.9 + 1 / el - 1) * (T^4 - ts^4)
+    (hfb + hv) * dT + qr
 end
 
 mutable struct H2OSave           # THMH2O's SAVE variables, per channel march
@@ -302,7 +463,7 @@ Returns (k0, xfl, eps, tcalo, rho, rhol, rhog, tsclad, kwa, phi, hlv).
 surface response), `phi` when itime = 0.
 """
 function thmh2o(sv::H2OSave, itime, k, k0, pinlet, mflow, hmavg, ent, hd, radcl, zf,
-                phi, xfl, eps, acool, pch, dz; localonset=false, tight=false)
+                phi, xfl, eps, acool, pch, dz; localonset=false, tight=false, chf=nothing)
     twtol = tight ? 1e-13 : 1.0e-5
     hmavg < 0.0 && error("THMH2O: NEGATIVE INPUT ENTHALPY")
     gabs = abs(mflow)
@@ -407,8 +568,20 @@ function thmh2o(sv::H2OSave, itime, k, k0, pinlet, mflow, hmavg, ent, hd, radcl,
         # on either side of saturation, path-dependently; here the regime is a function
         # of T alone and T_w solves T_w = twal(T_w) by a bracketed root (twal falls as
         # the nucleate term grows, so the root is unique)
+        # chf = (; tprev, dheat, mul): the boiling crisis (ThmOpts.postchf), at the local
+        # equilibrium quality and saturated properties
+        post = nothing
+        if chf !== nothing
+            Ls = prop_Tx(ts, 0.0); Vs = prop_Tx(ts, 1.0); hfg = Vs.h - Ls.h
+            xeq = (hmavg - Ls.h) / hfg
+            pr_ = pinlet / 1e6
+            sig = -7.2391e-6 * pr_^3 + 2.8345e-4 * pr_^2 - 5.1566e-3 * pr_ + 4.2324e-2
+            post = (; qchf=chf_local(pinlet, gabs, xeq, hfg, chf.dheat, hd; mul=chf.mul), tprev=chf.tprev,
+                    tmin=tmin_gs(pinlet, min(hmavg, Ls.h), Ls.h, hfg, ts), G=gabs, alpha=eps, rhof=Ls.rho,
+                    rhogs=Vs.rho, hfg, sigma=sig)
+        end
         tsclad, phi, kwa = wall_tight(ts, tcalo, xfl, hmavg, hlsat, hgsat, rel, prl, zkone, zkl, zkg, cpl, rhol, rhog,
-                                      zmug, zmul, rho, pinlet, hd, radcl, zf)
+                                      zmug, zmul, rho, pinlet, hd, radcl, zf; post)
     end
     for iter in 1:(tight && itime == 1 ? 0 : 501)
         iter > 500 && error("THMH2O: HCONV FAILURE IN SLICE $k")
@@ -502,6 +675,26 @@ end
 # ---------------------------------------------------------------------------
 # THMROD: rod conduction with a gap (IGAP 0), NDTOT here = THM's NDTOT-1
 
+const FAILROD = Ref{Any}(nothing)
+# ThmOpts.postchf: the cladding's heat storage as the enthalpy difference (H(T1) - H(T0)) / dt,
+# H = int rho c dT, i.e. the secant capacity over [T0, T1] (8-point Gauss-Legendre of the smooth
+# thmgcd).  THM's c(T1) T1 - c(T0) T0 has the effective capacity c + T dc/dT, ~21x the true one
+# in the alpha-beta spike (1090-1243 K), where its fixed point on the iterate's c cannot converge
+const GL8X = (-0.9602898564975363, -0.7966664774136267, -0.5255324099163290, -0.1834346424956498,
+              0.1834346424956498, 0.5255324099163290, 0.7966664774136267, 0.9602898564975363)
+const GL8W = (0.1012285362903763, 0.2223810344533745, 0.3137066458778873, 0.3626837833783620,
+              0.3626837833783620, 0.3137066458778873, 0.2223810344533745, 0.1012285362903763)
+function zr_csec(t0, t1)
+    abs(t1 - t0) < 1e-9 && return thmgcd(t0; smooth=true)
+    # split at the alpha-beta vertices so each piece is smooth
+    pts = sort(unique(vcat([min(t0, t1), max(t0, t1)], [v for v in (1090.0, 1169.0, 1243.0) if min(t0, t1) < v < max(t0, t1)])))
+    H = 0.0
+    for j in 1:length(pts)-1
+        a, b = pts[j], pts[j+1]; m = 0.5(a + b); h = 0.5(b - a)
+        H += h * sum(GL8W[k] * thmgcd(m + h * GL8X[k]; smooth=true) for k in 1:8)
+    end
+    H / (max(t0, t1) - min(t0, t1))
+end
 function thmrod(g::ChanGeom, o::ThmOpts, dtinv, xx0, xx1, qfuel, tsurf, burn,
                 w::RodWork=RodWork(g.ndtot - 1); maxit1=o.maxit1, maxit2=o.maxit2)
     nfd = g.nfd; nd = g.ndtot - 1; rad = g.rad
@@ -518,7 +711,7 @@ function thmrod(g::ChanGeom, o::ThmOpts, dtinv, xx0, xx1, qfuel, tsurf, burn,
         if i <= nfd - 1
             condxa[i] = thmccd(xx0[i], o.poros) * dtinv * xx0[i] * dar[i]
         elseif i >= nfd + 2
-            condxa[i] = thmgcd(xx0[i]) * dtinv * xx0[i] * dar[i]
+            condxa[i] = thmgcd(xx0[i]; smooth=o.postchf || o.zrsec) * dtinv * xx0[i] * dar[i]
         end
     end
     zk = w.zk
@@ -527,7 +720,15 @@ function thmrod(g::ChanGeom, o::ThmOpts, dtinv, xx0, xx1, qfuel, tsurf, burn,
     itert = 0
     while true
         itert += 1
-        itert > maxit1 && error("THMROD: CONVERGENCE FAILURE(1)")
+        # (ThmOpts.postchf: a post-CHF cladding crosses Zircaloy's alpha-beta heat-capacity spike,
+        # 1090-1243 K (thmgcd), where this fixed point on the iterate's properties can stall: it
+        # continues with heavier relaxation instead of stopping; wherever it converged within
+        # maxit1 before, nothing changes)
+        if itert > (o.postchf ? 6maxit1 : maxit1)
+            FAILROD[] = (; g, o, dtinv, xx0=copy(xx0), xx1=copy(xx1), qfuel, tsurf, burn)
+            error("THMROD: CONVERGENCE FAILURE(1)")
+        end
+        haskey(ENV, "THMROD_DEBUG") && itert > 6maxit1 - 4 && println("  it $itert xx1 $(round.(xx1; digits=3))")
         fill!(zk, 0.0)
         for i in 1:nfd-1
             zk[i] = thmcdi(xx1[i], xx1[i+1], burn, o.poros)
@@ -566,7 +767,12 @@ function thmrod(g::ChanGeom, o::ThmOpts, dtinv, xx0, xx1, qfuel, tsurf, burn,
             if i <= nfd - 1
                 dg[i] = thmccd(xx1[i], o.poros) * dtinv * dar[i]
             elseif i >= nfd + 2
-                dg[i] = thmgcd(xx1[i]) * dtinv * dar[i]
+                if o.postchf || o.zrsec
+                    cs = zr_csec(xx0[i], xx1[i])
+                    dg[i] = cs * dtinv * dar[i]; b1[i] += (cs * xx0[i] - thmgcd(xx0[i]; smooth=true) * xx0[i]) * dtinv * dar[i]
+                else
+                    dg[i] = thmgcd(xx1[i]) * dtinv * dar[i]
+                end
             end
             dg[i] += c2
             if i < nd
@@ -580,7 +786,7 @@ function thmrod(g::ChanGeom, o::ThmOpts, dtinv, xx0, xx1, qfuel, tsurf, burn,
         for i in 1:nd
             tnew = x2[i] + tsurf * x3[i]
             err = max(err, abs(xx1[i] - tnew))
-            xx1[i] = itert <= 20 ? tnew : 0.5 * (tnew + xx1[i])
+            xx1[i] = itert <= 20 ? tnew : itert <= maxit1 ? 0.5 * (tnew + xx1[i]) : 0.15 * tnew + 0.85 * xx1[i]
         end
         zf1 = zwork * x2[nd]
         zf2 = zwork * (1.0 - x3[nd])

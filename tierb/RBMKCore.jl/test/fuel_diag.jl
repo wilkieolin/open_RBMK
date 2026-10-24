@@ -26,6 +26,7 @@ h_uo2(T) = _fuo2(T) - _fuo2(298.15)                        # J/kg
 function fuel_diag(items; poros=0.05)
     Tcl = 0.0; Hmax = 0.0; mtot = 0.0
     mH = zeros(length(H_THR)); mT = zeros(length(TCLAD_THR))
+    ndry = 0; mdry = 0.0                                   # past CHF (kwa 4 transition, 5 film; ThmOpts.postchf)
     for (g, s, planes) in items
         nfd = g.nfd; nd = g.ndtot; rc = g.rad[nfd]
         for k in planes
@@ -36,11 +37,12 @@ function fuel_diag(items; poros=0.05)
             mtot += m; Hmax = max(Hmax, h); Tcl = max(Tcl, tc)
             for (j, thr) in enumerate(H_THR); h >= thr * CALG && (mH[j] += m); end
             for (j, thr) in enumerate(TCLAD_THR); tc >= thr && (mT[j] += m); end
+            s.kwa[k] >= 4 && (ndry += 1; mdry += m)
         end
     end
-    (; Tcl, Hmax=Hmax / CALG, mtot, mH, mT)
+    (; Tcl, Hmax=Hmax / CALG, mtot, mH, mT, ndry, mdry)
 end
 fuel_header() = "# t_s Tclad_max_C m_clad>700C_t m_clad>1200C_t Hmax_cal/g " *
-                join(["m_H>$(Int(t))_t" for t in H_THR], " ") * "   (bundle-average enthalpy; total fuel mass in line 2)"
+                join(["m_H>$(Int(t))_t" for t in H_THR], " ") * " n_dry m_dry_t   (bundle-average enthalpy; total fuel mass in line 2; dry = past CHF)"
 fuel_line(t, d) = @sprintf("%.4f %.1f %.4f %.4f %.2f ", t, d.Tcl - 273.15, d.mT[1] / 1e3, d.mT[2] / 1e3, d.Hmax) *
-                  join([@sprintf("%.4f", m / 1e3) for m in d.mH], " ")
+                  join([@sprintf("%.4f", m / 1e3) for m in d.mH], " ") * @sprintf(" %d %.4f", d.ndry, d.mdry / 1e3)

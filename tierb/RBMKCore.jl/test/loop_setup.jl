@@ -19,6 +19,11 @@ function load_dreg()
               ((h - 1) * 3600 + (m - 23) * 60 + s - 4.0, parse(Float64, v)))
     end
     for v in values(dreg); sort!(v); end
+    # LOOP_PSD_GAUGE=1: DREG's Psd read as GAUGE pressure (+1 atm = 1.0332 kgf/cm2) -- the record
+    # does not say which; absolute is the default (PROGRESS (42)); a starting-state probe (49)
+    if get(ENV, "LOOP_PSD_GAUGE", "0") == "1"
+        for side in ("L", "R"); dreg[(side, "Psd")] = [(t, v + 1.0332) for (t, v) in dreg[(side, "Psd")]]; end
+    end
     dreg
 end
 function dinterp(dreg, side, p, t)
@@ -139,6 +144,12 @@ function build_halves(chans, hz, hx, hy, pw0, burn, tf0, speed, pout, tin_deck, 
     end
     out
 end
+
+"""Each half's recorded pump flow (kg/s) at t s after 01:23:04: the four DREG pump flows as
+saturated liquid at the drum pressure pd (as build_halves takes the flow at 01:23:04), and the
+last time all four are recorded."""
+dreg_flow(dreg, side, t, pd) = sum(dinterp(dreg, side, "Gmcp$k", t) for k in 1:4) / 3.6 / Loop.sat(pd).vl
+dreg_flow_end(dreg, side) = minimum(dreg[(side, "Gmcp$k")][end][1] for k in 1:4)
 
 """Liquid volume in the drums of a loop half (for level changes)."""
 drum_liquid(L::LoopHalf) = drum_liquid_volume(L.drum, L.leg.Vdrum + L.leg.Vsteam)

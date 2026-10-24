@@ -416,8 +416,12 @@ The core-inlet temperature for the step is the leg state at the start of the ste
 `wfw`, `hfw`: feedwater in; `qext[i]`: heat into channel i's coolant directly (W per
 slice), e.g. from the graphite.
 """
+# per loop half, with a prescribed pump flow (loop_step!'s `Wpres`): the leg loss coefficient the
+# converged step implies, Kf_eff = (pd + rho g dz + Hp - ph - I dW/dt) rho / W|W|
+const KEFF = IdDict{Any,Float64}()
+
 function loop_step!(L::LoopHalf, g, o, pows, burns, dt; wst=0.0, wfw=0.0, hfw=0.0,
-                    pumpmode=:grid, qext=nothing, maxouter=8, tol=1e-6, freeze=:none)
+                    pumpmode=:grid, qext=nothing, maxouter=8, tol=1e-6, freeze=:none, Wpres=nothing)
     # freeze (for decompositions): :pd holds the drum (its pressure, mass and energy), as an
     # unlimited steam volume would; :bc holds every loop boundary -- drum and header pressure,
     # core-inlet temperature, pumps -- and steps only the channels, each free to take the flow
@@ -478,6 +482,9 @@ function loop_step!(L::LoopHalf, g, o, pows, burns, dt; wst=0.0, wfw=0.0, hfw=0.
         f2 = L.leg.I * (W - W0) / dt + L.leg.Kf * W * abs(W) / rho_leg - (pd + rho_leg * GRAV * L.leg.dz + Hp) + ph
         J11 = dWdph; J12 = -1.0
         J21 = 1.0; J22 = L.leg.I / dt + 2 * L.leg.Kf * abs(W) / rho_leg - dHdW
+        # Wpres: the pump flow is prescribed (a recorded boundary condition) in place of the leg
+        # momentum; the header pressure still closes on the channels' inflow
+        Wpres === nothing || (f2 = W - Wpres; J21 = 0.0; J22 = 1.0)
         det = J11 * J22 - J12 * J21
         dph = -(f1 * J22 - J12 * f2) / det
         dW = -(J11 * f2 - J21 * f1) / det
@@ -488,6 +495,10 @@ function loop_step!(L::LoopHalf, g, o, pows, burns, dt; wst=0.0, wfw=0.0, hfw=0.
     if freeze === :bc
         L.chans .= new; L.W = W
         return L
+    end
+    if Wpres !== nothing
+        Hpf, _ = pumps_dp(L.pump, wnew, W / rho_leg, rho_leg)
+        KEFF[L] = (pd + rho_leg * GRAV * L.leg.dz + Hpf - ph - L.leg.I * (W - W0) / dt) * rho_leg / (W * abs(W))
     end
     kmaxs = [findlast(!=(0.0), pows[i]) for i in 1:nch]
     wout = [L.mult[i] * new[i].G[kmaxs[i]] * L.lines[i].Ach for i in 1:nch]

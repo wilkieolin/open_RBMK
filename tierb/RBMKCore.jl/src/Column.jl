@@ -117,7 +117,8 @@ function cell_eval(g, o, k, h, hinflow, Gcorr, p, sv0::H2OSave, k0in, xfl0, eps0
         delth = h - hinflow
         ent = ntuple(i -> hinflow + (1.0 + XS[i]) / 2.0 * delth, 4)
         sv.dhsub = sv0.dhsub; sv.dsat = sv0.dsat
-        r = thmh2o(sv, 1, k, k0in, p, Gcorr, h, ent, g.hd, g.rad[nd-1], zf, phi0, xfl0, eps0, g.acool, g.pch, g.hz[k]; localonset, tight)
+        r = thmh2o(sv, 1, k, k0in, p, Gcorr, h, ent, g.hd, g.rad[nd-1], zf, phi0, xfl0, eps0, g.acool, g.pch, g.hz[k]; localonset, tight,
+                   chf=(tight && o.postchf) ? (; tprev=tsclad0, dheat=Ch.DHEAT_RBMK, mul=o.chfmul) : nothing)
         abs(r.tsclad - tsclad) < (tight ? 1e-9 : 1e-3) && (tsclad = r.tsclad; break)
         tsclad = r.tsclad
     end
