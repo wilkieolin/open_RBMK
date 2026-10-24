@@ -33,6 +33,10 @@ haskey(d.fuelstate, "TG") || (d.fuelstate["TG"] = 750.0)
 @assert occursin("cB4af83e", stem) "cross sections: the exports carry the cB CPS only"
 xsf = joinpath(ROOT, "tierb", "xs", occursin("vB65c86e", stem) ? "tierb_xs_af4c362b.h5" : "tierb_xs_664b244a.h5")
 ncrclamp = occursin("MACRO LINEAR CLAMP", read(deckpath, String))   # U4_NCRCLAMP decks (patch 0014)
+# B4_CLAMP=1: the same for any deck -- a fuel-map parameter past its COMPO axis (T-FUEL > 2000 K) is
+# held at the axis end, so Doppler stops growing there and the power after it is an UPPER estimate
+const CLTAG = (!ncrclamp && get(ENV, "B4_CLAMP", "0") == "1") ? "_cl" : ""
+ncrclamp |= CLTAG == "_cl"; CLTAG == "_cl" && println("B4_CLAMP: NCR CLAMP on (T-FUEL held at the axis end)")
 println("cross sections ", basename(xsf), ncrclamp ? ", NCR CLAMP" : "")
 fuel = load_fuel(xsf); ref = load_ref(xsf)
 mesh = Mesh(d.nx, d.ny, d.nz, diff(d.meshx), diff(d.meshy), diff(d.meshz),
@@ -59,7 +63,7 @@ const CHF = get(ENV, "B4_CHF", "0") == "1"; const CHFMUL = parse(Float64, get(EN
 const ZRSEC = get(ENV, "B4_ZRSEC", "0") == "1"
 o_t = ThmOpts(cflux=critfl, khgap=hgap, maxit1=Int(tv[1]), maxit2=Int(tv[2]), maxitc=Int(tv[3]),
               ermaxt=tv[4], ermaxc=tv[5], cyccap=tv[6], frlx=tv[7], postchf=CHF, chfmul=CHFMUL, zrsec=ZRSEC)
-const CHFTAG = (CHF ? "_chf" * (CHFMUL == 1 ? "" : @sprintf("x%g", CHFMUL)) : "") * (ZRSEC && !CHF ? "_zrsec" : "")
+const CHFTAG = (CHF ? "_chf" * (CHFMUL == 1 ? "" : @sprintf("x%g", CHFMUL)) : "") * (ZRSEC && !CHF ? "_zrsec" : "") * CLTAG
 println("THM: INLET $pout $tin, transient CONV $(tv[1:5]) CYCLE-OK $(tv[6]) FLOW-RELAX $(tv[7])")
 
 # --- t = 0 FMAP from DONJON
