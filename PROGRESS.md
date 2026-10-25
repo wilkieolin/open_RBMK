@@ -7378,7 +7378,7 @@ everything tried here, only the radial field (the "as printed" tilt: Kv ~5, 254Ã
 pressure) moves the local energy materially â€” and it is the orientation of a figure that decides whether
 that start is the sourced one.
 
-**Next.** (1) The tilted start in the loop (the right half carries 63 % of the power: whether the right
+**Next.** (1) The tilted start in the loop (the right half carries 62 % of the power: whether the right
 drum then rises faster, as recorded, is a test of the orientation); (2) the fixed-pressure Newton path's
 missing fallback (the tilted run's 5.56 s stop) and the 2000 K T-FUEL axis (a COMPO extension, or CLAMP
 with its upper-bound reading); (3) a source for the orientation of Fig. II-7, or Ref. [28] itself.
