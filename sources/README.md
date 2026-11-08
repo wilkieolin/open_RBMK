@@ -210,3 +210,33 @@ A6.5 / A6d.
 | [BJ62] | Baker L. Jr., Just L.C., *Studies of Metal-Water Reactions at High Temperatures III*, ANL-6548, 1962, https://www.osti.gov/servlets/purl/4781681; `BJ62_Baker_Just_ANL-6548_Zr_water_reaction.pdf` (md5 65dbbbcb…) | Baker–Just parabolic rate law (abstract, PDF p. 10) |
 | [GRO06T] | 2006 Groeneveld CHF look-up table as tabulated in the GitHub repository greenwoodms06/2006_Groeneveld_CriticalHeatFlux_LUT (MIT licence for the code), file `2006LUTdata.txt`, https://raw.githubusercontent.com/greenwoodms06/2006_Groeneveld_CriticalHeatFlux_LUT/master/2006LUTdata.txt (fetched 2026-10-23); `GRO06T_2006LUTdata_greenwoodms06.txt` (md5 c212f5dd…). **Third-party transcription**; the primary is Groeneveld D.C. et al., *The 2006 CHF look-up table*, Nucl. Eng. Des. 237 (2007) 1909–1922 (paywalled, not obtained) | 504 × 23 = 24 pressures × 21 mass fluxes × 23 qualities, kW/m²; grid from the repo's `Groeneveld_LUT.m`. Not verified against the primary |
 | [GRO03T] | Film-boiling heat-transfer-coefficient look-up table as tabulated in the same repository, file `2001LUT_FilmBoilingCoef.txt` (fetched 2026-10-23); `GRO03T_2001LUT_FilmBoilingCoef_greenwoodms06.txt` (md5 1edc12ac…). **Third-party transcription**; primary is Groeneveld D.C. et al., *A look-up table for fully developed film-boiling heat transfer*, Nucl. Eng. Des. 225 (2003) 83–97 (paywalled; the repo says the paper prints only part of the table) | not used yet; grid and units undocumented in the file itself |
+
+## Core state at 01:22:30 — measured fields and rod types (added 2026-11-08, card #33 audit)
+
+Sources listed in the user's survey "Chernobyl Unit 4 pre-accident core state: sources and data"
+(claude.ai doc, 2026-11-08), pulled and checked. The accidont figures are the redrawn SKALA printouts
+from the 01:22:30 tape; INSAG-7 prints the same data only as unlabelled sketches (Fig. II-8) or
+contours (Fig. II-7).
+
+| Tag | Source | Used for |
+|---|---|---|
+| [ACC] | accidont.ru, *Хронология событий аварии* (anonymous, ChNPP-sourced; same site as [DREG]), Wayback snapshot 20240426142252 of `chronos.html` and its figure pages; local copies `accidont/chronos.html` (md5 634cac95…), `accidont/picture09.JPG` (Fig. 9, md5 f22db07c…), `picture10.JPG` (Fig. 10, 291f15d4…), `picture11.JPG` (Fig. 11, fccaba4c…), `picture38.JPG` (Fig. 8, 6523554c…), `picture67.JPG` (Fig. 7, channel flows, 6e145bc0…), plus Figs 1–6, 12–15 | **Fig. 9–10**: the 12 ДКЭв axial strings × 7 sections at 01:22:30, labelled with plant coordinates → `derived/accidont_fig9_10_dkev_axial.csv` (`tools/digitise_accidont_dkev.py`). **Fig. 11**: every CPS rod's type and insertion at 00:39 and 01:22:30 → `derived/accidont_fig11_cps.csv` (`tools/digitise_accidont_fig11.py`). **Fig. 8**: the ~130 radial ДКЭр readings → `derived/accidont_fig8_dker_radial.csv` (transcribed by eye). Fig. 7 (per-channel flow cartogram) not yet digitised |
+| [SKSIM] | "SKALA console simulator", https://renderedsheep.github.io/skala-simulator/ (hobby page, fetched 2026-11-08); `skala_simulator.html` (md5 99ef29e0…), its `CORE_DATA` extracted to `skala_sim_core_data.json` (bf9974d6…) | a third-party transcription of Karpan's 00:39 / 01:22:30 rod maps (cell, type АР/УСП/ДКЭ, depths). **Not a primary source**: used only as a cross-check. Its 211 01:22:30 depths equal our Fig. II-6 digitisation at every site, and its 24 УСП / 12 АР / 12 ДКЭ sites equal Fig. 11's colours |
+| [AECL88] | AECL, *Multidimensional analysis of the Chernobyl accident* (ca. 1988), INIS record 22069564, https://inis.iaea.org/records/6t7kr-tv062/files/22069564.pdf; `AECL_INIS22069564_multidimensional_Chernobyl.pdf` (md5 5d00c835…) | quotes Dollezhal's report p. 30: axial burnup maximum 22 GWd/t at about 5 m from the core bottom (upper-heavy); assumes a convex-flux burnup that gives the double-humped field. Not yet used |
+| [INSAG7-RU] | INSAG-7, Russian edition, https://www-pub.iaea.org/MTCD/Publications/PDF/Pub913r_web.pdf; `INSAG7_RU_Pub913r.pdf` (md5 2facefde…, 48 pp. against the English 148; the Annexes appear not to be included) | not used |
+| [KI2916] | Borovoi A.A., Pazukhin E.M., Strizhov V.F., *The Efficiency of Measures on Elimination of the Chernobyl Accident Consequences*, RRC KI preprint (ISTC 2916), 2007, KIT mirror https://www.iam.kit.edu/awp/downloads/cegsam/Project%20Nr2916_a.pdf; `KI2916_Borovoi_ISTC2916_preprint.pdf` (md5 fae68078…, image scan) | cites the unpublished 1988 fuel reference book and the 2007 fuel database (per-channel burnup); not yet read in full |
+
+**Not reachable from this network (2026-11-08):** `ibrae.ac.ru` (IBRAE 2010 book, ch. 2) is
+blocked by DNS policy, like `atomas.ru` — not circumvented; `vk.ru` (Karpan ч. 4 гл. 6) refuses
+connections; `nrc.gov` (NUREG-1250) returns 403 to scripted clients; tandfonline (De Geer 2017) needs
+a browser. Karpan's book PDF (`accidont.ru/memo/ChNPP.pdf`) was not tried through the Wayback Machine.
+
+**Rod types — now sourced (supersedes "Rod types — still open" above).** Fig. 11's cell colours give
+Unit 4's own pattern at 01:22:30: **115 РР, 24 АЗ, 24 ПК, 24 УСП, 12 АР, 12 ЛАР** (= 211) and the 12
+ДКЭв. 24 УСП and 24 АЗ agree with INSAG-7 p. 43 for second-stage units. It differs from
+`unit4_channel_map.csv`, which carries Leningrad-2's Fig. 2.3 types plus assumed types on the 32 extra
+sites: **none of the map's 21 УСП sites is an УСП in Fig. 11**. At 01:22:30, 716 cm of bottom-entry УСП
+absorber (64-33 86 cm, 64-43 20, 44-53 120, 44-63 190, 34-13 180, 34-43 20, 34-53 100) is modelled
+as top-entry rods, and 350 cm of top-entry rods (46-21 ЛАР 120, 46-61 РР 140, 36-41 РР 90) is modelled
+as УСП from below. The map has not been changed yet (card #44). ПК is not identified (a top-entry
+rod type, colour distinct from РР and АЗ); ЛАР are the local automatic regulators.
