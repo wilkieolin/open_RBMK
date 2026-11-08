@@ -1,3 +1,5 @@
+> **Retired 2026-11-08.** Tracking moved to the kanban board (`kanban/`, conventions in `CLAUDE.md`). Kept as history; open work from it is on the board.
+
 # Stage 0 Complete: DRAGON5/DONJON5 Toolchain Built
 
 *(Paths in this document are relative to the repository root.)*

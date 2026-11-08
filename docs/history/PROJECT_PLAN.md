@@ -1,3 +1,5 @@
+> **Retired 2026-11-08.** Tracking moved to the kanban board (`kanban/`, conventions in `CLAUDE.md`). Kept as history; open work from it is on the board.
+
 # RBMK-1000 Coupled Neutronics/TH — Project Plan
 
 > **Draglib caveat (2026-09-24).** Every DRAGON number in this document was measured

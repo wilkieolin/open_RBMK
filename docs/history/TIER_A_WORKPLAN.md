@@ -1,3 +1,5 @@
+> **Retired 2026-11-08.** Tracking moved to the kanban board (`kanban/`, conventions in `CLAUDE.md`). Kept as history; open work from it is on the board.
+
 # Tier A Work Order — Offline RBMK Physics (DRAGON5 / DONJON5)
 
 > **Draglib caveat (2026-09-24).** Every DRAGON number in this document was measured

@@ -1,3 +1,5 @@
+> **Retired 2026-11-08.** Tracking moved to the kanban board (`kanban/`, conventions in `CLAUDE.md`). Kept as history; open work from it is on the board.
+
 # Converging DRAGON and OpenMC on the RBMK void effect
 
 *(Paths are relative to the repository root. Evidence and numbers: `PROGRESS.md`, "Method gap:

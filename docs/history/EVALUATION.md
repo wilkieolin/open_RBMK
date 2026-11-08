@@ -1,3 +1,5 @@
+> **Retired 2026-11-08.** Tracking moved to the kanban board (`kanban/`, conventions in `CLAUDE.md`). Kept as history; open work from it is on the board.
+
 # RBMK-1000 / AZ-5 Simulation — Feasibility Evaluation
 
 *Audit date: 2026-09-22. Supersedes the status claims previously in PROGRESS.md and PROJECT_PLAN.md.*

@@ -1,3 +1,5 @@
+> **Retired 2026-11-08.** Tracking moved to the kanban board (`kanban/`, conventions in `CLAUDE.md`). This log is frozen: sections (1)–(49) are summarised as the done cards in `kanban/archived/`, which point back here by section number. Do not append to it.
+
 # RBMK-1000 Coupled Neutronics/TH Model — Progress Log
 
 > **2026-09-22 (1): rewritten after an audit.** The previous version reported Stages 1–3

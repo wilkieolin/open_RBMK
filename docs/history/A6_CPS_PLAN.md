@@ -1,3 +1,5 @@
+> **Retired 2026-11-08.** Tracking moved to the kanban board (`kanban/`, conventions in `CLAUDE.md`). Kept as history; open work from it is on the board.
+
 # A6 — CPS channel cells and rod sites
 
 *(Work order for Tier A step A6, written 2026-09-26 after the method-convergence segment closed.

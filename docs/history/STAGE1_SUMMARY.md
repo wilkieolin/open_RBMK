@@ -1,3 +1,5 @@
+> **Retired 2026-11-08.** Tracking moved to the kanban board (`kanban/`, conventions in `CLAUDE.md`). Kept as history; open work from it is on the board.
+
 # Stages 1-2 Complete: Benchmark Validation
 
 *(Paths in this document are relative to the repository root.)*
