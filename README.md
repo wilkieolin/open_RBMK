@@ -5,10 +5,25 @@ RBMK-1000, built to reproduce the AZ-5 transient of 26 April 1986 and to drive a
 historically accurate mnemonic display: 1661 channel outlet temperatures, 211 rod
 positions, in-core detector readings. Scope stops at fuel failure.
 
-Physics is DRAGON5 (lattice) and DONJON5 (core), cross-checked against OpenMC.
-Current status, results and next steps: **[`docs/report.html`](docs/report.html)**,
-with the working log in [`PROGRESS.md`](PROGRESS.md) and the roadmap in
-[`PROJECT_PLAN.md`](PROJECT_PLAN.md) / [`TIER_A_WORKPLAN.md`](TIER_A_WORKPLAN.md).
+Two engines share the work. **Tier A** is DRAGON5 (lattice) and DONJON5 (core), patched in
+`patches/` and cross-checked against OpenMC; its band of AZ-5 transients is the reference set.
+**Tier B** (`tierb/RBMKCore.jl`) is a Julia/CUDA engine verified against Tier A (gates B0–B4)
+that adds a momentum/pressure channel solver, a core-wide loop model (drums, pumps, legs) and
+post-CHF heat transfer. Tier C, the real-time panel, is not started.
+
+**Status (2026-11):** the AZ-5 band crosses the 01:23:43 alarms; Tier B reproduces DONJON and,
+with the loop model, shows the post-AZ-5 drum-pressure and flow record is not yet reproduced and
+no sourced case reaches fuel fragmentation. Open questions and their evidence are cards on the
+board.
+
+- **Work tracking:** [`kanban/`](kanban/) — open cards; completed milestones in
+  [`kanban/archived/`](kanban/archived/). View with
+  `bash .claude/skills/kanban-ai/scripts/view_board.sh kanban/`.
+- **Working conventions** (machine limits, sourcing rules, how to run): [`CLAUDE.md`](CLAUDE.md).
+- **Sources:** [`sources/README.md`](sources/README.md) (register) and `sources/derived/`.
+- **History:** the detailed log of sections (1)–(49) and the retired plans are in
+  [`docs/history/`](docs/history/) (`PROGRESS.md`, `PROJECT_PLAN.md`, `TIER_A_WORKPLAN.md`,
+  `TIER_B_WORKPLAN.md`, …). `docs/report.html` is a September snapshot.
 
 ## Clean clone
 
@@ -52,12 +67,14 @@ grep -m1 'FINAL KINF' Linux_*/rbmk_cell_a3.result   # 1.304123
 ```
 
 That is the cell on the sourced geometry (2026-09-24 (3)) with the pinned draglib.
-Figures in `docs/report.html`, and PROGRESS.md entries older than 2026-09-24, predate
-both the geometry corrections and the pinned library. The re-baseline is recorded in
-`PROGRESS.md`.
+Figures in `docs/report.html`, and log entries older than 2026-09-24, predate both the
+geometry corrections and the pinned library. The re-baseline is recorded in
+`docs/history/PROGRESS.md`.
 
-Nothing in this project touches the GPU. Every run is CPU-only; peak resident
-set is ~2 GB for a lattice cell and ~1.6 GB for a depleted OpenMC branch.
+Tier A is CPU-only: peak resident set is ~2 GB for a lattice cell and ~1.6 GB for a depleted
+OpenMC branch. Tier B runs its kinetics on the GPU (CUDA.jl) and needs Julia 1.12 with the
+project environment in `tierb/RBMKCore.jl`; a coupled AZ-5 run uses ~10 GB of unified memory —
+see `CLAUDE.md` for the memory rules.
 
 ## Layout
 
@@ -69,8 +86,13 @@ decks/              OUR DRAGON/DONJON input.  Canonical copy.
   common/             the three shared .access hooks every deck links to
   scripts/            one-off analysis helpers
 openmc/             the Monte Carlo cross-check: models, drivers, distilled JSON
-tools/              bootstrap and the two sync scripts
-docs/               the HTML progress report
+patches/            our DONJON/THM/Ganlib patches (applied to 5.1 by tools/apply_patches.sh)
+sources/            source register (README.md) and derived data; the PDFs are gitignored
+tierb/RBMKCore.jl/  Tier B: the Julia/CUDA engine (src/) and its gates and drivers (test/)
+tierb/xs/           Tier B exports and per-deck run outputs (large files gitignored)
+tools/              bootstrap, sync scripts, exports, digitisers, analysis
+kanban/             the work board (kanban-ai skill in .claude/skills/)
+docs/               the September HTML report; docs/history/ holds the frozen log and retired plans
 quarantine/         superseded decks, kept for provenance.  Do not build on these.
 5.1/       (sub)    DRAGON5/DONJON5/TRIVAC5/GANLIB5 5.1.0, upstream, unmodified
 libraries/ (sub)    NEA draglibs, upstream, unmodified
@@ -89,7 +111,7 @@ So `decks/` in this repo is the one true copy and `tools/link_decks.sh`
 symlinks it into the submodule. `rdragon` copies each deck into a scratch
 directory before running it, and `cp` follows symlinks, so a linked deck behaves
 exactly like a real one. There is never a second copy to edit by mistake — which
-is standing rule 6 in `PROGRESS.md`: *a fix that lives in a copy of the file is
+is standing rule 6 (`CLAUDE.md`): *a fix that lives in a copy of the file is
 not a fix.*
 
 The script also writes the submodule's `.git/info/exclude`, so `5.1` reports
