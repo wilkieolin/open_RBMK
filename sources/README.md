@@ -240,3 +240,55 @@ absorber (64-33 86 cm, 64-43 20, 44-53 120, 44-63 190, 34-13 180, 34-43 20, 34-5
 as top-entry rods, and 350 cm of top-entry rods (46-21 ЛАР 120, 46-61 РР 140, 36-41 РР 90) is modelled
 as УСП from below. The map has not been changed yet (card #44). ПК is not identified (a top-entry
 rod type, colour distinct from РР and АЗ); ЛАР are the local automatic regulators.
+
+### Rod construction and types: the sources retrieved by the user (added 2026-11-08, card #44)
+
+The user fetched the sources blocked here and placed them in `sources/` under their own names.
+
+| Tag | Source | Used for |
+|---|---|---|
+| [N1250] | NUREG-1250, *Report on the Accident at the Chernobyl Nuclear Power Station*, US NRC, 1987; `ML071690245.pdf` (md5 51199ec7…) | **Table 2.5 (p. 2-29): 139 РР, 12 ЛАР, 12 АР, 24 АЗ, 24 УСП = 211.** p. 2-30: "With the exception of the AR rods, all the rods have sections to displace water"; РР/АР/АЗ have six B₄C sections, УСП three. Fig. 2.15 (p. 2-31): "USP rods have their displacers on the top and the B₄C absorber on the bottom". Table 2.6: 98.4 cm of B₄C per section, displacer 100 cm per section |
+| [KARVK] | Karpan N.V., *Ответы на возникшие вопросы*, VK post (printed from Firefox by the user, 2026-11-08); `Н.В. Карпан. Ответы на возникшие вопросы. _ VK.pdf` (md5 6ed41c39…, 54 pp.). Not part 4 ch. 6 of his book | **Fig. 3 (p. 24): every CPS depth (cm) at 01:22:30, with УСП, АР and ДКЭв marked** → `derived/karpan_vk_fig3_012230.csv` (by eye). Figs 2, 4–7: 00:39 and the displacer-effect maps. Text: "АР, у которых не было вытеснителей"; 11 rods effective for АЗ (≥ 1 m, excluding УСП and АР) and 164 water columns under displacers at 01:22:30 |
+| [DYAT] | Дятлов А.С., *Чернобыль. Как это было* (PDF ed. by K. Sheffer, v1.0, illustrated with ChNPP documents); `ChNPP.pdf` (md5 faf9cc32…, 191 pp.). **Not Karpan's book**, despite the accidont file name | pp. 80–84: **Unit 4 physical start-up act No. 92/IV, 18.12.1983**: "211 стержней СУЗ с длиной поглощающей части 6 м (длина УСП – 3 м)"; 24 АЗ worth 2.5 β (2.6 β with the CPS circuit voided); CPS voiding +0.1 β; positive reactivity from 2АР inserted 0–2 m; §3.4 recommends removing the АР displacers "установив их в нижние части каналов" (fitting them in the lower parts of the channels), as on Unit 3. Initial load: 1386 ТВК, 234 ДП, 41 empty channels. p. 40 (and [KARVK] quoting DREG): "1ПК вверх/вниз" are АР-regulator signals |
+| [IBRAE10] | Арутюнян Р.В., Большов Л.А., Боровой А.А., Велихов Е.П., Ключников А.А., *Ядерное топливо в объекте «Укрытие»*, ch. 2 (ibrae.ac.ru/contents/201, printed from Firefox by the user); `Наука и образование - … Ядерное топливо в объекте «Укрытие».pdf` (md5 8e45ab45…, 20 pp.) | Table 2.1: 190.2 t U in the core; 1659 ТВС, 1 ДП, 1 empty channel; first-load assemblies at 11–15 MWd/kgU; 0.1147 t U per assembly. Agrees with [PAV]; no per-channel burnup |
+| [DEG17] | De Geer L.-E., Persson C., Rodhe H., "A nuclear jet at Chernobyl around 21:23:45 UTC on April 25, 1986", *Nucl. Technol.* 201 (2018), doi:10.1080/00295450.2017.1384269; `A Nuclear Jet at Chernobyl Around 21 23 45 UTC on April 25 1986.pdf` (md5 4b5934e9…) | post-AZ-5 (Xe-133 release, explosion hypothesis); no pre-accident core data. Not used |
+| [GRS121] | GRS-121, *Tschernobyl – Ten Years After* (English), GRS, 1996; `GRS_121_eng.pdf` (md5 5805a1d7…) | PDF p. 43: 187 of 211 rods enter from the top; "163 … absorber part of approx. 6 m … displacement part of graphite of 4.5 m"; "the other 24 … did not comprise a displacement part" (but see below) |
+| [KM0011] | NUREG/KM-0011, *Critical Heat Flux Data Used to Generate the 2006 Groeneveld CHF Lookup Tables*, 2019; `ML19029B306.pdf` (md5 f2127393…) | the 2006 LUT's database (card on CHF sourcing); not yet used |
+
+**ПК — identified.** [INSAG7-RU] abbreviations: "ПК-АЗ — режим действия группы стержней
+перекомпенсации" (the over-compensation group's operating mode). Fig. 11's 115 РР + 24 ПК = 139 =
+[N1250]'s РР count, so ПК is a 24-rod group **of РР-construction rods**, displacer included. (The
+DREG signals "1ПК вверх/вниз" are the АР regulator's, a different use of the abbreviation.)
+
+**Displacers by type.** Only АР lacks one: [N1250] p. 2-30, [D] p. 12 and PDF p. 38 ("стержни РР, A3 и УСП
+имеют вытеснители … 4960 мм … Стержни АР вытеснителя не имеют"), [INSAG7] §2.2 and [KARVK].
+[KARVK]'s 164 water columns at 01:22:30 reproduce exactly from Fig. 11 + Fig. II-6 only if ЛАР and ПК
+are counted as displacer rods (108 РР + 23 ПК + 22 АЗ + 11 ЛАР), and his 11 АЗ-effective rods
+reproduce too. [GRS121]'s "24 without a displacement part" (presumably АР + ЛАР) is the one
+dissenting source → ЛАР displacer: nominal yes, bracket no (ASSUMPTION for B5).
+- **АР displacer relocated to the channel bottom?** [DYAT] start-up act §3.4 recommends it (1983); whether
+  and where it was fitted on Unit 4 by 1986 is unsourced. The model has water there. ASSUMPTION,
+  bracket: water (nominal) vs a fixed graphite column at the bottom of the 12 АР channels (length
+  unsourced; [D]'s 4960 mm displacer is the upper bound).
+- **УСП displacer.** [D] and [N1250] say УСП rods carry one ([N1250]: above the absorber). [D] PDF p. 38:
+  stroke 7000 mm; fully withdrawn, "верхний конец стержня УСП находится на уровне нижней границы
+  активной зоны", so a withdrawn УСП channel is all water, as modelled. At 01:22:30 no УСП is above
+  1.92 m, which is less than the 3 m absorber. So the leading 1.92 m is absorber unless the displacer leads, which
+  would contradict the rod's purpose. The model's "УСП: no displacer" is therefore right for the
+  01:22:30 state but unsourced as a statement; recorded so.
+
+**Absorber lengths — conflict.** Model: 5 m (РР/АЗ/АР) and 3.5 m (УСП), from [INSAG7] p. 43 (the
+first-stage design history). Unit 4's own start-up act [DYAT]: **6 m and 3 m**; [N1250]: 6 × 98.4 cm
+and 3 × 98.4 cm; [GRS121]: ~6 m; [D] (first stage, 1980): 5.12 m and 3.05 m. The Unit-4 primary wins:
+6 m / 3 m. Effect: nil at 01:22:30 (the deepest rod is 2.64 m; no УСП beyond 1.92 m). During AZ-5,
+only after a rod passes 5 m (≈ 12 s at 0.4 m/s), i.e. outside the first-seconds excursion.
+
+**Depths at 01:22:30 — conflict.** [KARVK] Fig. 3 agrees with Fig. 11 on every УСП, АР and ДКЭв site
+(rod types now confirmed by a second Karpan-sourced map) and with Fig. II-6 to the latter's 10 cm
+rounding at all sites but nine top-entry rods where II-6 prints 0: 62-51 ПК 20 cm, 56-41 13, 52-21 13,
+52-61 80, 40-63 АЗ 60, 36-65 70, 32-45 ЛАР 13, 26-35 33, 26-45 60 (РР unless marked). Fig. 11's
+lower numbers side with [KARVK] at 62-51 (0.2), 52-21 (0.1) and 26-35 (0.3) and with II-6 at 56-41,
+52-61, 40-63, 36-65 and 26-45 (all 0). Totals: II-6 + Fig. 11 УСП 43.6 m; [KARVK] 49.1 m (he states "48
+линейных метров"; his 25 "7 cm" entries are rods just off the upper stop, which II-6 prints as 0).
+Nominal stays II-6 (the IAEA figure, matched by [SKSIM]); [KARVK] is the bracket (+3.6 m of
+top-entry absorber, all in the top 0.8 m).
