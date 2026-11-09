@@ -1,0 +1,30 @@
+# B5 bracket (card #44): the Fig. II-9 t=0 inversion on the re-typed map at Karpan's VK Fig. 3 depths (U4_RODTYPE=fig11 U4_RODDEPTH=karpan_vk_fig3_roddepth.txt, U4_CPSB=1 U4_VOIDB=1).
+# tools/a8_axinvert.py, N=6, start from insag7_fig_II9_t0_axburn_fit_cB.txt (rms 0.0207 on this build); rms 0.0193, k 1.027234, 24 solves. Bottom bundle first.
+0.466644
+0.655902
+0.814367
+0.930505
+1.008605
+1.059753
+1.095140
+1.123041
+1.148232
+1.172479
+1.195333
+1.214955
+1.228904
+1.234864
+1.231248
+1.217595
+1.194669
+1.164245
+1.128639
+1.090070
+1.049973
+1.008326
+0.963038
+0.909513
+0.840720
+0.748466
+0.626826
+0.477951

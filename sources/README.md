@@ -292,3 +292,17 @@ lower numbers side with [KARVK] at 62-51 (0.2), 52-21 (0.1) and 26-35 (0.3) and 
 линейных метров"; his 25 "7 cm" entries are rods just off the upper stop, which II-6 prints as 0).
 Nominal stays II-6 (the IAEA figure, matched by [SKSIM]); [KARVK] is the bracket (+3.6 m of
 top-entry absorber, all in the top 0.8 m).
+
+**Derived for the build (card #44, 2026-11-09).**
+- `derived/unit4_channel_map_fig11.csv` (`tools/retype_unit4_map.py`): `unit4_channel_map.csv` with the 211 rod types
+  from Fig. 11. The rows, sites and depths are unchanged, and the old type is kept as `type_dollezhal`. Built only
+  if [KARVK]'s УСП / АР / ДКЭв sites are the same sites. Read by the generator under `U4_RODTYPE=fig11`.
+- `derived/karpan_vk_fig3_roddepth.txt` (`tools/karpan_roddepth.py`): [KARVK] Fig. 3 depths as a
+  `U4_RODDEPTH` file for that map (211 rods, 49.10 m against II-6's 43.46 m); this is the depth bracket.
+- `derived/insag7_fig_II9_t0_axburn_fit_f11.txt`: the (27) inversion redone on the re-typed map.
+- `derived/a8_fit_pchan_f11.txt`: its channel powers, used by `U4_FLOW=prop`.
+- **АР displacers (start-up act §3.4):** "целесообразно демонтировать вытеснители стержней АР, установив их в
+  нижние части каналов. Такое решение оправдало себя на реакторе III блока ЧАЭС". The act gives no length or
+  position. An in-core fixed displacer in the lower part of the channel would block the АР absorber's own
+  travel to the bottom, so the consistent reading is that it is parked below the active core, where it has no
+  neutronic effect. [KARVK] also counts АР as having no displacer in 1986. This bracket is not built.

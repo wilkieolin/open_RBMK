@@ -20,3 +20,4 @@ and makes the power after that an upper estimate. Cases that concentrate more en
 
 ## Narrative
 - 2026-11-08: Opened from PROGRESS (49) "Next (2)". (by @assistant)
+- 2026-11-09: The #44 Fig. 11 deck (newton, no CHF) hits the axis at **6.00 s** (2000.3 K): its excursion is 6 % larger than the old deck's. Every band-B run on the re-typed deck now needs this card or `B4_CLAMP=1` to reach 7 s. (by @assistant)

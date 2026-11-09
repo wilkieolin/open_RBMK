@@ -21,3 +21,9 @@ worth (brackets A/B), CPS worth, flow, subcooling, B₄C density, pin peaking, s
 
 ## Narrative
 - 2026-11-08: Carried over from the retired Tier B workplan; the failure criterion there (920 kJ/kg) is superseded by PROGRESS (47)'s 120–325 cal/g set. (by @assistant)
+- 2026-11-09: New rod-model brackets from #44 (all generator options; off = byte-identical):
+  - `U4_LARDSP=0` (ЛАР without displacer): static AZ-5 ramp peak +407 against +521 pcm nominal (−22 %), the largest rod bracket;
+  - `U4_RODDEPTH=sources/derived/karpan_vk_fig3_roddepth.txt` (Karpan depths; 49.1 m of rods against 43.5 m): the (27) refit is equally good (rms 0.0193);
+  - `U4_ABSLEN=6` (6 m absorber, 3 m УСП; start-up act).
+
+  Each bracket needs its own (27) refit (`insag7_fig_II9_t0_axburn_fit_f11{nl,kv}.txt`), since the effective burnup is conditioned on the rod state. (by @assistant)

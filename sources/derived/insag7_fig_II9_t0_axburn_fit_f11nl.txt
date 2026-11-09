@@ -1,0 +1,30 @@
+# B5 bracket (card #44): the Fig. II-9 t=0 inversion on the re-typed map with LAR built WITHOUT a displacer (U4_RODTYPE=fig11 U4_LARDSP=0, U4_CPSB=1 U4_VOIDB=1).
+# tools/a8_axinvert.py, N=6, start from insag7_fig_II9_t0_axburn_fit_cB.txt (rms 0.0540 on this build); rms 0.0192, k 1.025156, 59 solves. Bottom bundle first.
+0.477704
+0.665126
+0.819799
+0.931696
+1.006187
+1.054803
+1.088727
+1.116013
+1.141166
+1.165695
+1.188938
+1.208894
+1.223023
+1.228975
+1.225207
+1.211367
+1.188376
+1.158186
+1.123282
+1.086021
+1.047933
+1.009023
+0.967126
+0.917406
+0.852340
+0.762935
+0.642274
+0.491780

@@ -92,6 +92,10 @@ append to it. The retired plans (`TIER_A/B_WORKPLAN`, `PROJECT_PLAN`, …) are i
 
 The band-B AZ-5 deck stem:
 `rbmk_unit4_a7_acco668_pc99b7f3_dev_axf527ca_kin700v40g12shvdfr025fi60cc01dt001_vB65c86e_cB4af83e`.
+With Unit 4's own rod types (card #44: `U4_RODTYPE=fig11`, `U4_PCHAN=…/a8_fit_pchan_f11.txt`,
+`U4_AXBURN=file:…/insag7_fig_II9_t0_axburn_fit_f11.txt`):
+`rbmk_unit4_a7_acco668_pc9f6a01_dev_ax980df8_kin700v40g12shvdfr025fi60cc01dt001_vB65c86e_cB4af83e_rt9f0a8f`
+(its newton run passes T-FUEL 2000 K at 6.0 s; see card #31).
 
 - Regenerate a deck: set the generator environment (see the stem's suffixes; `U4_AXBURN` must be
   the **absolute** path for the `axf527ca` digest) and run the generator; check a known deck

@@ -1,6 +1,6 @@
 ---
 id: 44
-status: todo
+status: doing
 priority: High
 blocked_by: []
 tags: [tier-a, tier-b, neutronics, rods, sourcing]
@@ -40,3 +40,53 @@ device model (`ROD_DSP`, `ROD_ABS`, `ROD_BOT`, AZ-5 groups) in `decks/Donjon/dat
   - **Depth conflict:** at 9 top-entry rods Karpan has 13–80 cm (+3.6 m in all) where Fig. II-6 prints 0. Fig. 11 sides with Karpan at 3 of them and with II-6 at 5. II-6 stays nominal; Karpan becomes a bracket. Extra top absorber pushes flux down, so it does not help #33.
   - **Not useful here:** IBRAE ch. 2 and De Geer 2017 hold no per-channel or rod data. IBRAE confirms 1659 ТВС + 1 ДП + 1 empty channel ([PAV]).
   - **Also in the start-up act** (initial 1983 core, so only a check): АЗ worth 2.5 β; CPS voiding +0.1 β; a positive spike when 2АР was inserted 0–2 m. (by @assistant)
+- 2026-11-09: **Built and run.**
+  - **Map:** `tools/retype_unit4_map.py` → `sources/derived/unit4_channel_map_fig11.csv`. Same rows and depths; `type` from Fig. 11 on all 211 rods, old type kept in `type_dollezhal`. Counts: RR 115, AZ 24, PK 24, USP 24, LAR 12, AR 12 (+ 12 DKEV, 4 KD, 1661 FUEL). The tool checks that Karpan's УСП / АР / ДКЭв sites are the same sites.
+  - **Generator options** (`gen_rbmk_unit4.py`):
+    - `U4_RODTYPE=fig11`: the new map. The stem gets `_rt<md5[:6] of the map>`.
+    - `U4_LARDSP=0`: ЛАР without displacer, a B5 bracket. Stem `nl`.
+    - `U4_ABSLEN=6`: 6 m absorber and 3 m УСП (start-up act). Stem `_L6`.
+    - ПК and ЛАР are built as РР-construction displacer rods, giving 386 devices (was 389).
+  - **Off path:** the old band-B deck and `rbmk_unit4_core_dev.don` regenerate byte-identical. The old newton B4 run, rerun today, gives a trace and shape byte-identical to the 2026-10-23 output.
+  - **Not built: the АР-channel bottom displacer.** [DYAT] §3.4 says only "демонтировать вытеснители стержней АР, установив их в нижние части каналов". It gives no length or position, and a fixed in-core displacer would block the АР stroke. That leaves nothing to build without inventing geometry; the reasoning is in `sources/README.md`.
+  - **(27) axial inversion redone** (`tools/a8_axinvert.py`, Fig. II-9 target):
+    - Old map refit reproduces rms 0.0194, k 1.027709.
+    - Re-typing on the old fit alone gives rms 0.0266.
+    - Refitted, rms 0.0192, k 1.027323, 65 solves → `insag7_fig_II9_t0_axburn_fit_f11.txt`. The effective profile barely moves (bottom bundle g 0.468 → 0.466).
+    - Brackets: ЛАР without displacer (`…_fit_f11nl.txt`) rms 0.0192, k 1.025156; Karpan depths (`…_fit_f11kv.txt`) rms 0.0193, k 1.027234.
+    - Channel powers → `a8_fit_pchan_f11.txt`. New/old normalised ratio is 0.762–1.298 (rms 0.104); Kr 1.618 → 1.663.
+  - **ДКЭв check** (`tools/a8_dkev_compare.py`, accidont Figs 9/10):
+    - axial rms over the 12 strings: 0.054 old → 0.058 new;
+    - string-level r: 0.126 → 0.001.
+    - Fig. 8 radial: r 0.764 → 0.766 (identity), 0.860 → 0.866 (rot90).
+    - So the correct rod types do **not** fix the radial or string-level mismatch. Burnup placement (#36) remains the likely cause.
+  - **Static AZ-5 ramp** (`tools/a8_ramp.py`, `A8_USP=0`), ρ in pcm:
+
+    | advance (cm) | 10 | 25 | 40 | 80 | 160 | 240 | 280 |
+    |---|---|---|---|---|---|---|---|
+    | old (= PROGRESS (35)) | −86.1 | −83.9 | −17.9 | +302.4 | +511.0 | +379.0 | +258.1 |
+    | fig11 | −84.0 | −81.2 | −15.1 | +307.4 | +521.1 | +396.3 | +281.4 |
+    | fig11, ЛАР no displacer | −82.7 | −91.3 | −43.8 | +229.4 | +407.4 | +280.9 | +166.9 |
+
+    Re-typing moves the positive scram by only +10 pcm. The ЛАР-displacer question is worth −114 pcm at the peak (−22 %), the largest rod-model bracket so far.
+  - **Newton B4** (new stem `rbmk_unit4_a7_acco668_pc9f6a01_dev_ax980df8_kin700v40g12shvdfr025fi60cc01dt001_vB65c86e_cB4af83e_rt9f0a8f`, 700 × 0.01 s), old → new:
+
+    | quantity | old | new |
+    |---|---|---|
+    | peak P/P0 | 230.2 at 5.24 s | 244.5 at 5.15 s (+6 %) |
+    | P > 10 P0 from | 3.43 s | 3.38 s |
+    | E(4 s) | 3.19 GJ | 3.42 GJ |
+    | E(6 s) | 52.1 GJ | 55.7 GJ (+7 %) |
+    | Kv at peak | 3.55 | 3.61 |
+    | Kr at peak | 1.44 | 1.47 |
+    | Kz at peak | 2.49 | 2.45 |
+    | max Eadia (6 s) | 200 cal/g | 220 cal/g |
+    | m(Eadia > 100) | 53.0 | 56.6 |
+    | m(Eadia > 160) | 14.4 | 20.1 |
+
+    - The axial peak stays in **bundle 4** in both runs, so re-typing does not lift it (#33).
+    - The new run stopped at **6.00 s**: T-FUEL left the COMPO axis (2000.3 K > 2000 K, `XS.bracket`), as in card #31. A full 7 s run needs `B4_CLAMP=1` or that card.
+  - **Still open:**
+    - an AZ-5 run with `U4_ABSLEN=6` (no effect at t = 0, since the deepest rod is at 2.64 m);
+    - the Karpan-depth AZ-5 ramp (`a8_ramp` takes depths from the map, so it needs a depth override).
+  - **New cards from the sourcing:** #45 (accidont Fig. 7 measured channel flows) and #46 (1983 start-up act CPS check). (by @assistant)

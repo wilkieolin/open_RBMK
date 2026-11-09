@@ -125,6 +125,39 @@ _RD0 = os.environ.get("U4_RODDEPTH", "")
 if _RD0:
     import hashlib as _hl
     _BSFX += "_rd" + _hl.md5(open(_RD0, "rb").read()).hexdigest()[:8]
+# --- Card #44: Unit 4's own rod types and the rod-construction brackets.
+# U4_RODTYPE=fig11 reads sources/derived/unit4_channel_map_fig11.csv
+# (tools/retype_unit4_map.py): the same rows, sites and depths, with the 211 rod
+# types taken from accidont Fig. 11 [ACC] (115 RR, 24 AZ, 24 PK, 24 USP, 12 AR,
+# 12 LAR) instead of Leningrad-2's plus assumed ones.  PK and LAR are built as
+# RR-construction rods WITH the displacer: PK is the 24-rod over-compensation
+# group of RR rods (NUREG-1250 Tab. 2.5: 139 RR = 115 + 24), and every type but
+# AR has a displacer (NUREG-1250 p. 2-30, [D] PDF p. 38, INSAG-7 Sec. 2.2);
+# Karpan's 01:22:30 counts (11 rods effective for AZ, 164 water columns)
+# reproduce only so (sources/README.md "Rod construction and types").
+# U4_LARDSP=0 is the B5 bracket on that: LAR as absorber-only, like AR
+# (GRS-121's "24 without a displacer" read as 12 AR + 12 LAR).
+# U4_ABSLEN=6 is the Unit 4 start-up act's lengths (No. 92/IV, 18.12.1983,
+# Dyatlov pp. 80-84): absorber 6 m, USP 3 m, against INSAG-7 p. 43's 5 m and
+# 3.5 m; displacer and water gap unchanged.  Off, every one of these leaves the
+# deck byte-identical.
+_RT0 = os.environ.get("U4_RODTYPE", "")
+if _RT0:
+    if _RT0 != "fig11":
+        raise SystemExit(f"U4_RODTYPE={_RT0!r}: only 'fig11' is defined")
+    MAP = os.path.join(ROOT, "sources", "derived", "unit4_channel_map_fig11.csv")
+    import hashlib as _hl
+    _BSFX += "_rt" + _hl.md5(open(MAP, "rb").read()).hexdigest()[:6]
+LARDSP = os.environ.get("U4_LARDSP", "1") != "0"
+if not LARDSP:
+    if not _RT0:
+        raise SystemExit("U4_LARDSP=0 needs U4_RODTYPE=fig11: the old map has no LAR")
+    _BSFX += "nl"
+ABSLEN = os.environ.get("U4_ABSLEN", "5")
+if ABSLEN not in ("5", "6"):
+    raise SystemExit("U4_ABSLEN: 5 (INSAG-7 p. 43) or 6 (Unit 4 start-up act)")
+if ABSLEN == "6":
+    _BSFX += "_L6"
 # U4_DEV=1 builds the 211 CPS rods as DONJON ROD-DEVICES (DEVINI:/NEWMAC:)
 # instead of writing their absorber and displacer into the GEO: MIX map.  A8
 # needs this: a base-map rod cannot move, and the mixture map is fixed once
@@ -396,9 +429,12 @@ FUEL_TYPES = {"FUEL"}
 
 # Which lattice positions hold what.  The rod classes differ in construction,
 # not just in where they sit, so they are separated here rather than lumped.
-ROD_DSP = {"RR", "AZ"}          # top-entry: 5 m absorber, 1.25 m water, 4.5 m displacer
+ROD_DSP = {"RR", "AZ", "PK"}    # top-entry: 5 m absorber, 1.25 m water, 4.5 m displacer
 ROD_BANK = {"AZOC"}             # same construction, driven separately by U4_TILT
 ROD_ABS = {"AR"}                # top-entry, absorber only -- no graphite displacer
+# LAR (only in the U4_RODTYPE=fig11 map) carries the displacer unless the
+# U4_LARDSP=0 bracket asks otherwise (see the card #44 block above)
+(ROD_DSP if LARDSP else ROD_ABS).add("LAR")
 ROD_BOT = {"USP"}               # bottom-entry, 3.5 m absorber, no displacer
 DET_TYPES = {"DKEV", "KD"}      # not CPS at all: water-filled tubes in graphite,
                                 # modelled as the CPS water column (approximation)
@@ -429,12 +465,12 @@ M_OF = {"W": M_WAT, "D": M_DSP, "A": M_ABS}
 
 # The rod as built: absorber 5 m, water gap 1.25 m, graphite displacer 4.5 m,
 # measured top-down, i.e. 20 + 5 + 18 = 43 planes of 25 cm.
-N_ABS, N_GAP, N_DSP = 20, 5, 18
+N_ABS, N_GAP, N_DSP = (24 if ABSLEN == "6" else 20), 5, 18
 # USP is the shortened absorber that enters from BELOW and carries no
 # displacer: 3.5 m, i.e. 14 planes (INSAG-7 Sec. 2.2, Fig. 1; A6_CPS_PLAN
 # "Rod types"/"Axial design").  AR is top-entry absorber only, same 5 m
 # absorber as RR/AZ but no graphite under it.
-N_USP = 14
+N_USP = 12 if ABSLEN == "6" else 14
 
 
 def stack(n):
@@ -558,7 +594,7 @@ NAMED = {
 assert [c for c, _ in runs(stack(0))] == [_W, _D, _W]
 assert [n for _, n in runs(stack(0))] == [N_GAP, N_DSP, N_GAP]
 assert runs(stack(5)) == [(_D, 18), (_W, 5), (_A, 5)]
-assert runs(stack(NZ_ACTIVE)) == [(_A, 20), (_W, 8)]
+assert runs(stack(NZ_ACTIVE)) == [(_A, N_ABS), (_W, NZ_ACTIVE - N_ABS)]
 
 # Two half-steps of the sweep, which stack() cannot express because they move
 # only one END of the displacer.  They decompose 'dsp': botD is graphite
@@ -1714,6 +1750,13 @@ CREATE ROD-GR {len([k for k, v in devn.items() if v])}
     nring = len(M_REFL)
     nrod = sum(1 for r in g.values() if r["type"] in ROD_DSP)
     nar = sum(1 for r in g.values() if r["type"] in ROD_ABS)
+    _present = {r["type"] for r in g.values()}
+    dsplab = "/".join(t for t in ("RR", "AZ", "PK", "LAR") if t in ROD_DSP and t in _present)
+    abslab = "/".join(t for t in ("AR", "LAR") if t in ROD_ABS and t in _present)
+    maptxt = (os.path.relpath(MAP, ROOT)
+              + ("" if not _RT0 else " (accidont Fig. 11 rod types)\n*  ")
+              + ("" if LARDSP else "[U4_LARDSP=0: LAR without displacer]\n*  ")
+              + ("" if ABSLEN == "5" else "[U4_ABSLEN=6: absorber 6 m, USP 3 m]\n*  "))
     nusp = sum(1 for r in g.values() if r["type"] in ROD_BOT)
     ndet = sum(1 for r in g.values() if r["type"] in DET_TYPES)
     stackline = " ".join(f"{m}x{n}" for m, n in runs(RODCOL))
@@ -2068,7 +2111,7 @@ ECHO "{tag} KEFF" keff ;"""
 *  Edit the generator, not this file.
 *
 *  {nx} x {ny} x {nz} nodes at {PITCH:.0f} cm.  {ni} x {nj} channel positions from
-*  sources/derived/unit4_channel_map.csv inside a graphite stack of {ncol}
+*  {maptxt} inside a graphite stack of {ncol}
 *  columns ([D]: 2488), bounded by a circle of radius {R_STACK} cells.  Outside
 *  that circle the mixture is 0 -- a virtual volume (USPMIX.f:52), not graphite.
 *
@@ -2077,10 +2120,10 @@ ECHO "{tag} KEFF" keff ;"""
 *  {NZ_ACTIVE} active planes ({NZ_ACTIVE * PITCH:.0f} cm) and {NZ_REFL} reflector planes each end;
 *  {ndistinct} distinct PLANE blocks, the rest written as SAME.
 *
-*  RODS: U4_RODS={RODS}.  {nrod} RR/AZ channels carry the stack
+*  RODS: U4_RODS={RODS}.  {nrod} {dsplab} channels carry the stack
 *  {stackline}
 *  read bottom-up over the active planes (W water, D graphite displacer,
-*  A B4C absorber).  The other {ncps - nrod} CPS positions -- {nar} AR, {nusp} USP and
+*  A B4C absorber).  The other {ncps - nrod} CPS positions -- {nar} {abslab}, {nusp} USP and
 *  {ndet} detector tubes -- are a water column in every variant, so a
 *  difference between two variants is the displacer and absorber alone.
 *

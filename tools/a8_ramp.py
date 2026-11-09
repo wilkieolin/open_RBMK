@@ -23,8 +23,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GEN = os.path.join(ROOT, "decks", "Donjon", "data", "gen_rbmk_unit4.py")
 RUNDIR = os.path.join(ROOT, "5.1", "Donjon")
 BINDIR = os.path.join(RUNDIR, "Linux_aarch64")
-MAP = os.path.join(ROOT, "sources", "derived", "unit4_channel_map.csv")
-CPS = {"RR", "AZ", "AZOC", "AR", "USP"}
+# U4_RODTYPE=fig11 (card #44): the re-typed map the generator then also reads, so the
+# depth file and the deck agree on which rows are rods; PK/LAR exist only there
+MAP = os.path.join(ROOT, "sources", "derived",
+                   "unit4_channel_map_fig11.csv" if os.environ.get("U4_RODTYPE") == "fig11"
+                   else "unit4_channel_map.csv")
+CPS = {"RR", "AZ", "AZOC", "AR", "USP", "PK", "LAR"}
 WORK = "/tmp/a6d_rods"
 # A8_USP=0 leaves the 21 bottom-entry USP rods at their sourced depths.  In
 # 1986 the EPS signal did not drive them: INSAG-7 p. 46 lists "to insert
