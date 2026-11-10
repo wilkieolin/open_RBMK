@@ -27,3 +27,8 @@ worth (brackets A/B), CPS worth, flow, subcooling, B₄C density, pin peaking, s
   - `U4_ABSLEN=6` (6 m absorber, 3 m УСП; start-up act).
 
   Each bracket needs its own (27) refit (`insag7_fig_II9_t0_axburn_fit_f11{nl,kv}.txt`), since the effective burnup is conditioned on the rod state. (by @assistant)
+- 2026-11-09 (later), from #44:
+  - Karpan depths: static AZ-5 ramp peak +485 against +521 pcm (−7 %), with `tools/a8_ramp.py A8_DEPTH=…`.
+  - `U4_ABSLEN=6` is **nil** to 7 s (newton B4 identical to the 6th figure; first static effect at 600 cm of travel, about 14 s). Drop it as a B5 dimension.
+  - The АР-channel bottom displacer has no sourced geometry, so it is not a dimension until one is found.
+  - Ranking of the rod brackets so far by ramp peak: ЛАР displacer (−114 pcm) > Karpan depths (−36) > rod re-typing (+10) > absorber length (0). (by @assistant)

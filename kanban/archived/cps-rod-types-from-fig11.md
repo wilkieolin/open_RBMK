@@ -1,6 +1,6 @@
 ---
 id: 44
-status: doing
+status: done
 priority: High
 blocked_by: []
 tags: [tier-a, tier-b, neutronics, rods, sourcing]
@@ -90,3 +90,22 @@ device model (`ROD_DSP`, `ROD_ABS`, `ROD_BOT`, AZ-5 groups) in `decks/Donjon/dat
     - an AZ-5 run with `U4_ABSLEN=6` (no effect at t = 0, since the deepest rod is at 2.64 m);
     - the Karpan-depth AZ-5 ramp (`a8_ramp` takes depths from the map, so it needs a depth override).
   - **New cards from the sourcing:** #45 (accidont Fig. 7 measured channel flows) and #46 (1983 start-up act CPS check). (by @assistant)
+- 2026-11-09 (later): **Open items closed.**
+  - **Karpan-depth ramp.** `tools/a8_ramp.py` takes a new `A8_DEPTH=<file>` (base depths in `U4_RODDEPTH` format; unset = unchanged). Run with `sources/derived/karpan_vk_fig3_roddepth.txt` and the `…_fit_f11kv.txt` refit; ρ in pcm:
+
+    | advance (cm) | 10 | 25 | 40 | 80 | 160 | 240 | 280 |
+    |---|---|---|---|---|---|---|---|
+    | fig11 nominal | −84.0 | −81.2 | −15.1 | +307.4 | +521.1 | +396.3 | +281.4 |
+    | Karpan depths | −86.3 | −85.1 | −21.0 | +290.2 | +484.9 | +354.3 | +236.9 |
+
+    Karpan's extra 3.6 m of top absorber costs −36 pcm at the peak (−7 %).
+  - **`U4_ABSLEN=6` static ramp.** k is identical to seven significant figures with the nominal at 0–280 cm, and also at 400 and 500 cm. The device input does differ: MAXPOS z 0–600 against 0–500, and DEVGET / MOVCHK / NEWMDV place the absorber at [DELH, DELH + L], read in the Fortran. The difference is invisible because the top is flux-starved: at 500 cm the 164 rods that started at 0 cm cover the top 2.5 m. The bundle shape (`U4_PBUND=1`) puts 0.3–0.6 % of the mean power in the top 1.5 m, which is where the extra metre would sit. The first real difference is at 600 cm, where every rod exposes the core top: −7292 against −4536 pcm. At 40 cm/s that is about 14 s after AZ-5.
+  - **`U4_ABSLEN=6` newton B4**, stem `…_rt9f0a8f_L6`, `B4_CLAMP=1`, against the fig11 nominal also clamped:
+    - the t = 0 dumps (`fmap0.asc`) are byte-identical;
+    - the traces first differ at 5.61 s, in the 7th significant figure;
+    - at 7.00 s, P/P0 37.2697 against 37.2696; E 66.757 GJ in both; shape rows identical.
+
+    The 1983-act absorber length is therefore **nil within the 7 s window**. It is not a B5 dimension for the excursion.
+  - **Fig. 11 deck to 7 s** (clamped): peak 244.5 P0 at 5.15 s (unchanged; the unclamped trace is byte-identical through 5.59 s). E(7 s) 66.76 GJ. TFmax 2025 K. At 7 s: Kv 4.02, max Eadia 264 cal/g, m(Eadia > 100) 68.9, m(Eadia > 160) 35.2, m(Eadia > 240) 3.0. The axial peak is still bundle 4.
+  - **АР-channel bottom displacer:** not built (see the entry above, and `sources/README.md`). It stays unbuildable until a source gives its length and position.
+  - **Acceptance criteria all met** except that bracket, which is recorded as unbuildable rather than assumed. Card closed. (by @assistant)

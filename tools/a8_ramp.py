@@ -37,13 +37,25 @@ WORK = "/tmp/a6d_rods"
 # after it.  The default (1) keeps every result of PROGRESS (24)-(27).
 MOVE_USP = os.environ.get("A8_USP", "1") != "0"
 TAG = "" if MOVE_USP else "_nousp"
+# A8_DEPTH=<file> (card #44): the 01:22:30 base depths from a U4_RODDEPTH-format file (one depth in
+# cm per CPS rod, in map row order, e.g. sources/derived/karpan_vk_fig3_roddepth.txt) in place of
+# the map's depth_cm (Fig. II-6).  Unset = the ramp as before.
+BASE = os.environ.get("A8_DEPTH", "")
+if BASE:
+    TAG += "_d" + os.path.basename(BASE).split(".")[0]
 
 
 def depths(adv):
     rows = [r for r in csv.DictReader(open(MAP)) if r["type"] in CPS]
+    if BASE:
+        base = [float(x) for x in open(BASE).read().split()]
+        if len(base) != len(rows):
+            raise SystemExit(f"{BASE}: {len(base)} depths, {len(rows)} CPS rods in {MAP}")
+    else:
+        base = [float(r["depth_cm"] or 0) for r in rows]
     out = []
-    for r in rows:
-        q = round(float(r["depth_cm"] or 0) / 25.0) * 25.0
+    for r, d0 in zip(rows, base):
+        q = round(d0 / 25.0) * 25.0
         out.append(q if (r["type"] == "USP" and not MOVE_USP)
                    else min(700.0, q + adv))
     path = os.path.join(WORK, "ramp_%+07.2f%s.txt"

@@ -21,3 +21,4 @@ and makes the power after that an upper estimate. Cases that concentrate more en
 ## Narrative
 - 2026-11-08: Opened from PROGRESS (49) "Next (2)". (by @assistant)
 - 2026-11-09: The #44 Fig. 11 deck (newton, no CHF) hits the axis at **6.00 s** (2000.3 K): its excursion is 6 % larger than the old deck's. Every band-B run on the re-typed deck now needs this card or `B4_CLAMP=1` to reach 7 s. (by @assistant)
+- 2026-11-09 (later): The Fig. 11 deck with `B4_CLAMP=1` reaches 7 s with TFmax 2025 K, E(7 s) 66.76 GJ and max Eadia 264 cal/g. It is byte-identical to the unclamped run through 5.59 s, so the clamp acts only on the tail. (by @assistant)
