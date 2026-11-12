@@ -266,6 +266,9 @@ DREG signals "1ПК вверх/вниз" are the АР regulator's, a different u
 are counted as displacer rods (108 РР + 23 ПК + 22 АЗ + 11 ЛАР), and his 11 АЗ-effective rods
 reproduce too. [GRS121]'s "24 without a displacement part" (presumably АР + ЛАР) is the one
 dissenting source → ЛАР displacer: nominal yes, bracket no (ASSUMPTION for B5).
+**Settled 2026-11-11 (project decision):** [N1250] and [KARVK] outweigh [GRS121]'s ambiguous phrase, so ЛАР
+carries a displacer. `U4_LARDSP=0` is kept only as a documented sensitivity (it removes the prompt
+excursion, card #41 2026-11-10) and is not a B5 sampling dimension.
 - **АР displacer relocated to the channel bottom?** [DYAT] start-up act §3.4 recommends it (1983); whether
   and where it was fitted on Unit 4 by 1986 is unsourced. The model has water there. ASSUMPTION,
   bracket: water (nominal) vs a fixed graphite column at the bottom of the 12 АР channels (length
