@@ -1,0 +1,30 @@
+# B5 threshold scan (card #47, member vA): the Fig. II-9 t=0 inversion on the re-typed map with void-worth bracket A (DRAGON void worth, no OpenMC correction) (U4_RODTYPE=fig11, U4_CPSB=1 U4_VOIDB=1 unless overridden: U4_VOIDB=0).
+# tools/a8_axinvert.py, N=6, start from insag7_fig_II9_t0_axburn_fit_cB.txt (rms 0.0266 on this build); rms 0.0192, k 1.027310, 65 solves. Bottom bundle first.
+0.466233
+0.654046
+0.811448
+0.927179
+1.005450
+1.057127
+1.093178
+1.121724
+1.147452
+1.172088
+1.195179
+1.214902
+1.228852
+1.234758
+1.231080
+1.217402
+1.194519
+1.164227
+1.128843
+1.090579
+1.050860
+1.009646
+0.964831
+0.911796
+0.843477
+0.751623
+0.630216
+0.481285

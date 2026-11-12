@@ -21,3 +21,4 @@ run stopped at 5.56 s on an iterate at h = −1.1e7 J/kg (THMPH convergence fail
 
 ## Narrative
 - 2026-11-08: Opened from PROGRESS (49) "Next (2)". (by @assistant)
+- 2026-11-12: Another newton TH failure, seen in #47 member VA (`…pc09539f_dev_ax05f2bf…_cB4af83e_rt9f0a8f`, `B4_CLAMP=1`). At 6.93 s: `THMPH: CONVERGENCE FAILURE (p 6.550842e6, h -354372, t1 273.16, hsat 1.2439e6)`. A negative enthalpy reached THMPH, so a channel update produced an unphysical h before the property call. The same fallback, or a guard on h, would carry it on. (by @assistant)

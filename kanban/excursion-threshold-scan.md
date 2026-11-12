@@ -40,3 +40,21 @@ void worth: `U4_VOIDB`); #44 (Karpan depths `sources/derived/karpan_vk_fig3_rodd
 
 ## Narrative
 - 2026-11-11: Opened at the user's request after #41's ЛАР result; run 1 (K, VA, CA) launched overnight. (by @assistant)
+- 2026-11-12: **Run 1 results.** Each member was refitted to Fig. II-9 and given its own POWER-CHAN, band-B deck and t = 0 dump, then run in newton B4 with `B4_CLAMP=1`. Script: session scratchpad `scan/run1.sh`. New derived files: `a8_fit_pchan_f11kv.txt`, `insag7_fig_II9_t0_axburn_fit_f11vA.txt`, `a8_fit_pchan_f11vA.txt`.
+
+  | member | static ramp peak | peak P/P0 (t) | P > 10 P0 from | E | max Eadia | m(>100 / >160 / >240) | outcome |
+  |---|---|---|---|---|---|---|---|
+  | nominal `…_rt9f0a8f` | +521 pcm | 244.5 (5.15 s) | 3.38 s | 66.76 GJ (7 s) | 264 cal/g | 68.9 / 35.2 / 3.0 | excursion |
+  | **K** Karpan depths `…pcae4d98…_rd603001ac_rt9f0a8f` | +485 pcm | 150.1 (5.63 s) | 3.65 s | 45.88 GJ (7 s) | 187 | 44.3 / 7.2 / 0 | excursion |
+  | **VA** void bracket A `…pc09539f_dev_ax05f2bf…_cB4af83e_rt9f0a8f` | +521 pcm (by construction) | 109.3 (5.12 s) | 3.38 s | 37.91 GJ (6.93 s) | 156 | 27.9 / 0 / 0 | excursion |
+  | ЛАР no displacer (#41 sensitivity) | +407 pcm | 10.05 (6.39 s) | — | 6.57 GJ (7 s) | 29 | 0 | **none** |
+
+  - **Neither sourced bracket crosses the threshold.** Both shrink the excursion: K by −39 % in peak and −31 % in energy, VA by −55 % and −43 %. The ЛАР sensitivity, settled out of B5, is still the only input found that switches it off.
+  - **The static ramp is blind to void worth.** `compo_voidB.py`'s correction is zero at and above 0.72 g/cm³, so VA's (27) refit and static ramp equal the nominal's to every digit (k 1.027323, rms 0.0192). That is by construction, not an error. VA differs only once the coolant voids: its rise matches the nominal to 3.38 s, then is damped. So "≤ ~110 pcm above the threshold" (#41, 2026-11-10) is a margin in **rod-ramp** units only. The dynamic threshold also moves with the void worth, and VA halves the peak without touching the ramp.
+  - **VA stopped at 6.93 s** on a THMPH convergence failure in the newton TH: h = −354 kJ/kg, a state below 0 °C liquid. That is a solver defect, not physics; it is noted on #30. The peak (5.12 s) and the classification are unaffected.
+  - **CA (`U4_CPSB=0`) is withdrawn as a member.** Gap 2 was a corrected **defect**, not a bracket: PROGRESS (35) found production DRAGON 17 % too strong on absorbers and 10 % too weak on displacers against OpenMC, the second method. The uncertainty left on f_ABS / f_DSP is not yet quantified here; it is the proper CPS-worth bracket. Tier B also refuses non-cB decks by design (`b4_coupled.jl:33`). Its static ramp is kept as a check only: +295 pcm peak (k 1.022941, refit rms 0.0194; its fit files are not kept). That agrees with PROGRESS (34): no surge before the correction.
+  - **For B5:**
+    - void worth (gap 3) and rod depths are continuous dimensions with large leverage on the size of the excursion (factor ~2 in peak), but within run 1 they do not decide whether it happens;
+    - the remaining sourced bracket in the threshold direction is their combination;
+    - the sourced ~5 β void worth lies on the other side of B and would enlarge the excursion.
+  - **Next (run 2):** K + VA combined, one newton run; then the members listed as not buildable. (by @assistant)
